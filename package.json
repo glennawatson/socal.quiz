@@ -1,0 +1,27 @@
+{
+  "name": "socal.quiz",
+  "version": "1.0.0",
+  "description": "",
+  "module": "esnext",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "clean": "rimraf dist",
+    "prestart": "npm run clean && npm run build",
+    "start": "func start",
+    "test": "npx vitest"
+  },
+  "dependencies": {
+    "@azure/data-tables": "^13.2.2",
+    "@azure/functions": "^4.5.0",
+    "discord.js": "^14.15.3"
+  },
+  "devDependencies": {
+    "@types/node": "^18.x",
+    "dotenv": "^16.4.5",
+    "rimraf": "^5.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5"
+  },
+  "main": "dist/src/functions/*.js"
+}
