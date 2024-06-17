@@ -1,4 +1,3 @@
-// Variables
 @description('Name of the storage account')
 param storageAccountName string = 'discordquizbotstorage'
 
@@ -14,6 +13,14 @@ param location string = resourceGroup().location
 @secure()
 @description('Discord Bot Token')
 param discordBotToken string
+
+@secure()
+@description('Discord Client ID')
+param discordClientId string
+
+@secure()
+@description('Discord Public Key')
+param discordPublicKey string
 
 // Resource: Storage Account
 resource storageAccount 'Microsoft.Storage/storageAccounts@2022-09-01' = {
@@ -52,7 +59,7 @@ resource functionApp 'Microsoft.Web/sites@2022-09-01' = {
       appSettings: [
         {
           name: 'AzureWebJobsStorage'
-          value: storageAccount.properties.primaryEndpoints.blob
+          value: 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};AccountKey=${listKeys(storageAccount.id, '2022-09-01').keys[0].value};EndpointSuffix=core.windows.net'
         }
         {
           name: 'FUNCTIONS_EXTENSION_VERSION'
@@ -65,6 +72,22 @@ resource functionApp 'Microsoft.Web/sites@2022-09-01' = {
         {
           name: 'DISCORD_BOT_TOKEN'
           value: discordBotToken
+        }
+        {
+          name: 'DISCORD_CLIENT_ID'
+          value: discordClientId
+        }
+        {
+          name: 'DISCORD_PUBLIC_KEY'
+          value: discordPublicKey
+        }
+        {
+          name: 'FUNCTIONS_WORKER_RUNTIME'
+          value: 'node'
+        }
+        {
+          name: 'WEBSITE_NODE_DEFAULT_VERSION'
+          value: '20.x'
         }
       ]
     }
