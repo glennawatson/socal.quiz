@@ -1,5 +1,4 @@
 import { IModalHandlerCommand } from "./discordCommand";
-import { addQuestion } from "../../util/questionStorage";
 import {
   APIChatInputApplicationCommandInteraction,
   APIInteractionResponse,
@@ -18,6 +17,7 @@ import {
 import { v4 as uuidv4 } from "uuid";
 import { Question } from "../../question";
 import { createEphemeralResponse } from "../../util/interactionHelpers";
+import {QuestionStorage} from "../../util/questionStorage";
 
 export class AddQuestionToBankCommand implements IModalHandlerCommand {
   private componentIds = {
@@ -30,6 +30,9 @@ export class AddQuestionToBankCommand implements IModalHandlerCommand {
     answers: Array.from({ length: 4 }, (_, i) => `answer${i + 1}`),
     correctAnswerIndex: "correctAnswerIndex",
   };
+
+  constructor(private readonly questionStorage: QuestionStorage) {
+  }
 
   data(): SlashCommandOptionsOnlyBuilder {
     return new SlashCommandBuilder()
@@ -53,9 +56,8 @@ export class AddQuestionToBankCommand implements IModalHandlerCommand {
       .setRequired(required);
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   public async execute(
-    _: APIChatInputApplicationCommandInteraction,
+    _: APIChatInputApplicationCommandInteraction, // eslint-disable-line @typescript-eslint/no-unused-vars
   ): Promise<APIInteractionResponse> {
     const modal = new ModalBuilder()
       .setCustomId(this.name)
@@ -217,7 +219,7 @@ export class AddQuestionToBankCommand implements IModalHandlerCommand {
       questionShowTimeMs,
     };
 
-    await addQuestion(question);
+    await this.questionStorage.addQuestion(question);
 
     return createEphemeralResponse(`Added question to bank ${bankName}.`);
   }

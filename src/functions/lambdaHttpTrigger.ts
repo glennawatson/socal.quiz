@@ -11,7 +11,9 @@ import {
   InteractionResponseType,
   InteractionType,
 } from "discord-api-types/v10";
-import { throwError } from "../util/errorHelpers"; // Assuming your existing service
+import { throwError } from "../util/errorHelpers";
+import {QuestionStorage} from "../util/questionStorage";
+import {GuildStorage} from "../util/guildStorage"; // Assuming your existing service
 
 // Environment variables
 const token =
@@ -23,8 +25,11 @@ const publicKey =
   process.env.DISCORD_PUBLIC_KEY ??
   throwError("Must have a valid discord public id");
 
+const questionStorage : QuestionStorage = new QuestionStorage();
+const guildStorage : GuildStorage = new GuildStorage();
+
 // Initialize the Discord bot service
-const discordBotService = new DiscordBotService(token, clientId);
+const discordBotService = new DiscordBotService(token, clientId, guildStorage, questionStorage);
 
 export async function interactions(
   request: HttpRequest,

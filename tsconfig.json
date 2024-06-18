@@ -7,7 +7,7 @@
     "sourceRoot": "/",
     "sourceMap": true,
     "strict": true,
-    "moduleResolution":"node",
+    "moduleResolution":"bundler",
     "removeComments": true,
     "forceConsistentCasingInFileNames": true,  
     "esModuleInterop": true,     

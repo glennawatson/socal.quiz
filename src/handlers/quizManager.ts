@@ -1,5 +1,4 @@
 import { QuizState } from "./quizState";
-import { getQuestions } from "../util/questionStorage";
 import {
   APIInteraction,
   APIInteractionResponse,
@@ -17,13 +16,14 @@ import { createEphemeralResponse } from "../util/interactionHelpers";
 import { Question } from "../question";
 import { from, of } from "rxjs";
 import { concatMap, delay, finalize } from "rxjs/operators";
+import {QuestionStorage} from "../util/questionStorage";
 
 export class QuizManager {
   private quizzes: Map<string, QuizState>;
 
   private static readonly SUMMARY_DURATION_MS = 5000; // 5 seconds to show summary
 
-  constructor(private readonly rest: REST) {
+  constructor(private readonly rest: REST, private readonly quizStateStorage : QuestionStorage) {
     this.quizzes = new Map();
   }
 
@@ -31,7 +31,7 @@ export class QuizManager {
     channelId: string,
     questionBankName: string,
   ): Promise<void> {
-    const questions = await getQuestions(questionBankName);
+    const questions = await this.quizStateStorage.getQuestions(questionBankName);
 
     const quiz: QuizState = {
       currentQuestionIndex: 0,

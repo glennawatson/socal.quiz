@@ -18,14 +18,16 @@ import {
 import { isChatInputApplicationCommandInteraction } from "discord-api-types/utils";
 import { REST } from "@discordjs/rest";
 import { createEphemeralResponse } from "../../util/interactionHelpers";
+import {QuestionStorage} from "../../util/questionStorage";
 
 export class CommandManager {
   private readonly commands: Map<string, IDiscordCommand>;
 
   constructor(
-    private botService: DiscordBotService,
-    private clientId: string,
-    private rest: REST,
+    private readonly botService: DiscordBotService,
+    private readonly questionStorage: QuestionStorage,
+    private readonly clientId: string,
+    private readonly rest: REST,
   ) {
     this.commands = new Map();
   }
@@ -73,9 +75,9 @@ export class CommandManager {
     this.registerCommand(new StartQuizCommand(this.botService));
     this.registerCommand(new StopQuizCommand(this.botService));
     this.registerCommand(new NextQuestionCommand(this.botService));
-    this.registerCommand(new AddQuestionToBankCommand());
-    this.registerCommand(new DeleteQuestionFromBankCommand());
-    this.registerCommand(new DeleteQuestionBankCommand());
+    this.registerCommand(new AddQuestionToBankCommand(this.questionStorage));
+    this.registerCommand(new DeleteQuestionFromBankCommand(this.questionStorage));
+    this.registerCommand(new DeleteQuestionBankCommand(this.questionStorage));
 
     const commandData = Object.values(this.commands).map((command) =>
       command.data().toJSON(),

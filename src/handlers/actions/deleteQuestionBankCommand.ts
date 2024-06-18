@@ -7,14 +7,17 @@ import {
   APIChatInputApplicationCommandInteraction,
   APIInteractionResponse,
 } from "discord-api-types/v10";
-import { deleteQuestionBank } from "../../util/questionStorage";
 import {
   createEphemeralResponse,
   generateErrorResponse,
   generateOptionMissingErrorResponse,
 } from "../../util/interactionHelpers";
+import {QuestionStorage} from "../../util/questionStorage";
 
 export class DeleteQuestionBankCommand implements IDiscordCommand {
+  constructor(private readonly questionStorage : QuestionStorage) {
+  }
+
   public data(): SlashCommandOptionsOnlyBuilder {
     return new SlashCommandBuilder()
       .setName(this.name)
@@ -40,7 +43,7 @@ export class DeleteQuestionBankCommand implements IDiscordCommand {
         return generateOptionMissingErrorResponse("name of the question bank");
       }
 
-      await deleteQuestionBank(bankName);
+      await this.questionStorage.deleteQuestionBank(bankName);
 
       return createEphemeralResponse(`Deleted question bank: ${bankName}`);
     } catch (error) {

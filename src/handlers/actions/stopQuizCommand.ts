@@ -37,7 +37,7 @@ export class StopQuizCommand implements IDiscordCommand {
 
       const quizManager = await this.discordBotService.getQuizManager(guildId);
 
-      await quizManager.stopQuiz(interaction.channel.id);
+      quizManager.stopQuiz(interaction.channel.id);
 
       return createEphemeralResponse(`Stopped quiz`);
     } catch (error) {
