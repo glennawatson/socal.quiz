@@ -40,7 +40,7 @@ export class AddQuestionToBankCommand implements IModalHandlerCommand {
       .setDescription("Add a question to a question bank");
   }
 
-  name = "addQuestionToBank";
+  name = "add_question_to_bank";
 
   // Helper function to create text input components
   private createTextInput(

@@ -23,7 +23,7 @@ export class StopQuizCommand implements IDiscordCommand {
       .setDescription("Stop the current quiz");
   }
 
-  name = "stopquiz";
+  name = "stop_quiz";
 
   async execute(
     interaction: APIChatInputApplicationCommandInteraction,

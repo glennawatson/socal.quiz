@@ -23,7 +23,7 @@ export class NextQuestionCommand implements IDiscordCommand {
       .setDescription("Show the next quiz question");
   }
 
-  name = "nextQuestion";
+  name = "next_question";
 
   async execute(
     interaction: APIChatInputApplicationCommandInteraction,

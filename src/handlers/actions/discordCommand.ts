@@ -12,11 +12,15 @@ export interface IDiscordCommand {
     interaction: APIChatInputApplicationCommandInteraction,
   ): Promise<APIInteractionResponse>;
 
-  name: string; // Symbol property (optional)
+  readonly name: string; // Symbol property (optional)
 }
 
 export interface IModalHandlerCommand extends IDiscordCommand {
   handleModalSubmit(
     interaction: APIModalSubmitInteraction,
   ): Promise<APIInteractionResponse>; // Handles modal submission
+}
+
+export function isIDiscordCommand(command: any): command is IDiscordCommand {
+  return (command as IDiscordCommand).data !== undefined;
 }

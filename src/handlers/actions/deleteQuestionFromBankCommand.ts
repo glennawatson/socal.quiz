@@ -36,7 +36,7 @@ export class DeleteQuestionFromBankCommand implements IDiscordCommand {
       );
   }
 
-  name = "deleteQuestionFromBank";
+  name = "delete_question_from_bank";
 
   async execute(
     interaction: APIChatInputApplicationCommandInteraction,

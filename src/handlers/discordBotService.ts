@@ -26,7 +26,7 @@ export class DiscordBotService {
   }
 
   public async start(guildId: string) {
-    await this.commandManager.registerCommands(guildId);
+    await this.commandManager.registerDefaultCommands(guildId);
     await this.guildStorage.markGuildAsRegistered(guildId);
   }
 

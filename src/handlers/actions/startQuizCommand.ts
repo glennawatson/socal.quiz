@@ -5,7 +5,6 @@ import {
   APIInteractionResponse,
 } from "discord-api-types/v10";
 import {
-  createEphemeralResponse,
   generateErrorResponse,
   generateOptionMissingErrorResponse,
 } from "../../util/interactionHelpers";
@@ -29,7 +28,7 @@ export class StartQuizCommand implements IDiscordCommand {
       );
   }
 
-  public name = "startquiz";
+  public name = "start_quiz";
 
   public async execute(
     interaction: APIChatInputApplicationCommandInteraction,
@@ -48,10 +47,7 @@ export class StartQuizCommand implements IDiscordCommand {
       }
 
       const quizManager = await this.discordBotService.getQuizManager(guildId);
-      await quizManager.startQuiz(interaction.channel.id, bankName);
-      return createEphemeralResponse(
-        `Started quiz with question bank: ${bankName}`,
-      );
+      return await quizManager.startQuiz(interaction.channel.id, bankName);
     } catch (error) {
       return generateErrorResponse(error as Error);
     }
