@@ -11,14 +11,20 @@ export class QuestionStorage {
   private quizQuestionsClient: TableClient;
 
   constructor(connectionString?: string) {
-    connectionString = connectionString ?? process.env.AZURE_STORAGE_CONNECTION_STRING;
+    connectionString =
+      connectionString ?? process.env.AZURE_STORAGE_CONNECTION_STRING;
     if (!connectionString) throw Error("Invalid connection string");
 
-    this.quizQuestionsClient = TableClient.fromConnectionString(connectionString, 'QuizQuestions');
+    this.quizQuestionsClient = TableClient.fromConnectionString(
+      connectionString,
+      "QuizQuestions",
+    );
   }
 
   public async getQuestions(bankName: string): Promise<Question[]> {
-    const entitiesIter = this.quizQuestionsClient.listEntities<TableEntity<Question>>({
+    const entitiesIter = this.quizQuestionsClient.listEntities<
+      TableEntity<Question>
+    >({
       queryOptions: {
         filter: odata`PartitionKey eq ${bankName}`,
       },
@@ -51,7 +57,7 @@ export class QuestionStorage {
 
   public async deleteQuestionBank(bankName: string): Promise<void> {
     const entitiesToDelete = this.quizQuestionsClient.listEntities<
-        TableEntity<Question>
+      TableEntity<Question>
     >({
       queryOptions: {
         filter: odata`PartitionKey eq ${bankName}`,
@@ -61,21 +67,22 @@ export class QuestionStorage {
     const deletePromises: Promise<TableDeleteEntityHeaders>[] = [];
     for await (const entity of entitiesToDelete) {
       deletePromises.push(
-          this.quizQuestionsClient.deleteEntity(entity.partitionKey, entity.rowKey),
+        this.quizQuestionsClient.deleteEntity(
+          entity.partitionKey,
+          entity.rowKey,
+        ),
       );
     }
     await Promise.all(deletePromises);
   }
 
   public async deleteQuestion(
-      bankName: string,
-      questionId: string,
+    bankName: string,
+    questionId: string,
   ): Promise<void> {
     await this.quizQuestionsClient.deleteEntity(bankName, questionId);
   }
 }
-
-
 
 function toTableEntity(question: Question): TableEntity<Question> {
   const rowKey = question.questionId || uuidv4();

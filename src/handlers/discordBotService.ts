@@ -6,8 +6,8 @@ import {
   createEphemeralResponse,
   generateErrorResponse,
 } from "../util/interactionHelpers";
-import {GuildStorage} from "../util/guildStorage";
-import {QuestionStorage} from "../util/questionStorage";
+import { GuildStorage } from "../util/guildStorage";
+import { QuestionStorage } from "../util/questionStorage";
 
 export class DiscordBotService {
   private readonly rest: REST;
@@ -22,7 +22,12 @@ export class DiscordBotService {
   ) {
     this.rest = new REST({ version: "10" }).setToken(this.token);
     this.quizManagers = new Map();
-    this.commandManager = new CommandManager(this, this.questionStorage, this.clientId, this.rest);
+    this.commandManager = new CommandManager(
+      this,
+      this.questionStorage,
+      this.clientId,
+      this.rest,
+    );
   }
 
   public async start(guildId: string) {
@@ -50,7 +55,9 @@ export class DiscordBotService {
       }
 
       // Register commands for the guild if not already registered
-      const isRegistered = await this.guildStorage.isGuildRegistered(interaction.guild_id);
+      const isRegistered = await this.guildStorage.isGuildRegistered(
+        interaction.guild_id,
+      );
       if (!isRegistered) {
         await this.start(interaction.guild_id);
       }

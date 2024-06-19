@@ -20,7 +20,3 @@ export interface IModalHandlerCommand extends IDiscordCommand {
     interaction: APIModalSubmitInteraction,
   ): Promise<APIInteractionResponse>; // Handles modal submission
 }
-
-export function isIDiscordCommand(command: any): command is IDiscordCommand {
-  return (command as IDiscordCommand).data !== undefined;
-}

@@ -17,7 +17,7 @@ import {
 import { v4 as uuidv4 } from "uuid";
 import { Question } from "../../question";
 import { createEphemeralResponse } from "../../util/interactionHelpers";
-import {QuestionStorage} from "../../util/questionStorage";
+import { QuestionStorage } from "../../util/questionStorage";
 
 export class AddQuestionToBankCommand implements IModalHandlerCommand {
   private componentIds = {
@@ -31,8 +31,7 @@ export class AddQuestionToBankCommand implements IModalHandlerCommand {
     correctAnswerIndex: "correctAnswerIndex",
   };
 
-  constructor(private readonly questionStorage: QuestionStorage) {
-  }
+  constructor(private readonly questionStorage: QuestionStorage) {}
 
   data(): SlashCommandOptionsOnlyBuilder {
     return new SlashCommandBuilder()

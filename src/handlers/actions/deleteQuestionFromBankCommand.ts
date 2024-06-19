@@ -12,11 +12,10 @@ import {
   generateErrorResponse,
   generateOptionMissingErrorResponse,
 } from "../../util/interactionHelpers";
-import {QuestionStorage} from "../../util/questionStorage";
+import { QuestionStorage } from "../../util/questionStorage";
 
 export class DeleteQuestionFromBankCommand implements IDiscordCommand {
-  constructor(private readonly questionStorage : QuestionStorage) {
-  }
+  constructor(private readonly questionStorage: QuestionStorage) {}
 
   data(): SlashCommandOptionsOnlyBuilder {
     return new SlashCommandBuilder()

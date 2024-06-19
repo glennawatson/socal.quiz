@@ -18,7 +18,7 @@ import {
 import { isChatInputApplicationCommandInteraction } from "discord-api-types/utils";
 import { REST } from "@discordjs/rest";
 import { createEphemeralResponse } from "../../util/interactionHelpers";
-import {QuestionStorage} from "../../util/questionStorage";
+import { QuestionStorage } from "../../util/questionStorage";
 
 export class CommandManager {
   private readonly commands: Map<string, IDiscordCommand>;
@@ -76,27 +76,33 @@ export class CommandManager {
     this.registerCommand(new StopQuizCommand(this.botService));
     this.registerCommand(new NextQuestionCommand(this.botService));
     this.registerCommand(new AddQuestionToBankCommand(this.questionStorage));
-    this.registerCommand(new DeleteQuestionFromBankCommand(this.questionStorage));
+    this.registerCommand(
+      new DeleteQuestionFromBankCommand(this.questionStorage),
+    );
     this.registerCommand(new DeleteQuestionBankCommand(this.questionStorage));
     await this.registerCommandsForGuild(guildId);
   }
 
   public async registerCommandsForGuild(guildId: string) {
-    console.debug(`Sending registrations to the server for ${this.commands.size} commands.`)
-    const commandData = Array.from(this.commands.values()).map((command) => {
-      if (command && typeof command.data === 'function') {
-        return command.data().toJSON();
-      } else {
-        console.error('Invalid command:', command);
-        return null;
-      }
-    }).filter(data => data !== null);
+    console.debug(
+      `Sending registrations to the server for ${this.commands.size} commands.`,
+    );
+    const commandData = Array.from(this.commands.values())
+      .map((command) => {
+        if (command && typeof command.data === "function") {
+          return command.data().toJSON();
+        } else {
+          console.error("Invalid command:", command);
+          return null;
+        }
+      })
+      .filter((data) => data !== null);
 
     try {
       console.log("Started refreshing application (/) commands.");
       await this.rest.post(
-          Routes.applicationGuildCommands(this.clientId, guildId),
-          {body: commandData},
+        Routes.applicationGuildCommands(this.clientId, guildId),
+        { body: commandData },
       );
       console.log("Successfully reloaded application (/) commands.");
     } catch (error) {
