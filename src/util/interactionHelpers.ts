@@ -1,5 +1,4 @@
 import {
-  APIApplicationCommandInteractionDataOption,
   APIInteractionResponse,
   ApplicationCommandOptionType,
   InteractionResponseType,
@@ -18,17 +17,6 @@ export function generateErrorResponse(error: Error): APIInteractionResponse {
     data: {
       content: error.message,
       flags: MessageFlags.Ephemeral,
-    },
-  };
-}
-
-export function createChannelMessageResponse(
-  content: string,
-): APIInteractionResponse {
-  return {
-    type: InteractionResponseType.ChannelMessageWithSource,
-    data: {
-      content,
     },
   };
 }
@@ -76,22 +64,3 @@ Array.prototype.getStringOption = function (optionName: string) {
 
   return option.value as string;
 };
-
-export function getStringOption(
-  options: APIApplicationCommandInteractionDataOption[] | undefined,
-  optionName: string,
-): string | null {
-  const option = options?.find((opt) => opt.name === optionName);
-
-  if (!option) {
-    throw new Error(`The ${optionName} was not specified!`);
-  }
-
-  if (option.type !== ApplicationCommandOptionType.String) {
-    throw new Error(
-      `The ${optionName} was not specified correctly as a string!`,
-    );
-  }
-
-  return option.value as string;
-}
