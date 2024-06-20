@@ -10,7 +10,7 @@ import {
 import {
   createEphemeralResponse,
   generateErrorResponse,
-  generateOptionMissingErrorResponse,
+  generateOptionMissingErrorResponse, getOptionValue,
 } from "../../util/interactionHelpers";
 import { QuestionStorage } from "../../util/questionStorage";
 
@@ -23,7 +23,7 @@ export class DeleteQuestionBankCommand implements IDiscordCommand {
       .setDescription("Delete a question bank")
       .addStringOption((option) =>
         option
-          .setName("questionbankname")
+          .setName("bankname")
           .setDescription("The name of the question bank")
           .setRequired(true),
       );
@@ -36,10 +36,10 @@ export class DeleteQuestionBankCommand implements IDiscordCommand {
   ): Promise<APIInteractionResponse> {
     try {
       const bankName =
-        interaction.data.options?.getStringOption("questionbankname");
+        getOptionValue(interaction.data.options, "bankname");
 
       if (!bankName) {
-        return generateOptionMissingErrorResponse("name of the question bank");
+        return generateOptionMissingErrorResponse("bankname");
       }
 
       await this.questionStorage.deleteQuestionBank(bankName);

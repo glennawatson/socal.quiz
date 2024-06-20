@@ -1,6 +1,5 @@
-import { describe, it, expect, beforeAll  } from 'vitest';
+import { describe, it, expect  } from 'vitest';
 import {
-    ApplicationCommandOptionType,
     InteractionResponseType,
     MessageFlags,
 } from 'discord-api-types/v10';
@@ -66,56 +65,6 @@ describe('interactionHelpers', () => {
                     flags: MessageFlags.Ephemeral,
                 },
             });
-        });
-    });
-
-    describe('Array.prototype.getStringOption', () => {
-        beforeAll(() => {
-            Array.prototype.getStringOption = function (optionName: string) {
-                const option = this.find((opt) => opt.name === optionName);
-
-                if (!option) {
-                    throw new Error(`The ${optionName} was not specified!`);
-                }
-
-                if (option.type !== ApplicationCommandOptionType.String) {
-                    throw new Error(
-                        `The ${optionName} was not specified correctly as a string!`,
-                    );
-                }
-
-                return option.value as string;
-            };
-        });
-
-        it('should return the value of the specified string option', () => {
-            const options = [
-                { name: 'option1', type: ApplicationCommandOptionType.String, value: 'value1' },
-                { name: 'option2', type: ApplicationCommandOptionType.String, value: 'value2' },
-            ];
-
-            const value = options.getStringOption('option1');
-            expect(value).toBe('value1');
-        });
-
-        it('should throw an error if the option is not found', () => {
-            const options = [
-                { name: 'option1', type: ApplicationCommandOptionType.String, value: 'value1' },
-            ];
-
-            expect(() => options.getStringOption('option2')).toThrow(
-                'The option2 was not specified!',
-            );
-        });
-
-        it('should throw an error if the option is not a string', () => {
-            const options = [
-                { name: 'option1', type: ApplicationCommandOptionType.Integer, value: 123 },
-            ];
-
-            expect(() => options.getStringOption('option1')).toThrow(
-                'The option1 was not specified correctly as a string!',
-            );
         });
     });
 });

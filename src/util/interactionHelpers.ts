@@ -1,66 +1,84 @@
 import {
-  APIInteractionResponse,
-  ApplicationCommandOptionType,
-  InteractionResponseType,
-  MessageFlags,
+    APIApplicationCommandInteractionDataOption,
+    APIInteractionResponse,
+    ApplicationCommandOptionType,
+    InteractionResponseType,
+    MessageFlags,
+    ModalSubmitActionRowComponent,
 } from "discord-api-types/v10";
 
-declare global {
-  interface Array<T> {
-    getStringOption(this: T[], optionName: string): string | null;
-  }
-}
-
 export function generateErrorResponse(error: Error): APIInteractionResponse {
-  return {
-    type: InteractionResponseType.ChannelMessageWithSource,
-    data: {
-      content: error.message,
-      flags: MessageFlags.Ephemeral,
-    },
-  };
+    return {
+        type: InteractionResponseType.ChannelMessageWithSource,
+        data: {
+            content: error.message,
+            flags: MessageFlags.Ephemeral,
+        },
+    };
 }
 
 export function generateOptionMissingErrorResponse(
-  optionName: string,
+    optionName: string,
 ): APIInteractionResponse {
-  return {
-    type: InteractionResponseType.ChannelMessageWithSource,
-    data: {
-      content: `The ${optionName} was not specified!`,
-      flags: MessageFlags.Ephemeral,
-    },
-  };
+    return {
+        type: InteractionResponseType.ChannelMessageWithSource,
+        data: {
+            content: `The ${optionName} was not specified!`,
+            flags: MessageFlags.Ephemeral,
+        },
+    };
 }
 
 export function isNullOrWhitespace(input: string | null | undefined): boolean {
-  return !input || input.trim().length === 0;
+    return !input || input.trim().length === 0;
 }
 
 export function createEphemeralResponse(
-  content: string,
+    content: string,
 ): APIInteractionResponse {
-  return {
-    type: InteractionResponseType.ChannelMessageWithSource,
-    data: {
-      content,
-      flags: MessageFlags.Ephemeral,
-    },
-  };
+    return {
+        type: InteractionResponseType.ChannelMessageWithSource,
+        data: {
+            content,
+            flags: MessageFlags.Ephemeral,
+        },
+    };
 }
 
-Array.prototype.getStringOption = function (optionName: string) {
-  const option = this.find((opt) => opt.name === optionName);
 
-  if (!option) {
-    throw new Error(`The ${optionName} was not specified!`);
-  }
+export function getComponentValue(components: ModalSubmitActionRowComponent[], customId: string) {
+    for (const row of components) {
+        for (const component of row.components) {
+            if (component.custom_id === customId) {
+                return component.value;
+            }
+        }
+    }
+    return undefined;
+}
 
-  if (option.type !== ApplicationCommandOptionType.String) {
-    throw new Error(
-      `The ${optionName} was not specified correctly as a string!`,
-    );
-  }
+export function getComponentValueNumber(components: ModalSubmitActionRowComponent[], customId: string): number | undefined {
+    const value = getComponentValue(components, customId);
+    return value ? parseInt(value, 10) : undefined; // Use parseFloat if you expect a float value
+}
 
-  return option.value as string;
-};
+export function getOptionValue(components: APIApplicationCommandInteractionDataOption[] | undefined, customId: string) {
+    if (!components) {
+        return undefined;
+    }
+    for (const component of components) {
+        if (component.name === customId && component.type === ApplicationCommandOptionType.String) {
+            return component.value;
+        }
+    }
+    return undefined;
+}
+
+export function getOptionValueNumber(components: APIApplicationCommandInteractionDataOption[], customId: string): number | undefined {
+    for (const component of components) {
+        if (component.name === customId && component.type === ApplicationCommandOptionType.Number) {
+            return component.value;
+        }
+    }
+    return undefined;
+}

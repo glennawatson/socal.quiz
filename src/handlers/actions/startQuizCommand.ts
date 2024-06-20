@@ -7,6 +7,7 @@ import {
 import {
   generateErrorResponse,
   generateOptionMissingErrorResponse,
+    getOptionValue
 } from "../../util/interactionHelpers";
 import {
   SlashCommandBuilder,
@@ -37,13 +38,13 @@ export class StartQuizCommand implements IDiscordCommand {
       const guildId = interaction.guild_id;
 
       if (!guildId) {
-        return generateOptionMissingErrorResponse("guild id");
+        return generateOptionMissingErrorResponse("guild_id");
       }
 
-      const bankName = interaction.data.options?.getStringOption("bankname");
+      const bankName = getOptionValue(interaction.data.options, 'bankname');
 
       if (!bankName) {
-        return generateOptionMissingErrorResponse("name of the question bank");
+        return generateOptionMissingErrorResponse("bankname");
       }
 
       const quizManager = await this.discordBotService.getQuizManager(guildId);
