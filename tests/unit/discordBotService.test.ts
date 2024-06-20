@@ -46,6 +46,7 @@ describe('DiscordBotService', () => {
 
         quizManagerMock = {
             handleAnswer: vi.fn(),
+
         } as unknown as QuizManager;
 
         discordBotService = new DiscordBotService(

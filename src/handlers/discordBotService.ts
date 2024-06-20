@@ -5,6 +5,7 @@ import {APIInteraction, InteractionType} from "discord-api-types/v10";
 import {createEphemeralResponse, generateErrorResponse,} from "../util/interactionHelpers";
 import {GuildStorage} from "../util/guildStorage";
 import {QuestionStorage} from "../util/questionStorage";
+import "../util/mapExtensions";
 
 export class DiscordBotService {
     private quizManagers: Map<string, Promise<QuizManager>>;
