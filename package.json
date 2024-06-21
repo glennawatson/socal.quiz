@@ -15,12 +15,15 @@
   "dependencies": {
     "@azure/data-tables": "^13.2.2",
     "@azure/functions": "^4.5.0",
+    "@azure/storage-blob": "^12.23.0",
     "@discordjs/builders": "^1.8.2",
     "@discordjs/rest": "^2.3.0",
     "discord-api-types": "^0.37.89",
     "discord-verify": "^1.2.0",
+    "file-type": "^19.0.0",
     "rxjs": "^7.8.1",
     "set-interval-async": "^3.0.3",
+    "sharp": "^0.33.4",
     "uuid": "^10.0.0"
   },
   "devDependencies": {
@@ -28,6 +31,7 @@
     "@types/eslint__js": "^8.42.3",
     "@types/node": "^20.x",
     "@types/uuid": "^9.0.8",
+    "@vitest/coverage-v8": "^1.6.0",
     "dotenv": "^16.4.5",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",

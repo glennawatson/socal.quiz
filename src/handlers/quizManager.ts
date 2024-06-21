@@ -18,14 +18,14 @@ import {
 } from "../util/interactionHelpers";
 import { Question } from "../question";
 import { asyncScheduler, lastValueFrom, SchedulerLike, timer } from "rxjs";
-import { QuestionStorage } from "../util/questionStorage";
+import { IQuestionStorage } from "../util/questionStorage";
 
 export class QuizManager {
   public quizzes: Map<string, QuizState>;
 
   constructor(
     private readonly rest: REST,
-    private readonly quizStateStorage: QuestionStorage,
+    private readonly quizStateStorage: IQuestionStorage,
     public readonly summaryDurationMs = 5000,
   ) {
     this.quizzes = new Map();
@@ -43,7 +43,7 @@ export class QuizManager {
     const questions =
       await this.quizStateStorage.getQuestions(questionBankName);
 
-    if (!questions) {
+    if (!questions || questions.length === 0) {
       return createEphemeralResponse(
         `There are no valid questions in the question bank ${questionBankName}`,
       );
@@ -57,7 +57,7 @@ export class QuizManager {
     channelId: string,
     scheduler: SchedulerLike = asyncScheduler,
   ): Promise<APIInteractionResponse> {
-    if (questions.length == 0) {
+    if (questions.length === 0) {
       return createEphemeralResponse("There are no valid questions");
     }
 
@@ -151,8 +151,12 @@ export class QuizManager {
         text: "Select the correct answer by clicking the buttons below.",
       });
 
-    if (question.imageUrl) {
-      embed.setImage(question.imageUrl);
+    if (question.imagePartitionKey) {
+      const imageUrl = await this.quizStateStorage.getQuestionImagePresignedUrl(
+        question.bankName,
+        question.questionId,
+      );
+      embed.setImage(imageUrl);
     }
 
     const buttons = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -198,8 +202,13 @@ export class QuizManager {
             : ""),
       );
 
-    if (question.explanationImageUrl) {
-      summaryEmbed.setImage(question.explanationImageUrl);
+    if (question.explanationImagePartitionKey) {
+      const imageUrl =
+        await this.quizStateStorage.getExplanationImagePresignedUrl(
+          question.bankName,
+          question.questionId,
+        );
+      summaryEmbed.setImage(imageUrl);
     }
 
     await this.rest.post(Routes.channelMessages(channelId), {

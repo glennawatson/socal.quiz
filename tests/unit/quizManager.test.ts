@@ -1,731 +1,790 @@
-import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-    APIInteraction,
-    APIInteractionResponseChannelMessageWithSource,
-    APIMessage,
-    APIMessageButtonInteractionData,
-    APIMessageComponentInteraction,
-    APIUser,
-    ChannelType,
-    ComponentType,
-    GuildMemberFlags,
-    InteractionResponseType,
-    InteractionType,
-    MessageType,
-    RESTPostAPIChannelMessageJSONBody,
-    Routes,
-    UserFlags,
+  APIInteraction,
+  APIInteractionResponseChannelMessageWithSource,
+  APIMessage,
+  APIMessageComponentInteraction,
+  APIUser,
+  ApplicationCommandType,
+  ChannelType,
+  ComponentType,
+  GuildMemberFlags,
+  InteractionResponseType,
+  InteractionType,
+  MessageActivityType,
+  MessageFlags,
+  MessageType,
+  RESTPostAPIChannelMessageJSONBody,
+  Routes,
 } from "discord-api-types/v10";
-import {QuizManager} from "../../src/handlers/quizManager";
-import {Question} from "../../src/question";
-import {QuizState} from "../../src/handlers/quizState";
-import {createEphemeralResponse} from "../../src/util/interactionHelpers";
-import {asyncScheduler, SchedulerLike} from "rxjs";
-import {EmbedBuilder} from "@discordjs/builders";
+import { QuizManager } from "../../src/handlers/quizManager";
+import { Question } from "../../src/question";
+import { QuizState } from "../../src/handlers/quizState";
+import { createEphemeralResponse } from "../../src/util/interactionHelpers";
+import { asyncScheduler, SchedulerLike } from "rxjs";
+import { EmbedBuilder } from "@discordjs/builders";
 
 describe("QuizManager", () => {
-    let quizManager: QuizManager;
-    let postSpy: any;
-    let quizStateStorageMock: any;
-    let questions: Question[];
-    let testScheduler: SchedulerLike;
+  let quizManager: QuizManager;
+  let postSpy: ReturnType<typeof vi.fn>;
+  let questionStorageMock: any;
+  let questions: Question[];
+  let testScheduler: SchedulerLike;
 
-    const channelId = "channel123";
+  const channelId = "channel123";
 
-    beforeEach(() => {
-        // vi.useFakeTimers();
-        vi.useRealTimers();
+  const createAPIUser = (id: string): APIUser => ({
+    id,
+    username: "user",
+    discriminator: "0001",
+    avatar: null,
+    bot: false,
+    system: false,
+    mfa_enabled: false,
+    global_name: "",
+    banner: null,
+    accent_color: null,
+    locale: "en-US",
+    verified: true,
+    email: null,
+  });
 
-        // Mock REST
-        const rest = {
-            post: vi.fn(),
-        };
+  const createAPIMessage = (channelId: string, userId: string): APIMessage => ({
+    id: "message1",
+    channel_id: channelId,
+    author: createAPIUser(userId),
+    content: "",
+    timestamp: new Date().toISOString(),
+    edited_timestamp: null,
+    tts: false,
+    mention_everyone: false,
+    mentions: [],
+    mention_roles: [],
+    attachments: [],
+    embeds: [],
+    pinned: false,
+    type: MessageType.Default,
+    mention_channels: [],
+    webhook_id: "",
+    activity: { type: MessageActivityType.Join },
+    application: {},
+    message_reference: { channel_id: channelId },
+    flags: MessageFlags.Urgent,
+    referenced_message: null,
+    components: [],
+  });
 
-        postSpy = rest.post;
+  const createAPIMessageComponentInteraction = (
+    channelId: string,
+    userId: string,
+    customId: string,
+  ): APIMessageComponentInteraction => ({
+    type: InteractionType.MessageComponent,
+    data: { custom_id: customId, component_type: ComponentType.Button },
+    member: {
+      user: createAPIUser(userId),
+      roles: [],
+      premium_since: null,
+      permissions: "0",
+      pending: false,
+      nick: null,
+      mute: false,
+      joined_at: new Date().toISOString(),
+      deaf: false,
+      communication_disabled_until: null,
+      flags: GuildMemberFlags.CompletedOnboarding,
+    },
+    user: createAPIUser(userId),
+    channel_id: channelId,
+    channel: { id: channelId, type: ChannelType.GuildVoice },
+    message: createAPIMessage(channelId, userId),
+    guild_id: "guild123",
+    app_permissions: "0",
+    locale: "en-US",
+    id: "interaction1",
+    application_id: "application1",
+    token: "token",
+    version: 1,
+    entitlements: [],
+    authorizing_integration_owners: {},
+  });
 
-        // Mock quizStateStorage
-        quizStateStorageMock = {
-            getQuestions: vi.fn(),
-        };
+  beforeEach(() => {
+    vi.useRealTimers();
 
-        testScheduler = asyncScheduler;
+    // Mock REST
+    const rest = {
+      post: vi.fn(),
+    };
 
-        quizManager = new QuizManager(rest as any, quizStateStorageMock, 20);
+    vi.mocked;
 
-        // Mock Questions
-        questions = [
-            {
-                bankName: "bank1",
-                questionId: "q1",
-                question: "What is 2 + 2?",
-                answers: [
-                    {answerId: "a1", answer: "3"},
-                    {answerId: "a2", answer: "4"},
-                    {answerId: "a3", answer: "5"},
-                    {answerId: "a4", answer: "6"},
-                ],
-                correctAnswerIndex: 1, // Index of the correct answer
-                questionShowTimeMs: 50,
-            },
-            {
-                bankName: "bank1",
-                questionId: "q2",
-                question: "What is the capital of France?",
-                answers: [
-                    {answerId: "b1", answer: "Berlin"},
-                    {answerId: "b2", answer: "Paris"},
-                    {answerId: "b3", answer: "Madrid"},
-                    {answerId: "b4", answer: "Rome"},
-                ],
-                correctAnswerIndex: 1,
-                questionShowTimeMs: 50,
-            },
-        ];
-    });
+    postSpy = rest.post;
 
-    afterEach(() => {
-        // vi.runOnlyPendingTimers();
-        vi.useRealTimers();
-        vi.resetAllMocks();
-    });
+    // Mock quizStateStorage
+    questionStorageMock = {
+      getQuestions: vi.fn(),
+      deleteQuestionBank: vi.fn(),
+      deleteQuestion: vi.fn(),
+      getPresignedUrl: vi.fn(),
+      getQuestionImagePresignedUrl: vi.fn(),
+      getExplanationImagePresignedUrl: vi.fn(),
+      generateAndAddQuestion: vi.fn(),
+      generateQuestion: vi.fn(),
+    };
 
-    it("should start a quiz and post the first question", async () => {
-        const questionBankName = "bank1";
+    testScheduler = asyncScheduler;
 
-        quizStateStorageMock.getQuestions.mockResolvedValue(questions);
+    quizManager = new QuizManager(rest as any, questionStorageMock, 20);
 
-        // Start the quiz
-        await quizManager.startQuiz(channelId, questionBankName, testScheduler);
+    // Mock Questions
+    questions = [
+      {
+        bankName: "bank1",
+        questionId: "q1",
+        question: "What is 2 + 2?",
+        answers: [
+          { answerId: "a1", answer: "3" },
+          { answerId: "a2", answer: "4" },
+          { answerId: "a3", answer: "5" },
+          { answerId: "a4", answer: "6" },
+        ],
+        correctAnswerIndex: 1,
+        questionShowTimeMs: 50,
+      },
+      {
+        bankName: "bank1",
+        questionId: "q2",
+        question: "What is the capital of France?",
+        answers: [
+          { answerId: "b1", answer: "Berlin" },
+          { answerId: "b2", answer: "Paris" },
+          { answerId: "b3", answer: "Madrid" },
+          { answerId: "b4", answer: "Rome" },
+        ],
+        correctAnswerIndex: 1,
+        questionShowTimeMs: 50,
+      },
+    ];
+  });
 
-        console.log('finished quiz interaction for this test');
-        // Expected message body
-        const expectedMessageBody = {
-            body: {
-                embeds: [
-                    {
-                        title: "Quiz Question",
-                        description: `**Question**: What is 2 + 2?\nA: 3\nB: 4\nC: 5\nD: 6`,
-                        footer: {
-                            text: "Select the correct answer by clicking the buttons below.",
-                        },
-                    },
-                ],
-                components: [
-                    {
-                        type: 1,
-                        components: [
-                            {custom_id: "answer_a1", label: "A", style: 1, type: 2},
-                            {custom_id: "answer_a2", label: "B", style: 1, type: 2},
-                            {custom_id: "answer_a3", label: "C", style: 1, type: 2},
-                            {custom_id: "answer_a4", label: "D", style: 1, type: 2},
-                        ],
-                    },
-                ],
-            },
-        };
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.resetAllMocks();
+  });
 
-        // Assert
-        expect(quizStateStorageMock.getQuestions).toHaveBeenCalledWith(
-            questionBankName
-        );
-        expect(postSpy).toHaveBeenCalledWith(
-            Routes.channelMessages(channelId),
-            expectedMessageBody
-        );
-    });
+  it("should start a quiz and post the first question", async () => {
+    const questionBankName = "bank1";
 
-    it("should handle a correct answer", async () => {
-        // Set up quiz state with active users
-        const quizState: QuizState = {
-            currentQuestionId: questions[0]?.questionId,
-            questionBank: questions,
-            activeUsers: new Map([["user123", 0]]), // User with initial score of 0
-            correctUsersForQuestion: new Set(),
-            quizSubscription: null,
-            channelId,
-            answeredUsersForQuestion: new Set(),
-        };
-        quizManager.quizzes.set(channelId, quizState);
+    questionStorageMock.getQuestions.mockResolvedValue(questions);
 
-        const interaction: APIMessageComponentInteraction = {
-            type: InteractionType.MessageComponent,
-            data: {
-                custom_id: `answer_${questions[0]?.answers[questions[0]?.correctAnswerIndex]?.answerId}`, // Custom ID for the correct answer
-            },
-            member: {user: {id: "user123"}},
-            guild_id: "guild123",
-            channel_id: channelId,
-            channel: {id: channelId},
-        } as any;
+    // Start the quiz
+    await quizManager.startQuiz(channelId, questionBankName, testScheduler);
 
-        const response = await quizManager.handleAnswer(interaction) as APIInteractionResponseChannelMessageWithSource;
+    // Expected message bodies (for each question and summary)
+    const expectedMessageBodies = [
+      {
+        // First question
+        embeds: [
+          expect.objectContaining({
+            description: expect.stringContaining("What is 2 + 2?"),
+          }),
+        ],
+        components: [expect.objectContaining({ type: 1 })], // Button component
+      },
+      {
+        // Summary for the first question
+        embeds: [
+          expect.objectContaining({
+            title: expect.stringContaining("Summary for Question 1"),
+          }),
+        ],
+      },
+      {
+        // Second question
+        embeds: [
+          expect.objectContaining({
+            description: expect.stringContaining(
+              "What is the capital of France?",
+            ),
+          }),
+        ],
+        components: [expect.objectContaining({ type: 1 })], // Button component
+      },
+      {
+        // Summary for the second question
+        embeds: [
+          expect.objectContaining({
+            title: expect.stringContaining("Summary for Question 2"),
+          }),
+        ],
+      },
+      {
+        // Final scores
+        embeds: [expect.objectContaining({ title: "Quiz Scores" })],
+      },
+    ];
 
-        // Assert
-        expect(response.type).toBe(InteractionResponseType.ChannelMessageWithSource);
-        expect(response.data.content).toBe("Correct!");
-        expect(quizState.activeUsers.get("user123")).toBe(1);
-        expect(quizState.correctUsersForQuestion.has("user123")).toBe(true);
-    });
+    // Assert that the postSpy was called with the expected message bodies
+    expect(postSpy).toHaveBeenCalledTimes(expectedMessageBodies.length);
 
-    it("should send a question summary", async () => {
-        // Set up quiz state
-        const quizState: QuizState = {
-            currentQuestionId: questions[0]?.questionId,
-            questionBank: questions,
-            activeUsers: new Map(),
-            correctUsersForQuestion: new Set(),
-            quizSubscription: null,
-            channelId,
-            answeredUsersForQuestion: new Set(),
-        };
-        quizManager.quizzes.set(channelId, quizState);
+    // Ensure the correct order of calls with the right data
+    expectedMessageBodies.forEach((body, index) => {
+      expect(postSpy).toHaveBeenNthCalledWith(
+        index + 1,
+        Routes.channelMessages(channelId),
+        { body },
+      );
 
-        const questionIndex = 0;
-
-        const currentQuestion = questions[questionIndex];
-
-        expect(currentQuestion).toBeDefined();
-
-        if (!currentQuestion) throw Error();
-
-        await quizManager.sendQuestionSummary(channelId, currentQuestion, 1);
-
-        const expectedMessageBody = {
-            body: {
-                embeds: [
-                    {
-                        title: `Summary for Question 1`,
-                        description: `0 user(s) answered correctly!\nThe correct answer was: ${questions[questionIndex]?.answers[questions[questionIndex]?.correctAnswerIndex]?.answer ?? ''}`
-                    }
-                ]
-            },
-        };
-
-        expect(postSpy).toHaveBeenCalledWith(
-            Routes.channelMessages(channelId),
-            expectedMessageBody
-        );
-    });
-
-    it("should show scores correctly", async () => {
-        const quizState: QuizState = {
-            // ... (your quiz state setup)
-            currentQuestionId: questions[0]?.questionId,
-            questionBank: questions,
-            activeUsers: new Map([
-                ["user1", 2],
-                ["user2", 1],
-                ["user3", 3],
-            ]),
-            correctUsersForQuestion: new Set(["user1", "user2", "user3"]),
-            quizSubscription: null,
-            channelId: channelId,
-            answeredUsersForQuestion: new Set(),
-        };
-
-        await quizManager.showScores(quizState);
-
-        const expectedDescription =
-            "<@user3>: 3 points\n<@user1>: 2 points\n<@user2>: 1 points\n";
-
-        const expectedEmbed = new EmbedBuilder()
-            .setTitle("Quiz Scores")
-            .setDescription(expectedDescription);
-
-        expect(postSpy).toHaveBeenCalledWith(
-            Routes.channelMessages(channelId),
-            {
-                body: {
-                    embeds: [expectedEmbed.toJSON()],
-                },
-            }
-        );
-
-        expect(postSpy).toHaveBeenCalledWith(
-            Routes.channelMessages(channelId),
-            {
-                body: {
-                    embeds: [expectedEmbed.toJSON()],
-                },
-            }
-        );
-    });
-
-    it("should move to the next question", async () => {
-        // Arrange
-        quizManager.quizzes.set(channelId, {
-            currentQuestionId: questions[0]?.questionId,
-            questionBank: questions,
-            activeUsers: new Map(),
-            correctUsersForQuestion: new Set(),
-            quizSubscription: null,
-            channelId: channelId,
-            answeredUsersForQuestion: new Set(),
-        });
-
-        // Act
-        await quizManager.nextQuizQuestion(channelId);
-
-        const expectedMessageBody = {
-            body: {
-                embeds: [
-                    {
-                        title: "Quiz Question",
-                        description: `**Question**: What is the capital of France?\nA: Berlin\nB: Paris\nC: Madrid\nD: Rome`,
-                        footer: {
-                            text: "Select the correct answer by clicking the buttons below.",
-                        },
-                    },
-                ],
-                components: [
-                    {
-                        type: 1,
-                        components: [
-                            {custom_id: "answer_b1", label: "A", style: 1, type: 2},
-                            {custom_id: "answer_b2", label: "B", style: 1, type: 2},
-                            {custom_id: "answer_b3", label: "C", style: 1, type: 2},
-                            {custom_id: "answer_b4", label: "D", style: 1, type: 2},
-                        ],
-                    },
-                ],
-            },
-        };
-
-        expect(postSpy).toHaveBeenCalledWith(
-            Routes.channelMessages(channelId),
-            expectedMessageBody
-        );
-    });
-
-    it("should handle an incorrect answer", async () => {
-        const quizState: QuizState = {
-            currentQuestionId: questions[0]?.questionId,
-            questionBank: questions,
-            activeUsers: new Map([["user123", 0]]), // User with initial score of 0
-            correctUsersForQuestion: new Set(),
-            quizSubscription: null,
-            answeredUsersForQuestion: new Set(),
-            channelId,
-        };
-
-        quizManager.quizzes.set(channelId, quizState);
-
-        const interactionData: APIMessageButtonInteractionData = {
-            custom_id: `answer_${questions[0]?.answers[2]?.answerId}`, // incorrect answer id.
-            component_type: ComponentType.Button
+      // Check if this call is for a question (not a summary or scores)
+      if (index % 2 === 0) {
+        const questionIndex = index / 2; // Get the corresponding question index
+        const call = postSpy.mock.calls[index];
+        if (!call) {
+          throw new Error("hey not found here");
         }
 
-        const author: APIUser = {
-            avatar: '', discriminator: "", global_name: '', id: "123", username: "123"
+        const embed = call[1].body.embeds?.[0];
 
+        // Check if the image is present only when it's expected AND the embed exists
+        if (questions[questionIndex]?.imagePartitionKey && embed) {
+          expect(embed).toHaveProperty("image");
+        } else if (embed) {
+          // Ensure the embed is not undefined before checking for the absence of "image"
+          expect(embed).not.toHaveProperty("image");
         }
+      }
+    });
+  });
 
-        const apiMessage: APIMessage = {
-            attachments: [],
-            author: author,
-            content: "",
-            edited_timestamp: '',
-            embeds: [],
-            mention_everyone: false,
-            mention_roles: [],
-            mentions: [],
-            pinned: false,
-            timestamp: "",
-            tts: false,
-            id: '123',
-            channel_id: channelId,
-            type: MessageType.ChatInputCommand
-        }
+  it("should handle a correct answer", async () => {
+    // Set up quiz state with active users
+    const quizState: QuizState = {
+      currentQuestionId: questions[0]?.questionId,
+      questionBank: questions,
+      activeUsers: new Map([["user123", 0]]), // User with initial score of 0
+      correctUsersForQuestion: new Set(),
+      quizSubscription: null,
+      channelId,
+      answeredUsersForQuestion: new Set(),
+    };
+    quizManager.quizzes.set(channelId, quizState);
 
-        const interaction: APIMessageComponentInteraction = {
-            app_permissions: "",
-            application_id: "",
-            authorizing_integration_owners: {},
-            channel: {id: channelId, type: ChannelType.GuildVoice},
-            channel_id: channelId,
-            data: interactionData,
-            entitlements: [],
-            id: "",
-            locale: 'en-US',
-            message: apiMessage,
-            token: "",
-            type: InteractionType.MessageComponent,
-            version: 1,
-            member: {
-                user: author,
-                roles: [],
-                permissions: '',
-                joined_at: '',
-                deaf: false,
-                mute: false,
-                flags: GuildMemberFlags.CompletedOnboarding
-            }
-        };
+    const interaction = createAPIMessageComponentInteraction(
+      channelId,
+      "user123",
+      `answer_${questions[0]?.answers[questions[0]?.correctAnswerIndex]?.answerId}`,
+    );
 
-        const response = await quizManager.handleAnswer(interaction) as APIInteractionResponseChannelMessageWithSource;
+    const response = (await quizManager.handleAnswer(
+      interaction,
+    )) as APIInteractionResponseChannelMessageWithSource;
 
-        expect(response.type).toBe(InteractionResponseType.ChannelMessageWithSource);
-        expect(response.data.content).toBe("Incorrect!");
-        expect(quizState.activeUsers.get("user123")).toBe(0); // Score should not change
+    // Assert
+    expect(response.type).toBe(
+      InteractionResponseType.ChannelMessageWithSource,
+    );
+    expect(response.data.content).toBe("Correct!");
+    expect(quizState.activeUsers.get("user123")).toBe(1);
+    expect(quizState.correctUsersForQuestion.has("user123")).toBe(true);
+  });
+
+  it("should send a question summary", async () => {
+    // Set up quiz state
+    const quizState: QuizState = {
+      currentQuestionId: questions[0]?.questionId,
+      questionBank: questions,
+      activeUsers: new Map(),
+      correctUsersForQuestion: new Set(),
+      quizSubscription: null,
+      channelId,
+      answeredUsersForQuestion: new Set(),
+    };
+    quizManager.quizzes.set(channelId, quizState);
+
+    const questionIndex = 0;
+
+    const currentQuestion = questions[questionIndex];
+
+    expect(currentQuestion).toBeDefined();
+
+    if (!currentQuestion) throw Error();
+
+    await quizManager.sendQuestionSummary(channelId, currentQuestion, 1);
+
+    const expectedMessageBody = {
+      body: {
+        embeds: [
+          {
+            title: `Summary for Question 1`,
+            description: `0 user(s) answered correctly!\nThe correct answer was: ${
+              questions[questionIndex]?.answers[
+                questions[questionIndex]?.correctAnswerIndex
+              ]?.answer ?? ""
+            }`,
+          },
+        ],
+      },
+    };
+
+    expect(postSpy).toHaveBeenCalledWith(
+      Routes.channelMessages(channelId),
+      expectedMessageBody,
+    );
+  });
+
+  it("should show scores correctly", async () => {
+    const quizState: QuizState = {
+      currentQuestionId: questions[0]?.questionId,
+      questionBank: questions,
+      activeUsers: new Map([
+        ["user1", 2],
+        ["user2", 1],
+        ["user3", 3],
+      ]),
+      correctUsersForQuestion: new Set(["user1", "user2", "user3"]),
+      quizSubscription: null,
+      channelId: channelId,
+      answeredUsersForQuestion: new Set(),
+    };
+
+    await quizManager.showScores(quizState);
+
+    const expectedDescription =
+      "<@user3>: 3 points\n<@user1>: 2 points\n<@user2>: 1 points\n";
+
+    const expectedEmbed = new EmbedBuilder()
+      .setTitle("Quiz Scores")
+      .setDescription(expectedDescription);
+
+    expect(postSpy).toHaveBeenCalledWith(Routes.channelMessages(channelId), {
+      body: {
+        embeds: [expectedEmbed.toJSON()],
+      },
     });
 
-    it("should handle an invalid interaction type", async () => {
-        const interaction: APIInteraction = {
-            type: InteractionType.ApplicationCommand, // Invalid interaction type
-            // ... (other properties)
-        } as any;
+    expect(postSpy).toHaveBeenCalledWith(Routes.channelMessages(channelId), {
+      body: {
+        embeds: [expectedEmbed.toJSON()],
+      },
+    });
+  });
 
-        const response = await quizManager.handleAnswer(interaction);
-
-        expect(response).toEqual(createEphemeralResponse("Invalid interaction type."));
+  it("should move to the next question", async () => {
+    // Arrange
+    quizManager.quizzes.set(channelId, {
+      currentQuestionId: questions[0]?.questionId,
+      questionBank: questions,
+      activeUsers: new Map(),
+      correctUsersForQuestion: new Set(),
+      quizSubscription: null,
+      channelId: channelId,
+      answeredUsersForQuestion: new Set(),
     });
 
-    it("should handle an empty question bank", async () => {
-        // Mock an empty question bank
-        quizStateStorageMock.getQuestions.mockResolvedValue([]);
+    // Act
+    await quizManager.nextQuizQuestion(channelId);
 
-        // Start the quiz (expecting it to fail)
-        await quizManager.startQuiz(channelId, "emptyBank", testScheduler);
+    const expectedMessageBody = {
+      body: {
+        embeds: [
+          {
+            title: "Quiz Question",
+            description: `**Question**: What is the capital of France?\nA: Berlin\nB: Paris\nC: Madrid\nD: Rome`,
+            footer: {
+              text: "Select the correct answer by clicking the buttons below.",
+            },
+          },
+        ],
+        components: [
+          {
+            type: 1,
+            components: [
+              { custom_id: "answer_b1", label: "A", style: 1, type: 2 },
+              { custom_id: "answer_b2", label: "B", style: 1, type: 2 },
+              { custom_id: "answer_b3", label: "C", style: 1, type: 2 },
+              { custom_id: "answer_b4", label: "D", style: 1, type: 2 },
+            ],
+          },
+        ],
+      },
+    };
 
-        // You might expect a specific error message or behavior in this case
-        expect(postSpy).not.toHaveBeenCalled();
-    });
+    expect(postSpy).toHaveBeenCalledWith(
+      Routes.channelMessages(channelId),
+      expectedMessageBody,
+    );
+  });
 
-    it("should not start a quiz if there are no questions in the bank", async () => {
-        quizStateStorageMock.getQuestions.mockResolvedValue([]);
+  it("should handle an incorrect answer", async () => {
+    const quizState: QuizState = {
+      currentQuestionId: questions[0]?.questionId,
+      questionBank: questions,
+      activeUsers: new Map([["user123", 0]]), // User with initial score of 0
+      correctUsersForQuestion: new Set(),
+      quizSubscription: null,
+      answeredUsersForQuestion: new Set(),
+      channelId,
+    };
 
-        await quizManager.startQuiz(channelId, "emptyBank", testScheduler);
+    quizManager.quizzes.set(channelId, quizState);
 
-        expect(postSpy).not.toHaveBeenCalled();
-    });
+    const interaction = createAPIMessageComponentInteraction(
+      channelId,
+      "user123",
+      `answer_${questions[0]?.answers[2]?.answerId}`,
+    );
 
-    it("should stop an active quiz and clean up properly", async () => {
-        const quizState: QuizState = {
-            currentQuestionId: questions[0]?.questionId,
-            questionBank: questions,
-            activeUsers: new Map(),
-            correctUsersForQuestion: new Set(),
-            quizSubscription: null,
-            channelId,
-            answeredUsersForQuestion: new Set(),
-        };
-        quizManager.quizzes.set(channelId, quizState);
+    const response = (await quizManager.handleAnswer(
+      interaction,
+    )) as APIInteractionResponseChannelMessageWithSource;
 
-        quizManager.stopQuiz(channelId);
+    expect(response.type).toBe(
+      InteractionResponseType.ChannelMessageWithSource,
+    );
+    expect(response.data.content).toBe("Incorrect!");
+    expect(quizState.activeUsers.get("user123")).toBe(0); // Score should not change
+  });
 
-        expect(quizManager.quizzes.has(channelId)).toBe(false);
-    });
+  it("should handle an invalid interaction type", async () => {
+    const interaction: APIInteraction = {
+      app_permissions: "",
+      channel: { id: channelId, type: ChannelType.GuildVoice },
+      channel_id: channelId,
+      type: InteractionType.ApplicationCommand, // Invalid interaction type
+      id: "interaction1",
+      application_id: "application1",
+      token: "token",
+      version: 1,
+      user: createAPIUser("user1"),
+      locale: "en-US",
+      entitlements: [],
+      authorizing_integration_owners: {},
+      data: {
+        type: ApplicationCommandType.ChatInput,
+        id: "",
+        options: [],
+        name: "",
+      },
+    };
 
-    it("should correctly handle user answering the same question multiple times", async () => {
-        const quizState: QuizState = {
-            currentQuestionId: questions[0]?.questionId,
-            questionBank: questions,
-            activeUsers: new Map(),
-            correctUsersForQuestion: new Set(),
-            quizSubscription: null,
-            answeredUsersForQuestion: new Set(),
-            channelId,
-        };
-        quizManager.quizzes.set(channelId, quizState);
+    const response = await quizManager.handleAnswer(interaction);
 
-        const interaction: APIMessageComponentInteraction = {
-            type: InteractionType.MessageComponent,
-            data: {custom_id: `answer_${questions[0]?.answers[1]?.answerId}`},
-            member: {user: {id: "user123"}},
-            guild_id: "guild123",
-            channel_id: channelId,
-            channel: {id: channelId},
-        } as any;
+    expect(response).toEqual(
+      createEphemeralResponse("Invalid interaction type."),
+    );
+  });
 
-        await quizManager.handleAnswer(interaction);
-        await quizManager.handleAnswer(interaction);
+  it("should handle an empty question bank", async () => {
+    // Mock an empty question bank
+    questionStorageMock.getQuestions.mockResolvedValue([]);
 
-        expect(quizState.activeUsers.get("user123")).toBe(1);
-        expect(quizState.correctUsersForQuestion.has("user123")).toBe(true);
-    });
+    // Start the quiz (expecting it to fail)
+    await quizManager.startQuiz(channelId, "emptyBank", testScheduler);
 
-    it("should correctly update the score for multiple users", async () => {
-        const quizState: QuizState = {
-            currentQuestionId: questions[0]?.questionId,
-            questionBank: questions,
-            activeUsers: new Map(),
-            correctUsersForQuestion: new Set(),
-            quizSubscription: null,
-            channelId,
-            answeredUsersForQuestion: new Set(),
-        };
-        quizManager.quizzes.set(channelId, quizState);
+    // You might expect a specific error message or behavior in this case
+    expect(postSpy).not.toHaveBeenCalled();
+  });
 
-        const user1Interaction: APIMessageComponentInteraction = {
-            type: InteractionType.MessageComponent,
-            data: {custom_id: `answer_${questions[0]?.answers[1]?.answerId}`},
-            member: {user: {id: "user1"}},
-            guild_id: "guild123",
-            channel_id: channelId,
-            channel: {id: channelId},
-        } as any;
+  it("should not start a quiz if there are no questions in the bank", async () => {
+    questionStorageMock.getQuestions.mockResolvedValue([]);
 
-        const user2Interaction: APIMessageComponentInteraction = {
-            type: InteractionType.MessageComponent,
-            data: {custom_id: `answer_${questions[0]?.answers[1]?.answerId}`},
-            member: {user: {id: "user2"}},
-            guild_id: "guild123",
-            channel_id: channelId,
-            channel: {id: channelId},
-        } as any;
+    await quizManager.startQuiz(channelId, "emptyBank", testScheduler);
 
-        await quizManager.handleAnswer(user1Interaction);
-        await quizManager.handleAnswer(user2Interaction);
+    expect(postSpy).not.toHaveBeenCalled();
+  });
 
-        expect(quizState.activeUsers.get("user1")).toBe(1);
-        expect(quizState.activeUsers.get("user2")).toBe(1);
-    });
+  it("should stop an active quiz and clean up properly", async () => {
+    const quizState: QuizState = {
+      currentQuestionId: questions[0]?.questionId,
+      questionBank: questions,
+      activeUsers: new Map(),
+      correctUsersForQuestion: new Set(),
+      quizSubscription: null,
+      channelId,
+      answeredUsersForQuestion: new Set(),
+    };
+    quizManager.quizzes.set(channelId, quizState);
 
-    it("should correctly handle questions with images", async () => {
-        questions[0]!.imageUrl = "https://example.com/image.png";
-        const questionBankName = "bankWithImage";
+    quizManager.stopQuiz(channelId);
 
-        quizStateStorageMock.getQuestions.mockResolvedValue(questions);
+    expect(quizManager.quizzes.has(channelId)).toBe(false);
+  });
 
-        await quizManager.startQuiz(channelId, questionBankName, testScheduler);
+  it("should correctly handle user answering the same question multiple times", async () => {
+    const quizState: QuizState = {
+      currentQuestionId: questions[0]?.questionId,
+      questionBank: questions,
+      activeUsers: new Map(),
+      correctUsersForQuestion: new Set(),
+      quizSubscription: null,
+      channelId,
+      answeredUsersForQuestion: new Set(),
+    };
+    quizManager.quizzes.set(channelId, quizState);
 
-        expect(postSpy).toHaveBeenCalledWith(
-            Routes.channelMessages(channelId),
+    const interaction = createAPIMessageComponentInteraction(
+      channelId,
+      "user123",
+      `answer_${questions[0]?.answers[1]?.answerId}`,
+    );
+
+    await quizManager.handleAnswer(interaction);
+    await quizManager.handleAnswer(interaction);
+
+    expect(quizState.activeUsers.get("user123")).toBe(1);
+    expect(quizState.correctUsersForQuestion.has("user123")).toBe(true);
+  });
+
+  it("should correctly update the score for multiple users", async () => {
+    const quizState: QuizState = {
+      currentQuestionId: questions[0]?.questionId,
+      questionBank: questions,
+      activeUsers: new Map(),
+      correctUsersForQuestion: new Set(),
+      quizSubscription: null,
+      channelId,
+      answeredUsersForQuestion: new Set(),
+    };
+    quizManager.quizzes.set(channelId, quizState);
+
+    const user1Interaction = createAPIMessageComponentInteraction(
+      channelId,
+      "user1",
+      `answer_${questions[0]?.answers[1]?.answerId}`,
+    );
+    const user2Interaction = createAPIMessageComponentInteraction(
+      channelId,
+      "user2",
+      `answer_${questions[0]?.answers[1]?.answerId}`,
+    );
+
+    await quizManager.handleAnswer(user1Interaction);
+    await quizManager.handleAnswer(user2Interaction);
+
+    expect(quizState.activeUsers.get("user1")).toBe(1);
+    expect(quizState.activeUsers.get("user2")).toBe(1);
+  });
+
+  it("should correctly handle questions with images", async () => {
+    questions[0]!.imagePartitionKey = "question-image-key";
+    const questionBankName = "bankWithImage";
+    const presignedImageUrl =
+      "https://example.com/presigned-question-image-url";
+
+    questionStorageMock.getQuestions.mockResolvedValue(questions);
+    questionStorageMock.getQuestionImagePresignedUrl.mockResolvedValue(
+      presignedImageUrl,
+    );
+
+    await quizManager.startQuiz(channelId, questionBankName, testScheduler);
+
+    expect(postSpy).toHaveBeenCalledWith(
+      Routes.channelMessages(channelId),
+      expect.objectContaining({
+        body: expect.objectContaining({
+          embeds: expect.arrayContaining([
             expect.objectContaining({
-                body: expect.objectContaining({
-                    embeds: expect.arrayContaining([
-                        expect.objectContaining({
-                            image: {url: "https://example.com/image.png"},
-                        }),
-                    ]),
-                }),
-            })
-        );
-    });
+              image: { url: presignedImageUrl },
+            }),
+          ]),
+        }),
+      }),
+    );
+  });
 
-    it("should handle the scenario where there are no correct answers", async () => {
-        questions[0]!.correctAnswerIndex = -1;
-        const quizState: QuizState = {
-            currentQuestionId: questions[0]?.questionId,
-            questionBank: questions,
-            activeUsers: new Map(),
-            correctUsersForQuestion: new Set(),
-            quizSubscription: null,
-            channelId,
-            answeredUsersForQuestion: new Set(),
-        };
-        quizManager.quizzes.set(channelId, quizState);
+  it("should handle the scenario where there are no correct answers", async () => {
+    questions[0]!.correctAnswerIndex = -1;
+    const quizState: QuizState = {
+      currentQuestionId: questions[0]?.questionId,
+      questionBank: questions,
+      activeUsers: new Map([["user123", 0]]),
+      correctUsersForQuestion: new Set(),
+      quizSubscription: null,
+      channelId,
+      answeredUsersForQuestion: new Set(),
+    };
 
-        const interaction: APIMessageComponentInteraction = {
-            type: InteractionType.MessageComponent,
-            data: {custom_id: `answer_${questions[0]?.answers[1]?.answerId}`},
-            member: {user: {id: "user123"}},
-            guild_id: "guild123",
-            channel_id: channelId,
-            channel: {id: channelId},
-        } as any;
+    quizManager.quizzes.set(channelId, quizState);
 
-        const response = await quizManager.handleAnswer(interaction) as APIInteractionResponseChannelMessageWithSource;
+    const interaction = createAPIMessageComponentInteraction(
+      channelId,
+      "user123",
+      `answer_${questions[0]?.answers[1]?.answerId}`,
+    );
 
-        expect(response.data.content).toBe("Incorrect!");
-    });
+    const response = (await quizManager.handleAnswer(
+      interaction,
+    )) as APIInteractionResponseChannelMessageWithSource;
 
-    it('should handle an invalid question format gracefully', async () => {
-        questions[0]!.question = undefined as any;
-        quizStateStorageMock.getQuestions.mockResolvedValue(questions);
+    expect(response.data.content).toBe("Incorrect!");
+  });
 
-        const response = await quizManager.startQuiz(channelId, 'invalidBank', testScheduler);
+  it("should handle an invalid question format gracefully", async () => {
+    questions[0]!.question = undefined as any;
+    questionStorageMock.getQuestions.mockResolvedValue(questions);
 
-        expect(response).toEqual(
-            createEphemeralResponse('There are invalid questions with IDs: q1')
-        );
-    });
+    const response = await quizManager.startQuiz(
+      channelId,
+      "invalidBank",
+      testScheduler,
+    );
 
-    it("should continue to the next question even if the summary message fails to send", async () => {
-        postSpy.mockRejectedValueOnce(new Error("Failed to send summary"));
+    expect(response).toEqual(
+      createEphemeralResponse("There are invalid questions with IDs: q1"),
+    );
+  });
 
-        const quizState: QuizState = {
-            currentQuestionId: questions[0]?.questionId,
-            questionBank: questions,
-            activeUsers: new Map(),
-            correctUsersForQuestion: new Set(),
-            quizSubscription: null,
-            channelId,
-            answeredUsersForQuestion: new Set(),
-        };
-        quizManager.quizzes.set(channelId, quizState);
+  it("should continue to the next question even if the summary message fails to send", async () => {
+    postSpy.mockRejectedValueOnce(new Error("Failed to send summary"));
 
-        const consoleErrorSpy = vi.spyOn(console, 'error');
+    const quizState: QuizState = {
+      currentQuestionId: questions[0]?.questionId,
+      questionBank: questions,
+      activeUsers: new Map(),
+      correctUsersForQuestion: new Set(),
+      quizSubscription: null,
+      channelId,
+      answeredUsersForQuestion: new Set(),
+    };
+    quizManager.quizzes.set(channelId, quizState);
 
-        await quizManager.nextQuizQuestion(channelId);
+    const consoleErrorSpy = vi.spyOn(console, "error");
 
-        expect(consoleErrorSpy).toHaveBeenCalledWith(expect.any(Error));
+    await quizManager.nextQuizQuestion(channelId);
 
-        consoleErrorSpy.mockRestore();
-    });
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.any(Error));
 
-    it("should not proceed to the next question if the quiz is stopped", async () => {
-        const quizState: QuizState = {
-            currentQuestionId: questions[0]?.questionId,
-            questionBank: questions,
-            activeUsers: new Map(),
-            correctUsersForQuestion: new Set(),
-            quizSubscription: null,
-            channelId,
-            answeredUsersForQuestion: new Set(),
-        };
-        quizManager.quizzes.set(channelId, quizState);
+    consoleErrorSpy.mockRestore();
+  });
 
-        quizManager.stopQuiz(channelId);
-        await quizManager.nextQuizQuestion(channelId);
+  it("should not proceed to the next question if the quiz is stopped", async () => {
+    const quizState: QuizState = {
+      currentQuestionId: questions[0]?.questionId,
+      questionBank: questions,
+      activeUsers: new Map(),
+      correctUsersForQuestion: new Set(),
+      quizSubscription: null,
+      channelId,
+      answeredUsersForQuestion: new Set(),
+    };
+    quizManager.quizzes.set(channelId, quizState);
 
-        const expectedNextQuestion = questions[0];
-        expect(quizState.currentQuestionId).toBe(expectedNextQuestion!.questionId);
-    });
+    quizManager.stopQuiz(channelId);
+    await quizManager.nextQuizQuestion(channelId);
 
-    const createInteraction = (
-        customId: string,
-        userId: string,
-        messageId: string
-    ): APIMessageComponentInteraction => ({
-        type: InteractionType.MessageComponent,
-        data: {
-            custom_id: customId,
-            component_type: ComponentType.Button,
+    const expectedNextQuestion = questions[0];
+    expect(quizState.currentQuestionId).toBe(expectedNextQuestion!.questionId);
+  });
+
+  it("should send a final score message when the quiz ends", async () => {
+    const quizState: QuizState = {
+      currentQuestionId: questions[questions.length - 1]!.questionId,
+      questionBank: questions,
+      activeUsers: new Map([["user1", 2]]),
+      correctUsersForQuestion: new Set(["user1"]),
+      quizSubscription: null,
+      channelId,
+      answeredUsersForQuestion: new Set(),
+    };
+
+    quizManager.quizzes.set(channelId, quizState);
+
+    // Mock the REST post method to simulate user answers
+    postSpy.mockImplementation(
+      async (
+        route: string,
+        { body }: { body: RESTPostAPIChannelMessageJSONBody },
+      ) => {
+        if (route === Routes.channelMessages(channelId)) {
+          const content =
+            body.content || (body.embeds && body.embeds[0]?.description);
+
+          if (content?.includes("What is 2 + 2?")) {
+            // Simulate user answering the first question correctly
+            await quizManager.handleAnswer(
+              createAPIMessageComponentInteraction(
+                channelId,
+                "user1",
+                `answer_${questions[0]?.answers[1]?.answerId}`,
+              ),
+            );
+          } else if (content?.includes("What is the capital of France?")) {
+            // Simulate user answering the second question correctly
+            await quizManager.handleAnswer(
+              createAPIMessageComponentInteraction(
+                channelId,
+                "user1",
+                `answer_${questions[1]?.answers[1]?.answerId}`,
+              ),
+            );
+          }
+        }
+      },
+    );
+
+    await quizManager.startQuizInternal(questions, channelId, testScheduler);
+
+    expect(postSpy).toHaveBeenCalledTimes(5);
+
+    const expectedDescription = "<@user1>: 2 points\n";
+
+    const expectedEmbed = new EmbedBuilder()
+      .setTitle("Quiz Scores")
+      .setDescription(expectedDescription);
+
+    expect(postSpy).toHaveBeenNthCalledWith(
+      5,
+      Routes.channelMessages(channelId),
+      {
+        body: {
+          embeds: [expectedEmbed.toJSON()],
         },
-        member: {
-            deaf: false,
-            flags: GuildMemberFlags.CompletedOnboarding,
-            user: {
-                username: '123',
-                id: userId,
-                discriminator: '123',
-                flags: UserFlags.Collaborator,
-                global_name: null,
-                avatar: null
-            },
-            permissions: '',
-            joined_at: '',
-            roles: [],
-            mute: false
-        },
-        guild_id: "guild123",
-        channel_id: channelId,
-        channel: {id: channelId, type: ChannelType.GuildVoice},
-        message: {id: messageId, channel_id: channelId} as any,
-        id: "interaction1",
-        token: "token",
-        version: 1,
-        locale: "en-US",
-        app_permissions: "",
-        application_id: "",
-        authorizing_integration_owners: {},
-        entitlements: [],
+      },
+    );
+  });
+
+  it("should unsubscribe from quiz timer when the quiz is stopped", async () => {
+    const quizState: QuizState = {
+      currentQuestionId: questions[0]?.questionId,
+      questionBank: questions,
+      activeUsers: new Map(),
+      correctUsersForQuestion: new Set(),
+      quizSubscription: { unsubscribe: vi.fn() } as any,
+      channelId,
+      answeredUsersForQuestion: new Set(),
+    };
+    quizManager.quizzes.set(channelId, quizState);
+
+    quizManager.stopQuiz(channelId);
+
+    expect(quizState.quizSubscription?.unsubscribe).toHaveBeenCalled();
+  });
+
+  it("should handle case where question time is less than summary duration", async () => {
+    questions[0]!.questionShowTimeMs = 10;
+    questionStorageMock.getQuestions.mockResolvedValue(questions);
+
+    await quizManager.startQuiz(channelId, "quickBank", testScheduler);
+    expect(postSpy).toHaveBeenCalledTimes(5);
+  });
+
+  it("should correctly handle a quiz with a single question", async () => {
+    questionStorageMock.getQuestions.mockResolvedValue([questions[0]]);
+
+    await quizManager.startQuiz(channelId, "singleQuestionBank", testScheduler);
+
+    expect(postSpy).toHaveBeenCalledTimes(3);
+
+    expect(postSpy).lastCalledWith(Routes.channelMessages(channelId), {
+      body: {
+        embeds: [
+          {
+            description: "No scores available.",
+            title: "Quiz Scores",
+          },
+        ],
+      },
     });
-
-    it("should send a final score message when the quiz ends", async () => {
-        const quizState: QuizState = {
-            currentQuestionId: questions[questions.length - 1]!.questionId,
-            questionBank: questions,
-            activeUsers: new Map([["user1", 2]]),
-            correctUsersForQuestion: new Set(["user1"]),
-            quizSubscription: null,
-            channelId,
-            answeredUsersForQuestion: new Set(),
-        };
-
-        quizManager.quizzes.set(channelId, quizState);
-
-        // Mock the REST post method to simulate user answers
-        postSpy.mockImplementation(async (route: string, {body}: { body: RESTPostAPIChannelMessageJSONBody }) => {
-            if (route === Routes.channelMessages(channelId)) {
-                const content = body.content || body.embeds && body.embeds[0]?.description;
-
-                if (content?.includes("What is 2 + 2?")) {
-                    // Simulate user answering the first question correctly
-                    await quizManager.handleAnswer(
-                        createInteraction(
-                            "answer_a2",
-                            "user1",
-                            "message1"
-                        )
-                    );
-                } else if (content?.includes("What is the capital of France?")) {
-                    // Simulate user answering the second question correctly
-                    await quizManager.handleAnswer(
-                        createInteraction(
-                            "answer_b2",
-                            "user1",
-                            "message2"
-                        )
-                    );
-                }
-            }
-        });
-
-        await quizManager.startQuizInternal(questions, channelId, testScheduler);
-
-        expect(postSpy).toHaveBeenCalledTimes(5);
-
-        const expectedDescription = "<@user1>: 2 points\n";
-
-        const expectedEmbed = new EmbedBuilder()
-            .setTitle("Quiz Scores")
-            .setDescription(expectedDescription);
-
-        expect(postSpy).toHaveBeenNthCalledWith(
-            5,
-            Routes.channelMessages(channelId),
-            {
-                body: {
-                    embeds: [expectedEmbed.toJSON()],
-                },
-            }
-        );
-    });
-
-    it("should unsubscribe from quiz timer when the quiz is stopped", async () => {
-        const quizState: QuizState = {
-            currentQuestionId: questions[0]?.questionId,
-            questionBank: questions,
-            activeUsers: new Map(),
-            correctUsersForQuestion: new Set(),
-            quizSubscription: {unsubscribe: vi.fn()} as any,
-            channelId,
-            answeredUsersForQuestion: new Set(),
-        };
-        quizManager.quizzes.set(channelId, quizState);
-
-        quizManager.stopQuiz(channelId);
-
-        expect(quizState.quizSubscription?.unsubscribe).toHaveBeenCalled();
-    });
-
-    it("should handle case where question time is less than summary duration", async () => {
-        questions[0]!.questionShowTimeMs = 10;
-        quizStateStorageMock.getQuestions.mockResolvedValue(questions);
-
-        await quizManager.startQuiz(channelId, "quickBank", testScheduler);
-        expect(postSpy).toHaveBeenCalledTimes(5);
-    });
-
-    it("should correctly handle a quiz with a single question", async () => {
-        quizStateStorageMock.getQuestions.mockResolvedValue([questions[0]]);
-
-        await quizManager.startQuiz(channelId, "singleQuestionBank", testScheduler);
-
-        expect(postSpy).toHaveBeenCalledTimes(3);
-
-        expect(postSpy).lastCalledWith(
-            Routes.channelMessages(channelId),
-            {
-                body: {
-                    embeds: [{
-                        description: "No scores available.",
-                        title: 'Quiz Scores'
-                    }],
-                }
-            }
-        );
-    });
+  });
 });

@@ -10,12 +10,13 @@ import {
 import {
   createEphemeralResponse,
   generateErrorResponse,
-  generateOptionMissingErrorResponse, getOptionValue,
+  generateOptionMissingErrorResponse,
+  getOptionValue,
 } from "../../util/interactionHelpers";
-import { QuestionStorage } from "../../util/questionStorage";
+import { IQuestionStorage } from "../../util/questionStorage";
 
 export class DeleteQuestionBankCommand implements IDiscordCommand {
-  constructor(private readonly questionStorage: QuestionStorage) {}
+  constructor(private readonly questionStorage: IQuestionStorage) {}
 
   public data(): SlashCommandOptionsOnlyBuilder {
     return new SlashCommandBuilder()
@@ -35,8 +36,7 @@ export class DeleteQuestionBankCommand implements IDiscordCommand {
     interaction: APIChatInputApplicationCommandInteraction,
   ): Promise<APIInteractionResponse> {
     try {
-      const bankName =
-        getOptionValue(interaction.data.options, "bankname");
+      const bankName = getOptionValue(interaction.data.options, "bankname");
 
       if (!bankName) {
         return generateOptionMissingErrorResponse("bankname");

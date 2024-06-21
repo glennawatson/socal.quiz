@@ -18,14 +18,14 @@ import {
 import { isChatInputApplicationCommandInteraction } from "discord-api-types/utils";
 import { REST } from "@discordjs/rest";
 import { createEphemeralResponse } from "../../util/interactionHelpers";
-import { QuestionStorage } from "../../util/questionStorage";
+import { IQuestionStorage } from "../../util/questionStorage";
 
 export class CommandManager {
   private readonly commands: Map<string, IDiscordCommand>;
 
   constructor(
     private readonly botService: DiscordBotService,
-    private readonly questionStorage: QuestionStorage,
+    private readonly questionStorage: IQuestionStorage,
     private readonly clientId: string,
     private readonly rest: REST,
   ) {
