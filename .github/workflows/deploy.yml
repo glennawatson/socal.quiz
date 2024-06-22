@@ -16,7 +16,7 @@ env:
   RESOURCE_GROUP: discordQuizBotRG
   LOCATION: eastus  # Specify your preferred location
   DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
-  NODE_VERSION: '22.x'                      # set this to the node version to use (e.g. '8.x', '10.x', '12.x')
+  NODE_VERSION: '20.x'                      # set this to the node version to use (e.g. '8.x', '10.x', '12.x')
 
 jobs:
   build:
