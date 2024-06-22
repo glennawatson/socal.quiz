@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { RestError } from '@azure/data-tables';
-import {GuildStorage} from "../../src/util/guildStorage";
+import { RestError, TableClient } from '@azure/data-tables';
+import { GuildStorage } from "../../src/util/guildStorage";
 
 vi.mock('@azure/data-tables', async () => {
     const actual = await vi.importActual<typeof import('@azure/data-tables')>('@azure/data-tables');
@@ -23,6 +23,31 @@ describe('GuildStorage', () => {
         };
 
         guildStorage = new GuildStorage(undefined, tableClientMock);
+    });
+
+    describe('constructor', () => {
+        it('should use the provided TableClient instance if provided', () => {
+            const customTableClient = {
+                getEntity: vi.fn(),
+                upsertEntity: vi.fn(),
+            };
+            const storage = new GuildStorage(undefined, customTableClient as any);
+            expect(storage['guildClient']).toBe(customTableClient);
+        });
+
+        it('should create a TableClient instance using the connection string if no client is provided', () => {
+            process.env.AZURE_STORAGE_CONNECTION_STRING = 'DefaultEndpointsProtocol=https;AccountName=mockAccount;AccountKey=mockKey;';
+            new GuildStorage();
+            expect(TableClient.fromConnectionString).toHaveBeenCalledWith(
+                process.env.AZURE_STORAGE_CONNECTION_STRING,
+                'GuildRegistrations'
+            );
+        });
+
+        it('should throw an error if no connection string is provided', () => {
+            delete process.env.AZURE_STORAGE_CONNECTION_STRING;
+            expect(() => new GuildStorage()).toThrow('Invalid connection string');
+        });
     });
 
     describe('isGuildRegistered', () => {

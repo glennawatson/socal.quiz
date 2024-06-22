@@ -253,7 +253,7 @@ export class QuizManager {
       );
     }
 
-    const userId = interaction.member?.user.id;
+    const userId = interaction.member?.user?.id;
     const selectedAnswerId = interaction.data.custom_id.split("_")[1];
 
     if (!userId) {

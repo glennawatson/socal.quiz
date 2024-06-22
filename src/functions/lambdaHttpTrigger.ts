@@ -5,36 +5,13 @@ import {
   InvocationContext,
 } from "@azure/functions";
 import { verify } from "discord-verify";
-import { DiscordBotService } from "../handlers/discordBotService";
 import {
   APIInteraction,
   InteractionResponseType,
   InteractionType,
 } from "discord-api-types/v10";
-import { throwError } from "../util/errorHelpers";
-import { QuestionStorage } from "../util/questionStorage";
-import { GuildStorage } from "../util/guildStorage"; // Assuming your existing service
 
-// Environment variables
-const token =
-  process.env.DISCORD_BOT_TOKEN ?? throwError("Must have a valid token");
-const clientId =
-  process.env.DISCORD_CLIENT_ID ??
-  throwError("Must have a valid discord client id");
-const publicKey =
-  process.env.DISCORD_PUBLIC_KEY ??
-  throwError("Must have a valid discord public id");
-
-const questionStorage: QuestionStorage = new QuestionStorage();
-const guildStorage: GuildStorage = new GuildStorage();
-
-// Initialize the Discord bot service
-const discordBotService = new DiscordBotService(
-  token,
-  clientId,
-  guildStorage,
-  questionStorage,
-);
+import { Config } from './config';
 
 export async function interactions(
   request: HttpRequest,
@@ -42,6 +19,7 @@ export async function interactions(
 ): Promise<HttpResponseInit> {
   context.log(`Http function processed request for url "${request.url}"`);
 
+  await Config.initialize();
   // 1. Verify Request (using discord-verify)
   const signature = request.headers.get("x-signature-ed25519");
   const timestamp = request.headers.get("x-signature-timestamp");
@@ -54,7 +32,7 @@ export async function interactions(
     rawBody,
     signature,
     timestamp,
-    publicKey,
+    Config.publicKey,
     crypto.subtle,
   );
 
@@ -71,7 +49,7 @@ export async function interactions(
   }
 
   // 4. Delegate to DiscordBotService
-  const response = await discordBotService.handleInteraction(interaction); // Updated to use interaction directly
+  const response = await Config.discordBotService.handleInteraction(interaction); // Updated to use interaction directly
   return {
     status: 200,
     headers: { "Content-Type": "application/json" },

@@ -126,36 +126,34 @@ export class QuestionStorage implements IQuestionStorage {
     await Promise.all(addPromises);
   }
 
-  async deleteQuestionBank(bankName: string): Promise<void> {
-    const entitiesToDelete = this.quizQuestionsClient.listEntities<
-      TableEntity<Question>
-    >({
+  public async deleteQuestionBank(bankName: string): Promise<void> {
+    const options = {
       queryOptions: {
         filter: odata`PartitionKey eq ${bankName}`,
       },
-    });
+    };
+    const entitiesToDelete = this.quizQuestionsClient.listEntities<TableEntity<Question>>(options);
 
     const deletePromises: Promise<TableDeleteEntityHeaders>[] = [];
     for await (const entity of entitiesToDelete) {
       deletePromises.push(
-        this.quizQuestionsClient.deleteEntity(
-          entity.partitionKey,
-          entity.rowKey,
-        ),
+          this.quizQuestionsClient.deleteEntity(entity.partitionKey, entity.rowKey)
       );
     }
     await Promise.all(deletePromises);
   }
 
+
   async deleteQuestion(bankName: string, questionId: string): Promise<void> {
     await this.quizQuestionsClient.deleteEntity(bankName, questionId);
   }
 
-  private async downloadAndValidateImageForDiscord(
+  protected async downloadAndValidateImageForDiscord(
     imageUrl: string,
     containerName: string,
     partitionKey: string,
   ): Promise<string> {
+    console.log("Args Received:", imageUrl, containerName, partitionKey);
     const response = await fetch(imageUrl);
     if (!response.ok) {
       throw new Error(
