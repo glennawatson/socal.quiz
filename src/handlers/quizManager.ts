@@ -2,7 +2,6 @@ import { QuizState } from "./quizState";
 import {
   APIInteraction,
   APIInteractionResponse,
-  ButtonStyle,
   InteractionType,
   Routes,
 } from "discord-api-types/v10";
@@ -164,7 +163,6 @@ export class QuizManager {
         new ButtonBuilder()
           .setCustomId(`answer_${answer.answerId}`)
           .setLabel(String.fromCharCode(65 + index))
-          .setStyle(ButtonStyle.Primary),
       ),
     );
 
