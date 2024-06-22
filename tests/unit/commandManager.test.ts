@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  APIChatInputApplicationCommandInteraction, APIInteractionResponse,
+  APIChatInputApplicationCommandInteraction,
+  APIInteractionResponse,
   APIModalSubmitInteraction,
   ApplicationCommandType,
   ChannelType,
@@ -11,7 +12,7 @@ import {
 import { CommandManager } from "../../src/handlers/actions/commandManager";
 import { createEphemeralResponse } from "../../src/util/interactionHelpers";
 import { SlashCommandBuilder } from "@discordjs/builders";
-import {IModalHandlerCommand} from "../../src/handlers/actions/discordCommand";
+import { IModalHandlerCommand } from "../../src/handlers/actions/discordCommand";
 
 describe("CommandManager", () => {
   let commandManager: CommandManager;
@@ -38,10 +39,10 @@ describe("CommandManager", () => {
     ////putSpy = restMock.put;
 
     commandManager = new CommandManager(
-        botServiceMock,
-        questionStorageMock,
-        clientId,
-        restMock,
+      botServiceMock,
+      questionStorageMock,
+      clientId,
+      restMock,
     );
   });
 
@@ -52,7 +53,7 @@ describe("CommandManager", () => {
       };
 
       const response = await commandManager.handleInteraction(
-          interaction as any,
+        interaction as any,
       );
 
       expect(response).toEqual({
@@ -86,11 +87,11 @@ describe("CommandManager", () => {
       };
 
       const response = await commandManager.handleInteraction(
-          interaction as any,
+        interaction as any,
       );
 
       expect(response).toEqual(
-          createEphemeralResponse("could not find command: unknownCommand"),
+        createEphemeralResponse("could not find command: unknownCommand"),
       );
     });
 
@@ -103,11 +104,11 @@ describe("CommandManager", () => {
       };
 
       const response = await commandManager.handleInteraction(
-          interaction as any,
+        interaction as any,
       );
 
       expect(response).toEqual(
-          createEphemeralResponse("could not find modal: unknownModal"),
+        createEphemeralResponse("could not find modal: unknownModal"),
       );
     });
 
@@ -115,9 +116,9 @@ describe("CommandManager", () => {
     it("should execute the command for ApplicationCommand interaction", async () => {
       const mockCommand = {
         data: () =>
-            new SlashCommandBuilder()
-                .setName("test")
-                .setDescription("A test command"),
+          new SlashCommandBuilder()
+            .setName("test")
+            .setDescription("A test command"),
         execute: vi.fn().mockResolvedValue({
           type: InteractionResponseType.ChannelMessageWithSource,
           data: {
@@ -149,7 +150,7 @@ describe("CommandManager", () => {
       };
 
       const response = await commandManager.handleInteraction(
-          interaction as any,
+        interaction as any,
       );
 
       expect(response).toEqual({
@@ -162,21 +163,23 @@ describe("CommandManager", () => {
     });
 
     it("should handle modal submit interaction", async () => {
-      const mockModalCommand : IModalHandlerCommand = {
-        execute(_: APIChatInputApplicationCommandInteraction): Promise<APIInteractionResponse> {
+      const mockModalCommand: IModalHandlerCommand = {
+        execute(
+          _: APIChatInputApplicationCommandInteraction,
+        ): Promise<APIInteractionResponse> {
           return Promise.resolve({} as unknown as APIInteractionResponse);
         },
         data: () =>
-            new SlashCommandBuilder()
-                .setName("testModal")
-                .setDescription("A test modal command"),
+          new SlashCommandBuilder()
+            .setName("testModal")
+            .setDescription("A test modal command"),
         handleModalSubmit: vi.fn().mockResolvedValue({
           type: InteractionResponseType.ChannelMessageWithSource,
           data: {
             content: "Modal handled!",
           },
         }),
-        name: "testModal"
+        name: "testModal",
       };
 
       commandManager.registerCommand(mockModalCommand);
@@ -200,7 +203,7 @@ describe("CommandManager", () => {
       };
 
       const response = await commandManager.handleInteraction(
-          interaction as any,
+        interaction as any,
       );
 
       expect(response).toEqual({
@@ -209,7 +212,9 @@ describe("CommandManager", () => {
           content: "Modal handled!",
         },
       });
-      expect(mockModalCommand.handleModalSubmit).toHaveBeenCalledWith(interaction);
+      expect(mockModalCommand.handleModalSubmit).toHaveBeenCalledWith(
+        interaction,
+      );
     });
   });
 
@@ -218,17 +223,17 @@ describe("CommandManager", () => {
       await commandManager.registerDefaultCommands(guildId);
 
       expect(postSpy).toHaveBeenCalledWith(
-          `/applications/${clientId}/guilds/${guildId}/commands`,
-          { body: expect.any(Array) },
+        `/applications/${clientId}/guilds/${guildId}/commands`,
+        { body: expect.any(Array) },
       );
     });
 
     it("should register commands with correct structure", async () => {
       const mockCommand = {
         data: () =>
-            new SlashCommandBuilder()
-                .setName("test")
-                .setDescription("A test command"),
+          new SlashCommandBuilder()
+            .setName("test")
+            .setDescription("A test command"),
         execute: vi.fn(),
         name: "dodgy",
       };
@@ -240,10 +245,10 @@ describe("CommandManager", () => {
       await commandManager.registerCommandsForGuild(guildId);
 
       expect(postSpy).toHaveBeenCalledWith(
-          `/applications/${clientId}/guilds/${guildId}/commands`,
-          {
-            body: mockCommands.map((cmd) => cmd.data().toJSON()),
-          },
+        `/applications/${clientId}/guilds/${guildId}/commands`,
+        {
+          body: mockCommands.map((cmd) => cmd.data().toJSON()),
+        },
       );
     });
 
@@ -259,8 +264,8 @@ describe("CommandManager", () => {
       await commandManager.registerCommandsForGuild(guildId);
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-          "Invalid command:",
-          invalidCommand,
+        "Invalid command:",
+        invalidCommand,
       );
       consoleErrorSpy.mockRestore();
     });

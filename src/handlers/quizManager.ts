@@ -162,7 +162,7 @@ export class QuizManager {
       question.answers.map((answer, index) =>
         new ButtonBuilder()
           .setCustomId(`answer_${answer.answerId}`)
-          .setLabel(String.fromCharCode(65 + index))
+          .setLabel(String.fromCharCode(65 + index)),
       ),
     );
 

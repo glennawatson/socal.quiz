@@ -1,58 +1,60 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { QuestionStorage } from "../../src/util/questionStorage";
-import {odata, TableEntity} from "@azure/data-tables";
+import { odata, TableEntity } from "@azure/data-tables";
 import { Question } from "../../src/question";
-import fileType from 'file-type';
+import fileType from "file-type";
 
 vi.mock("@azure/data-tables", () => ({
-    TableClient: {
-        fromConnectionString: vi.fn(),
-    },
-    odata: vi.fn(),
+  TableClient: {
+    fromConnectionString: vi.fn(),
+  },
+  odata: vi.fn(),
 }));
 
-vi.mock('@azure/storage-blob', () => ({
-    BlobServiceClient: {
-        fromConnectionString: vi.fn().mockReturnValue({
-            getContainerClient: vi.fn().mockReturnValue({
-                getBlockBlobClient: vi.fn().mockReturnValue({
-                    url: 'mock-url',
-                    uploadData: vi.fn().mockResolvedValue(undefined),
-                }),
-            }),
+vi.mock("@azure/storage-blob", () => ({
+  BlobServiceClient: {
+    fromConnectionString: vi.fn().mockReturnValue({
+      getContainerClient: vi.fn().mockReturnValue({
+        getBlockBlobClient: vi.fn().mockReturnValue({
+          url: "mock-url",
+          uploadData: vi.fn().mockResolvedValue(undefined),
         }),
-    },
-    BlobSASPermissions: {
-        parse: vi.fn(),
-    },
-    StorageSharedKeyCredential: vi.fn(),
-    generateBlobSASQueryParameters: vi.fn().mockReturnValue({
-        toString: vi.fn().mockReturnValue('mock-sas-token'),
+      }),
     }),
+  },
+  BlobSASPermissions: {
+    parse: vi.fn(),
+  },
+  StorageSharedKeyCredential: vi.fn(),
+  generateBlobSASQueryParameters: vi.fn().mockReturnValue({
+    toString: vi.fn().mockReturnValue("mock-sas-token"),
+  }),
 }));
 
 vi.mock("uuid", () => ({
-    v4: vi.fn(() => "mock-uuid"),
+  v4: vi.fn(() => "mock-uuid"),
 }));
 
 // Mock necessary modules
-vi.mock('sharp', () => ({
-    __esModule: true,
-    default: vi.fn().mockImplementation(() => ({
-        jpeg: vi.fn().mockReturnThis(),
-        toBuffer: vi.fn().mockResolvedValue(Buffer.from("mock-image-buffer")),
-    })),
+vi.mock("sharp", () => ({
+  __esModule: true,
+  default: vi.fn().mockImplementation(() => ({
+    jpeg: vi.fn().mockReturnThis(),
+    toBuffer: vi.fn().mockResolvedValue(Buffer.from("mock-image-buffer")),
+  })),
 }));
 
-vi.mock('file-type', () => ({
-    __esModule: true,
-    default: {
-        fileTypeFromBuffer: vi.fn(),
-    },
+vi.mock("file-type", () => ({
+  __esModule: true,
+  default: {
+    fileTypeFromBuffer: vi.fn(),
+  },
 }));
 
 vi.mock("../../src/util/errorHelpers", () => ({
-    throwError: vi.fn((msg) => { throw new Error(msg); }),
+  throwError: vi.fn((msg) => {
+    throw new Error(msg);
+  }),
 }));
 
 // Mock fetch function
@@ -60,447 +62,497 @@ global.fetch = vi.fn();
 
 // Create a subclass to expose the private method for testing
 class TestableQuestionStorage extends QuestionStorage {
-    public async downloadAndValidateImageForDiscord(
-        imageUrl: string,
-        containerName: string,
-        partitionKey: string
-    ): Promise<string> {
-        return await super.downloadAndValidateImageForDiscord(imageUrl, containerName, partitionKey);
-    }
+  public async downloadAndValidateImageForDiscord(
+    imageUrl: string,
+    containerName: string,
+    partitionKey: string,
+  ): Promise<string> {
+    return await super.downloadAndValidateImageForDiscord(
+      imageUrl,
+      containerName,
+      partitionKey,
+    );
+  }
 }
 
 describe("QuestionStorage", () => {
-    let questionStorage: TestableQuestionStorage;
-    let tableClientMock: any;
-    let blobServiceClientMock: any;
+  let questionStorage: TestableQuestionStorage;
+  let tableClientMock: any;
+  let blobServiceClientMock: any;
 
-    beforeEach(() => {
-        vi.resetModules(); // Reset all modules
-        vi.clearAllMocks();
-        tableClientMock = {
-            createEntity: vi.fn(),
-            listEntities: vi.fn(),
-            deleteEntity: vi.fn(),
-        };
-        // Mock BlobServiceClient and its methods
-        blobServiceClientMock = {
-            getContainerClient: vi.fn().mockReturnValue({
-                getBlockBlobClient: vi.fn().mockReturnValue({
-                    url: "mock-url",
-                    uploadData: vi.fn(),
-                    exists: vi.fn().mockResolvedValue(false), // Mock exists method to return false initially
-                }),
-            }),
-        };
+  beforeEach(() => {
+    vi.resetModules(); // Reset all modules
+    vi.clearAllMocks();
+    tableClientMock = {
+      createEntity: vi.fn(),
+      listEntities: vi.fn(),
+      deleteEntity: vi.fn(),
+    };
+    // Mock BlobServiceClient and its methods
+    blobServiceClientMock = {
+      getContainerClient: vi.fn().mockReturnValue({
+        getBlockBlobClient: vi.fn().mockReturnValue({
+          url: "mock-url",
+          uploadData: vi.fn(),
+          exists: vi.fn().mockResolvedValue(false), // Mock exists method to return false initially
+        }),
+      }),
+    };
 
-        questionStorage = new TestableQuestionStorage("mock-connection-string", "mock-storage-account", "mock-storage-key", tableClientMock, blobServiceClientMock);
+    questionStorage = new TestableQuestionStorage(
+      "mock-connection-string",
+      "mock-storage-account",
+      "mock-storage-key",
+      tableClientMock,
+      blobServiceClientMock,
+    );
 
-        // Reset the mock for fileTypeFromBuffer before each test
-        vi.mocked(fileType.fileTypeFromBuffer).mockReset();
+    // Reset the mock for fileTypeFromBuffer before each test
+    vi.mocked(fileType.fileTypeFromBuffer).mockReset();
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks(); // Clear all mocks after each test
+  });
+
+  describe("getQuestions", () => {
+    it("should return a list of questions", async () => {
+      const mockQuestions: TableEntity<Question>[] = [
+        {
+          partitionKey: "bank1",
+          rowKey: "question1",
+          question: "What is 2+2?",
+          answers: [
+            { answerId: "1", answer: "3" },
+            { answerId: "2", answer: "4" },
+          ],
+          correctAnswerIndex: 1,
+          bankName: "bank1",
+          questionId: "question1",
+          questionShowTimeMs: 20000,
+        },
+      ];
+      tableClientMock.listEntities.mockReturnValue(mockQuestions);
+
+      const questions = await questionStorage.getQuestions("bank1");
+
+      expect(questions).toEqual([
+        {
+          bankName: "bank1",
+          questionId: "question1",
+          question: "What is 2+2?",
+          answers: [
+            { answerId: "1", answer: "3" },
+            { answerId: "2", answer: "4" },
+          ],
+          correctAnswerIndex: 1,
+          questionShowTimeMs: 20000,
+        },
+      ]);
+    });
+  });
+
+  describe("addQuestion", () => {
+    it("should add a question", async () => {
+      const question: Question = {
+        bankName: "bank1",
+        questionId: "mock-uuid",
+        question: "What is 2+2?",
+        answers: [
+          { answerId: "1", answer: "3" },
+          { answerId: "2", answer: "4" },
+        ],
+        correctAnswerIndex: 1,
+        questionShowTimeMs: 20000,
+      };
+
+      await questionStorage.addQuestion(question);
+
+      expect(tableClientMock.createEntity).toHaveBeenCalledWith({
+        partitionKey: "bank1",
+        rowKey: "mock-uuid",
+        question: "What is 2+2?",
+        questionId: "mock-uuid",
+        bankName: "bank1",
+        answers: [
+          { answerId: "1", answer: "3" },
+          { answerId: "2", answer: "4" },
+        ],
+        correctAnswerIndex: 1,
+        questionShowTimeMs: 20000,
+      });
+    });
+  });
+
+  describe("deleteQuestion", () => {
+    it("should delete a question", async () => {
+      await questionStorage.deleteQuestion("bank1", "question1");
+
+      expect(tableClientMock.deleteEntity).toHaveBeenCalledWith(
+        "bank1",
+        "question1",
+      );
+    });
+  });
+
+  describe("deleteQuestionBank", () => {
+    it("should delete all questions in a bank", async () => {
+      const mockEntities = [
+        { partitionKey: "bank1", rowKey: "question1" },
+        { partitionKey: "bank1", rowKey: "question2" },
+      ];
+
+      // Mock odata function to return the expected filter string
+      (odata as any).mockImplementation(
+        (_strings: TemplateStringsArray, ...values: any[]) => {
+          return `PartitionKey eq '${values[0]}'`;
+        },
+      );
+
+      // Update the listEntities mock to return a PagedAsyncIterableIterator
+      tableClientMock.listEntities.mockReturnValue({
+        async *[Symbol.asyncIterator]() {
+          // Async generator function
+          for (const entity of mockEntities) {
+            yield entity;
+          }
+        },
+      });
+
+      tableClientMock.deleteEntity.mockResolvedValue(undefined);
+
+      await questionStorage.deleteQuestionBank("bank1");
+
+      // Assert the exact filter string
+      expect(tableClientMock.listEntities).toHaveBeenCalledWith(
+        expect.objectContaining({
+          // Use objectContaining to match partial object
+          queryOptions: expect.objectContaining({
+            filter: "PartitionKey eq 'bank1'",
+          }),
+        }),
+      );
+
+      expect(tableClientMock.deleteEntity).toHaveBeenCalledTimes(2);
+      expect(tableClientMock.deleteEntity).toHaveBeenCalledWith(
+        "bank1",
+        "question1",
+      );
+      expect(tableClientMock.deleteEntity).toHaveBeenCalledWith(
+        "bank1",
+        "question2",
+      );
+    });
+  });
+
+  describe("getPresignedUrl", () => {
+    it("should return a presigned URL", async () => {
+      const url = await questionStorage.getPresignedUrl(
+        "container",
+        "partition",
+      );
+
+      expect(url).toBe("mock-url?mock-sas-token");
+    });
+  });
+
+  describe("getQuestionImagePresignedUrl", () => {
+    it("should return a presigned URL for question image", async () => {
+      const url = await questionStorage.getQuestionImagePresignedUrl(
+        "bank1",
+        "question1",
+      );
+
+      expect(url).toBe("mock-url?mock-sas-token");
+    });
+  });
+
+  describe("getExplanationImagePresignedUrl", () => {
+    it("should return a presigned URL for explanation image", async () => {
+      const url = await questionStorage.getExplanationImagePresignedUrl(
+        "bank1",
+        "question1",
+      );
+
+      expect(url).toBe("mock-url?mock-sas-token");
+    });
+  });
+
+  describe("generateAndAddQuestion", () => {
+    it("should generate and add a question", async () => {
+      const mockQuestion: Question = {
+        bankName: "bank1",
+        questionId: "mock-uuid",
+        question: "What is 2+2?",
+        answers: [
+          { answerId: "1", answer: "3" },
+          { answerId: "2", answer: "4" },
+        ],
+        correctAnswerIndex: 1,
+        questionShowTimeMs: 20000,
+      };
+
+      vi.spyOn(questionStorage, "generateQuestion").mockResolvedValue(
+        mockQuestion,
+      );
+
+      await questionStorage.generateAndAddQuestion(
+        "bank1",
+        "What is 2+2?",
+        ["3", "4"],
+        1,
+        20000,
+      );
+
+      expect(questionStorage.generateQuestion).toHaveBeenCalledWith(
+        "bank1",
+        "What is 2+2?",
+        ["3", "4"],
+        1,
+        20000,
+        undefined,
+        undefined,
+        undefined,
+      );
+
+      expect(tableClientMock.createEntity).toHaveBeenCalledWith({
+        partitionKey: "bank1",
+        rowKey: "mock-uuid",
+        question: "What is 2+2?",
+        questionId: "mock-uuid",
+        bankName: "bank1",
+        answers: [
+          { answerId: "1", answer: "3" },
+          { answerId: "2", answer: "4" },
+        ],
+        correctAnswerIndex: 1,
+        questionShowTimeMs: 20000,
+      });
+    });
+  });
+
+  describe("generateQuestion", () => {
+    it("should generate a question", async () => {
+      const question = await questionStorage.generateQuestion(
+        "bank1",
+        "What is 2+2?",
+        ["3", "4"],
+        1,
+        20000,
+      );
+
+      expect(question).toEqual({
+        bankName: "bank1",
+        questionId: "mock-uuid",
+        question: "What is 2+2?",
+        answers: [
+          { answerId: "mock-uuid", answer: "3" },
+          { answerId: "mock-uuid", answer: "4" },
+        ],
+        correctAnswerIndex: 1,
+        questionShowTimeMs: 20000,
+        imagePartitionKey: undefined,
+        explanation: undefined,
+        explanationImagePartitionKey: undefined,
+      });
     });
 
-    afterEach(() => {
-        vi.clearAllMocks(); // Clear all mocks after each test
-    });
+    it("should generate a question with images", async () => {
+      vi.spyOn(
+        questionStorage,
+        "downloadAndValidateImageForDiscord",
+      ).mockResolvedValue("mock-url");
 
-    describe("getQuestions", () => {
-        it("should return a list of questions", async () => {
-            const mockQuestions: TableEntity<Question>[] = [
-                {
-                    partitionKey: "bank1",
-                    rowKey: "question1",
-                    question: "What is 2+2?",
-                    answers: [
-                        { answerId: "1", answer: "3" },
-                        { answerId: "2", answer: "4" },
-                    ],
-                    correctAnswerIndex: 1,
-                    bankName: "bank1",
-                    questionId: "question1",
-                    questionShowTimeMs: 20000,
-                },
-            ];
-            tableClientMock.listEntities.mockReturnValue(mockQuestions);
-
-            const questions = await questionStorage.getQuestions("bank1");
-
-            expect(questions).toEqual([
-                {
-                    bankName: "bank1",
-                    questionId: "question1",
-                    question: "What is 2+2?",
-                    answers: [
-                        { answerId: "1", answer: "3" },
-                        { answerId: "2", answer: "4" },
-                    ],
-                    correctAnswerIndex: 1,
-                    questionShowTimeMs: 20000,
-                },
-            ]);
-        });
-    });
-
-    describe("addQuestion", () => {
-        it("should add a question", async () => {
-            const question: Question = {
-                bankName: "bank1",
-                questionId: "mock-uuid",
-                question: "What is 2+2?",
-                answers: [
-                    { answerId: "1", answer: "3" },
-                    { answerId: "2", answer: "4" },
-                ],
-                correctAnswerIndex: 1,
-                questionShowTimeMs: 20000,
-            };
-
-            await questionStorage.addQuestion(question);
-
-            expect(tableClientMock.createEntity).toHaveBeenCalledWith({
-                partitionKey: "bank1",
-                rowKey: "mock-uuid",
-                question: "What is 2+2?",
-                questionId: "mock-uuid",
-                bankName: "bank1",
-                answers: [
-                    { answerId: "1", answer: "3" },
-                    { answerId: "2", answer: "4" },
-                ],
-                correctAnswerIndex: 1,
-                questionShowTimeMs: 20000,
-            });
-        });
-    });
-
-    describe("deleteQuestion", () => {
-        it("should delete a question", async () => {
-            await questionStorage.deleteQuestion("bank1", "question1");
-
-            expect(tableClientMock.deleteEntity).toHaveBeenCalledWith("bank1", "question1");
-        });
-    });
-
-    describe("deleteQuestionBank", () => {
-        it("should delete all questions in a bank", async () => {
-            const mockEntities = [
-                { partitionKey: "bank1", rowKey: "question1" },
-                { partitionKey: "bank1", rowKey: "question2" },
-            ];
-
-            // Mock odata function to return the expected filter string
-            (odata as any).mockImplementation((_strings: TemplateStringsArray, ...values: any[]) => {
-                return `PartitionKey eq '${values[0]}'`;
-            });
-
-            // Update the listEntities mock to return a PagedAsyncIterableIterator
-            tableClientMock.listEntities.mockReturnValue({
-                async *[Symbol.asyncIterator]() { // Async generator function
-                    for (const entity of mockEntities) {
-                        yield entity;
-                    }
+      // Mock fetch to simulate a successful image fetch
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        headers: {
+          get: () => "1024", // Mock content length header
+        },
+        body: {
+          getReader: () => {
+            let done = false;
+            return {
+              read: () => {
+                if (done) {
+                  return Promise.resolve({ done: true });
                 }
-            });
-
-            tableClientMock.deleteEntity.mockResolvedValue(undefined);
-
-            await questionStorage.deleteQuestionBank("bank1");
-
-            // Assert the exact filter string
-            expect(tableClientMock.listEntities).toHaveBeenCalledWith(
-                expect.objectContaining({ // Use objectContaining to match partial object
-                    queryOptions: expect.objectContaining({
-                        filter: "PartitionKey eq 'bank1'",
-                    })
-                })
-            );
-
-            expect(tableClientMock.deleteEntity).toHaveBeenCalledTimes(2);
-            expect(tableClientMock.deleteEntity).toHaveBeenCalledWith("bank1", "question1");
-            expect(tableClientMock.deleteEntity).toHaveBeenCalledWith("bank1", "question2");
-        });
-    });
-
-    describe("getPresignedUrl", () => {
-        it("should return a presigned URL", async () => {
-            const url = await questionStorage.getPresignedUrl("container", "partition");
-
-            expect(url).toBe("mock-url?mock-sas-token");
-        });
-    });
-
-    describe("getQuestionImagePresignedUrl", () => {
-        it("should return a presigned URL for question image", async () => {
-            const url = await questionStorage.getQuestionImagePresignedUrl("bank1", "question1");
-
-            expect(url).toBe("mock-url?mock-sas-token");
-        });
-    });
-
-    describe("getExplanationImagePresignedUrl", () => {
-        it("should return a presigned URL for explanation image", async () => {
-            const url = await questionStorage.getExplanationImagePresignedUrl("bank1", "question1");
-
-            expect(url).toBe("mock-url?mock-sas-token");
-        });
-    });
-
-    describe("generateAndAddQuestion", () => {
-        it("should generate and add a question", async () => {
-            const mockQuestion: Question = {
-                bankName: "bank1",
-                questionId: "mock-uuid",
-                question: "What is 2+2?",
-                answers: [
-                    { answerId: "1", answer: "3" },
-                    { answerId: "2", answer: "4" },
-                ],
-                correctAnswerIndex: 1,
-                questionShowTimeMs: 20000,
+                done = true;
+                return Promise.resolve({
+                  value: Buffer.from("mock-image-buffer"),
+                  done: false,
+                });
+              },
             };
+          },
+        },
+        status: 200,
+        statusText: "OK",
+      } as unknown as Response);
 
-            vi.spyOn(questionStorage, 'generateQuestion').mockResolvedValue(mockQuestion);
+      (fileType.fileTypeFromBuffer as any)
+        .mockResolvedValueOnce({ mime: "image/jpeg" })
+        .mockResolvedValueOnce({ mime: "image/png" }); // Assuming a different mime type for the second image
 
-            await questionStorage.generateAndAddQuestion(
-                "bank1",
-                "What is 2+2?",
-                ["3", "4"],
-                1,
-                20000
-            );
+      const question = await questionStorage.generateQuestion(
+        "bank1",
+        "What is 2+2?",
+        ["3", "4"],
+        1,
+        20000,
+        "http://image-url.com",
+        "Explanation",
+        "http://explanation-image-url.com",
+      );
 
-            expect(questionStorage.generateQuestion).toHaveBeenCalledWith(
-                "bank1",
-                "What is 2+2?",
-                ["3", "4"],
-                1,
-                20000,
-                undefined,
-                undefined,
-                undefined,
-            );
+      expect(question).toEqual({
+        bankName: "bank1",
+        questionId: "mock-uuid",
+        question: "What is 2+2?",
+        answers: [
+          { answerId: "mock-uuid", answer: "3" },
+          { answerId: "mock-uuid", answer: "4" },
+        ],
+        correctAnswerIndex: 1,
+        questionShowTimeMs: 20000,
+        imagePartitionKey: "bank1-mock-uuid-question",
+        explanation: "Explanation",
+        explanationImagePartitionKey: "bank1-mock-uuid-explanation",
+      });
 
-            expect(tableClientMock.createEntity).toHaveBeenCalledWith({
-                partitionKey: "bank1",
-                rowKey: "mock-uuid",
-                question: "What is 2+2?",
-                questionId: "mock-uuid",
-                bankName: "bank1",
-                answers: [
-                    { answerId: "1", answer: "3" },
-                    { answerId: "2", answer: "4" },
-                ],
-                correctAnswerIndex: 1,
-                questionShowTimeMs: 20000,
-            });
-        });
+      expect(
+        questionStorage.downloadAndValidateImageForDiscord,
+      ).toHaveBeenCalledWith(
+        "http://image-url.com",
+        "bank1",
+        "bank1-mock-uuid-question",
+      );
+
+      expect(
+        questionStorage.downloadAndValidateImageForDiscord,
+      ).toHaveBeenCalledWith(
+        "http://explanation-image-url.com",
+        "bank1",
+        "bank1-mock-uuid-explanation",
+      );
+    });
+  });
+
+  describe("downloadAndValidateImageForDiscord", () => {
+    it("should download and validate an image", async () => {
+      const mockImageBuffer = Buffer.from("mock-image-buffer");
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        headers: {
+          get: () => mockImageBuffer.length.toString(),
+        },
+        body: {
+          getReader: () => ({
+            read: () => Promise.resolve({ value: mockImageBuffer, done: true }),
+          }),
+        },
+      } as unknown as Response);
+
+      vi.mocked(fileType.fileTypeFromBuffer).mockResolvedValueOnce({
+        mime: "image/jpeg",
+      } as any);
+
+      const url = await questionStorage.downloadAndValidateImageForDiscord(
+        "http://image-url.com",
+        "container",
+        "partition",
+      );
+
+      expect(url).toBe("mock-url");
     });
 
-    describe("generateQuestion", () => {
-        it("should generate a question", async () => {
-            const question = await questionStorage.generateQuestion(
-                "bank1",
-                "What is 2+2?",
-                ["3", "4"],
-                1,
-                20000
-            );
+    it("should throw an error if the image is too large", async () => {
+      const mockImageBuffer = Buffer.alloc(9 * 1024 * 1024); // 9MB
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        headers: {
+          get: () => mockImageBuffer.length.toString(),
+        },
+        body: {
+          getReader: () => ({
+            read: () => Promise.resolve({ value: mockImageBuffer, done: true }),
+          }),
+        },
+      } as unknown as Response);
 
-            expect(question).toEqual({
-                bankName: "bank1",
-                questionId: "mock-uuid",
-                question: "What is 2+2?",
-                answers: [
-                    { answerId: "mock-uuid", answer: "3" },
-                    { answerId: "mock-uuid", answer: "4" },
-                ],
-                correctAnswerIndex: 1,
-                questionShowTimeMs: 20000,
-                imagePartitionKey: undefined,
-                explanation: undefined,
-                explanationImagePartitionKey: undefined,
-            });
-        });
-
-        it("should generate a question with images", async () => {
-            vi.spyOn(questionStorage, 'downloadAndValidateImageForDiscord').mockResolvedValue('mock-url');
-
-            // Mock fetch to simulate a successful image fetch
-            global.fetch = vi.fn().mockResolvedValue({
-                ok: true,
-                headers: {
-                    get: () => "1024", // Mock content length header
-                },
-                body: {
-                    getReader: () => {
-                        let done = false;
-                        return {
-                            read: () => {
-                                if (done) {
-                                    return Promise.resolve({ done: true });
-                                }
-                                done = true;
-                                return Promise.resolve({ value: Buffer.from("mock-image-buffer"), done: false });
-                            },
-                        };
-                    },
-                },
-                status: 200,
-                statusText: "OK"
-            } as unknown as Response);
-
-            (fileType.fileTypeFromBuffer as any)
-                .mockResolvedValueOnce({ mime: "image/jpeg" })
-                .mockResolvedValueOnce({ mime: "image/png" }); // Assuming a different mime type for the second image
-
-            const question = await questionStorage.generateQuestion(
-                "bank1",
-                "What is 2+2?",
-                ["3", "4"],
-                1,
-                20000,
-                "http://image-url.com",
-                "Explanation",
-                "http://explanation-image-url.com"
-            );
-
-            expect(question).toEqual({
-                bankName: "bank1",
-                questionId: "mock-uuid",
-                question: "What is 2+2?",
-                answers: [
-                    { answerId: "mock-uuid", answer: "3" },
-                    { answerId: "mock-uuid", answer: "4" },
-                ],
-                correctAnswerIndex: 1,
-                questionShowTimeMs: 20000,
-                imagePartitionKey: "bank1-mock-uuid-question",
-                explanation: "Explanation",
-                explanationImagePartitionKey: "bank1-mock-uuid-explanation",
-            });
-
-            expect(questionStorage.downloadAndValidateImageForDiscord).toHaveBeenCalledWith(
-                "http://image-url.com",
-                "bank1",
-                "bank1-mock-uuid-question"
-            );
-
-            expect(questionStorage.downloadAndValidateImageForDiscord).toHaveBeenCalledWith(
-                "http://explanation-image-url.com",
-                "bank1",
-                "bank1-mock-uuid-explanation"
-            );
-        });
+      await expect(
+        questionStorage.downloadAndValidateImageForDiscord(
+          "http://image-url.com",
+          "container",
+          "partition",
+        ),
+      ).rejects.toThrow("Image size exceeds Discord's 8MB limit.");
     });
 
-    describe("downloadAndValidateImageForDiscord", () => {
-        it("should download and validate an image", async () => {
-            const mockImageBuffer = Buffer.from("mock-image-buffer");
-            global.fetch = vi.fn().mockResolvedValueOnce({
-                ok: true,
-                headers: {
-                    get: () => mockImageBuffer.length.toString(),
-                },
-                body: {
-                    getReader: () => ({
-                        read: () => Promise.resolve({ value: mockImageBuffer, done: true }),
-                    }),
-                },
-            } as unknown as Response);
+    it("should throw an error if the image type is invalid", async () => {
+      const mockImageBuffer = Buffer.from("mock-image-buffer");
 
-            vi.mocked(fileType.fileTypeFromBuffer).mockResolvedValueOnce({ mime: "image/jpeg" } as any);
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        headers: {
+          get: () => mockImageBuffer.length.toString(),
+        },
+        body: {
+          getReader: () => ({
+            read: () => Promise.resolve({ value: mockImageBuffer, done: true }),
+          }),
+        },
+      } as unknown as Response);
 
-            const url = await questionStorage.downloadAndValidateImageForDiscord(
-                "http://image-url.com",
-                "container",
-                "partition"
-            );
+      // Mock fileTypeFromBuffer to return an invalid mime type (e.g., "image/bmp")
+      vi.mocked(fileType.fileTypeFromBuffer).mockResolvedValueOnce({
+        mime: "image/bmp",
+      } as any);
 
-            expect(url).toBe("mock-url");
-        });
-
-        it("should throw an error if the image is too large", async () => {
-            const mockImageBuffer = Buffer.alloc(9 * 1024 * 1024); // 9MB
-            global.fetch = vi.fn().mockResolvedValueOnce({
-                ok: true,
-                headers: {
-                    get: () => mockImageBuffer.length.toString(),
-                },
-                body: {
-                    getReader: () => ({
-                        read: () => Promise.resolve({ value: mockImageBuffer, done: true }),
-                    }),
-                },
-            } as unknown as Response);
-
-            await expect(questionStorage.downloadAndValidateImageForDiscord(
-                "http://image-url.com",
-                "container",
-                "partition"
-            )).rejects.toThrow("Image size exceeds Discord's 8MB limit.");
-        });
-
-        it("should throw an error if the image type is invalid", async () => {
-            const mockImageBuffer = Buffer.from("mock-image-buffer");
-
-            global.fetch = vi.fn().mockResolvedValueOnce({
-                ok: true,
-                headers: {
-                    get: () => mockImageBuffer.length.toString(),
-                },
-                body: {
-                    getReader: () => ({
-                        read: () => Promise.resolve({ value: mockImageBuffer, done: true }),
-                    }),
-                },
-            } as unknown as Response);
-
-            // Mock fileTypeFromBuffer to return an invalid mime type (e.g., "image/bmp")
-            vi.mocked(fileType.fileTypeFromBuffer).mockResolvedValueOnce({
-                mime: "image/bmp",
-            } as any);
-
-            // Call the original method directly on the questionStorage instance
-            await expect(
-                questionStorage.downloadAndValidateImageForDiscord(
-                    "http://image-url.com",
-                    "container",
-                    "partition"
-                )
-            ).rejects.toThrow("Invalid image file type for Discord.");
-        });
-
-        it("should throw an error if the fetch response is not ok", async () => {
-            global.fetch = vi.fn().mockResolvedValueOnce({
-                ok: false,
-                status: 404,
-                statusText: "Not Found"
-            } as unknown as Response);
-
-            await expect(
-                questionStorage.downloadAndValidateImageForDiscord(
-                    "http://image-url.com",
-                    "container",
-                    "partition"
-                )
-            ).rejects.toThrow("Failed to fetch image: 404 Not Found");
-        });
-
-        it("should throw an error if imageStream is not available", async () => {
-            global.fetch = vi.fn().mockResolvedValueOnce({
-                ok: true,
-                headers: {
-                    get: () => "1024",
-                },
-                body: null // No body stream
-            } as unknown as Response);
-
-            await expect(
-                questionStorage.downloadAndValidateImageForDiscord(
-                    "http://image-url.com",
-                    "container",
-                    "partition"
-                )
-            ).rejects.toThrow("Unable to download the file from the URL http://image-url.com");
-        });
+      // Call the original method directly on the questionStorage instance
+      await expect(
+        questionStorage.downloadAndValidateImageForDiscord(
+          "http://image-url.com",
+          "container",
+          "partition",
+        ),
+      ).rejects.toThrow("Invalid image file type for Discord.");
     });
+
+    it("should throw an error if the fetch response is not ok", async () => {
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        statusText: "Not Found",
+      } as unknown as Response);
+
+      await expect(
+        questionStorage.downloadAndValidateImageForDiscord(
+          "http://image-url.com",
+          "container",
+          "partition",
+        ),
+      ).rejects.toThrow("Failed to fetch image: 404 Not Found");
+    });
+
+    it("should throw an error if imageStream is not available", async () => {
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        headers: {
+          get: () => "1024",
+        },
+        body: null, // No body stream
+      } as unknown as Response);
+
+      await expect(
+        questionStorage.downloadAndValidateImageForDiscord(
+          "http://image-url.com",
+          "container",
+          "partition",
+        ),
+      ).rejects.toThrow(
+        "Unable to download the file from the URL http://image-url.com",
+      );
+    });
+  });
 });

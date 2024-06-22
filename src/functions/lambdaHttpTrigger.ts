@@ -11,7 +11,7 @@ import {
   InteractionType,
 } from "discord-api-types/v10";
 
-import { Config } from './config';
+import { Config } from "./config";
 
 export async function interactions(
   request: HttpRequest,
@@ -49,7 +49,8 @@ export async function interactions(
   }
 
   // 4. Delegate to DiscordBotService
-  const response = await Config.discordBotService.handleInteraction(interaction); // Updated to use interaction directly
+  const response =
+    await Config.discordBotService.handleInteraction(interaction); // Updated to use interaction directly
   return {
     status: 200,
     headers: { "Content-Type": "application/json" },

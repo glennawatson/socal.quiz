@@ -75,9 +75,9 @@ describe("QuizManager", () => {
   });
 
   const createAPIMessageComponentInteraction = (
-      channelId: string,
-      userId: string,
-      customId: string,
+    channelId: string,
+    userId: string,
+    customId: string,
   ): APIMessageComponentInteraction => ({
     type: InteractionType.MessageComponent,
     data: { custom_id: customId, component_type: ComponentType.Button },
@@ -203,7 +203,7 @@ describe("QuizManager", () => {
         embeds: [
           expect.objectContaining({
             description: expect.stringContaining(
-                "What is the capital of France?",
+              "What is the capital of France?",
             ),
           }),
         ],
@@ -229,9 +229,9 @@ describe("QuizManager", () => {
     // Ensure the correct order of calls with the right data
     expectedMessageBodies.forEach((body, index) => {
       expect(postSpy).toHaveBeenNthCalledWith(
-          index + 1,
-          Routes.channelMessages(channelId),
-          { body },
+        index + 1,
+        Routes.channelMessages(channelId),
+        { body },
       );
 
       // Check if this call is for a question (not a summary or scores)
@@ -269,18 +269,18 @@ describe("QuizManager", () => {
     quizManager.quizzes.set(channelId, quizState);
 
     const interaction = createAPIMessageComponentInteraction(
-        channelId,
-        "user123",
-        `answer_${questions[0]?.answers[questions[0]?.correctAnswerIndex]?.answerId}`,
+      channelId,
+      "user123",
+      `answer_${questions[0]?.answers[questions[0]?.correctAnswerIndex]?.answerId}`,
     );
 
     const response = (await quizManager.handleAnswer(
-        interaction,
+      interaction,
     )) as APIInteractionResponseChannelMessageWithSource;
 
     // Assert
     expect(response.type).toBe(
-        InteractionResponseType.ChannelMessageWithSource,
+      InteractionResponseType.ChannelMessageWithSource,
     );
     expect(response.data.content).toBe("Correct!");
     expect(quizState.activeUsers.get("user123")).toBe(1);
@@ -316,9 +316,9 @@ describe("QuizManager", () => {
           {
             title: `Summary for Question 1`,
             description: `0 user(s) answered correctly!\nThe correct answer was: ${
-                questions[questionIndex]?.answers[
-                    questions[questionIndex]?.correctAnswerIndex
-                    ]?.answer ?? ""
+              questions[questionIndex]?.answers[
+                questions[questionIndex]?.correctAnswerIndex
+              ]?.answer ?? ""
             }`,
           },
         ],
@@ -326,8 +326,8 @@ describe("QuizManager", () => {
     };
 
     expect(postSpy).toHaveBeenCalledWith(
-        Routes.channelMessages(channelId),
-        expectedMessageBody,
+      Routes.channelMessages(channelId),
+      expectedMessageBody,
     );
   });
 
@@ -349,11 +349,11 @@ describe("QuizManager", () => {
     await quizManager.showScores(quizState);
 
     const expectedDescription =
-        "<@user3>: 3 points\n<@user1>: 2 points\n<@user2>: 1 points\n";
+      "<@user3>: 3 points\n<@user1>: 2 points\n<@user2>: 1 points\n";
 
     const expectedEmbed = new EmbedBuilder()
-        .setTitle("Quiz Scores")
-        .setDescription(expectedDescription);
+      .setTitle("Quiz Scores")
+      .setDescription(expectedDescription);
 
     expect(postSpy).toHaveBeenCalledWith(Routes.channelMessages(channelId), {
       body: {
@@ -409,8 +409,8 @@ describe("QuizManager", () => {
     };
 
     expect(postSpy).toHaveBeenCalledWith(
-        Routes.channelMessages(channelId),
-        expectedMessageBody,
+      Routes.channelMessages(channelId),
+      expectedMessageBody,
     );
   });
 
@@ -428,17 +428,17 @@ describe("QuizManager", () => {
     quizManager.quizzes.set(channelId, quizState);
 
     const interaction = createAPIMessageComponentInteraction(
-        channelId,
-        "user123",
-        `answer_${questions[0]?.answers[2]?.answerId}`,
+      channelId,
+      "user123",
+      `answer_${questions[0]?.answers[2]?.answerId}`,
     );
 
     const response = (await quizManager.handleAnswer(
-        interaction,
+      interaction,
     )) as APIInteractionResponseChannelMessageWithSource;
 
     expect(response.type).toBe(
-        InteractionResponseType.ChannelMessageWithSource,
+      InteractionResponseType.ChannelMessageWithSource,
     );
     expect(response.data.content).toBe("Incorrect!");
     expect(quizState.activeUsers.get("user123")).toBe(0); // Score should not change
@@ -469,7 +469,7 @@ describe("QuizManager", () => {
     const response = await quizManager.handleAnswer(interaction);
 
     expect(response).toEqual(
-        createEphemeralResponse("Invalid interaction type."),
+      createEphemeralResponse("Invalid interaction type."),
     );
   });
 
@@ -522,9 +522,9 @@ describe("QuizManager", () => {
     quizManager.quizzes.set(channelId, quizState);
 
     const interaction = createAPIMessageComponentInteraction(
-        channelId,
-        "user123",
-        `answer_${questions[0]?.answers[1]?.answerId}`,
+      channelId,
+      "user123",
+      `answer_${questions[0]?.answers[1]?.answerId}`,
     );
 
     await quizManager.handleAnswer(interaction);
@@ -547,14 +547,14 @@ describe("QuizManager", () => {
     quizManager.quizzes.set(channelId, quizState);
 
     const user1Interaction = createAPIMessageComponentInteraction(
-        channelId,
-        "user1",
-        `answer_${questions[0]?.answers[1]?.answerId}`,
+      channelId,
+      "user1",
+      `answer_${questions[0]?.answers[1]?.answerId}`,
     );
     const user2Interaction = createAPIMessageComponentInteraction(
-        channelId,
-        "user2",
-        `answer_${questions[0]?.answers[1]?.answerId}`,
+      channelId,
+      "user2",
+      `answer_${questions[0]?.answers[1]?.answerId}`,
     );
 
     await quizManager.handleAnswer(user1Interaction);
@@ -568,26 +568,26 @@ describe("QuizManager", () => {
     questions[0]!.imagePartitionKey = "question-image-key";
     const questionBankName = "bankWithImage";
     const presignedImageUrl =
-        "https://example.com/presigned-question-image-url";
+      "https://example.com/presigned-question-image-url";
 
     questionStorageMock.getQuestions.mockResolvedValue(questions);
     questionStorageMock.getQuestionImagePresignedUrl.mockResolvedValue(
-        presignedImageUrl,
+      presignedImageUrl,
     );
 
     await quizManager.startQuiz(channelId, questionBankName, testScheduler);
 
     expect(postSpy).toHaveBeenCalledWith(
-        Routes.channelMessages(channelId),
-        expect.objectContaining({
-          body: expect.objectContaining({
-            embeds: expect.arrayContaining([
-              expect.objectContaining({
-                image: { url: presignedImageUrl },
-              }),
-            ]),
-          }),
+      Routes.channelMessages(channelId),
+      expect.objectContaining({
+        body: expect.objectContaining({
+          embeds: expect.arrayContaining([
+            expect.objectContaining({
+              image: { url: presignedImageUrl },
+            }),
+          ]),
         }),
+      }),
     );
   });
 
@@ -606,13 +606,13 @@ describe("QuizManager", () => {
     quizManager.quizzes.set(channelId, quizState);
 
     const interaction = createAPIMessageComponentInteraction(
-        channelId,
-        "user123",
-        `answer_${questions[0]?.answers[1]?.answerId}`,
+      channelId,
+      "user123",
+      `answer_${questions[0]?.answers[1]?.answerId}`,
     );
 
     const response = (await quizManager.handleAnswer(
-        interaction,
+      interaction,
     )) as APIInteractionResponseChannelMessageWithSource;
 
     expect(response.data.content).toBe("Incorrect!");
@@ -623,13 +623,13 @@ describe("QuizManager", () => {
     questionStorageMock.getQuestions.mockResolvedValue(questions);
 
     const response = await quizManager.startQuiz(
-        channelId,
-        "invalidBank",
-        testScheduler,
+      channelId,
+      "invalidBank",
+      testScheduler,
     );
 
     expect(response).toEqual(
-        createEphemeralResponse("There are invalid questions with IDs: q1"),
+      createEphemeralResponse("There are invalid questions with IDs: q1"),
     );
   });
 
@@ -690,35 +690,35 @@ describe("QuizManager", () => {
 
     // Mock the REST post method to simulate user answers
     postSpy.mockImplementation(
-        async (
-            route: string,
-            { body }: { body: RESTPostAPIChannelMessageJSONBody },
-        ) => {
-          if (route === Routes.channelMessages(channelId)) {
-            const content =
-                body.content || (body.embeds && body.embeds[0]?.description);
+      async (
+        route: string,
+        { body }: { body: RESTPostAPIChannelMessageJSONBody },
+      ) => {
+        if (route === Routes.channelMessages(channelId)) {
+          const content =
+            body.content || (body.embeds && body.embeds[0]?.description);
 
-            if (content?.includes("What is 2 + 2?")) {
-              // Simulate user answering the first question correctly
-              await quizManager.handleAnswer(
-                  createAPIMessageComponentInteraction(
-                      channelId,
-                      "user1",
-                      `answer_${questions[0]?.answers[1]?.answerId}`,
-                  ),
-              );
-            } else if (content?.includes("What is the capital of France?")) {
-              // Simulate user answering the second question correctly
-              await quizManager.handleAnswer(
-                  createAPIMessageComponentInteraction(
-                      channelId,
-                      "user1",
-                      `answer_${questions[1]?.answers[1]?.answerId}`,
-                  ),
-              );
-            }
+          if (content?.includes("What is 2 + 2?")) {
+            // Simulate user answering the first question correctly
+            await quizManager.handleAnswer(
+              createAPIMessageComponentInteraction(
+                channelId,
+                "user1",
+                `answer_${questions[0]?.answers[1]?.answerId}`,
+              ),
+            );
+          } else if (content?.includes("What is the capital of France?")) {
+            // Simulate user answering the second question correctly
+            await quizManager.handleAnswer(
+              createAPIMessageComponentInteraction(
+                channelId,
+                "user1",
+                `answer_${questions[1]?.answers[1]?.answerId}`,
+              ),
+            );
           }
-        },
+        }
+      },
     );
 
     await quizManager.startQuizInternal(questions, channelId, testScheduler);
@@ -728,17 +728,17 @@ describe("QuizManager", () => {
     const expectedDescription = "<@user1>: 2 points\n";
 
     const expectedEmbed = new EmbedBuilder()
-        .setTitle("Quiz Scores")
-        .setDescription(expectedDescription);
+      .setTitle("Quiz Scores")
+      .setDescription(expectedDescription);
 
     expect(postSpy).toHaveBeenNthCalledWith(
-        5,
-        Routes.channelMessages(channelId),
-        {
-          body: {
-            embeds: [expectedEmbed.toJSON()],
-          },
+      5,
+      Routes.channelMessages(channelId),
+      {
+        body: {
+          embeds: [expectedEmbed.toJSON()],
         },
+      },
     );
   });
 
@@ -789,8 +789,14 @@ describe("QuizManager", () => {
   // New Tests for Uncovered Lines
 
   it("should return an ephemeral response if there are no valid questions", async () => {
-    const response = await quizManager.startQuizInternal([], channelId, testScheduler);
-    expect(response).toEqual(createEphemeralResponse("There are no valid questions"));
+    const response = await quizManager.startQuizInternal(
+      [],
+      channelId,
+      testScheduler,
+    );
+    expect(response).toEqual(
+      createEphemeralResponse("There are no valid questions"),
+    );
   });
 
   it("should include explanation in question summary if provided", async () => {
@@ -807,8 +813,7 @@ describe("QuizManager", () => {
 
     const questionIndex = 0;
     const currentQuestion = questions[questionIndex];
-    if (!currentQuestion)
-    {
+    if (!currentQuestion) {
       throw new Error("No such question");
     }
 
@@ -822,7 +827,8 @@ describe("QuizManager", () => {
           {
             title: `Summary for Question 1`,
             description: `0 user(s) answered correctly!\nThe correct answer was: ${
-                currentQuestion.answers[currentQuestion.correctAnswerIndex]?.answer
+              currentQuestion.answers[currentQuestion.correctAnswerIndex]
+                ?.answer
             }\nExplanation: Sample explanation`,
           },
         ],
@@ -830,8 +836,8 @@ describe("QuizManager", () => {
     };
 
     expect(postSpy).toHaveBeenCalledWith(
-        Routes.channelMessages(channelId),
-        expectedMessageBody,
+      Routes.channelMessages(channelId),
+      expectedMessageBody,
     );
   });
 
@@ -850,15 +856,17 @@ describe("QuizManager", () => {
     const questionIndex = 0;
     const currentQuestion = questions[questionIndex];
 
-    if (!currentQuestion)
-    {
+    if (!currentQuestion) {
       throw new Error("No such question");
     }
 
     currentQuestion.explanationImagePartitionKey = "explanation-image-key";
-    const presignedImageUrl = "https://example.com/presigned-explanation-image-url";
+    const presignedImageUrl =
+      "https://example.com/presigned-explanation-image-url";
 
-    questionStorageMock.getExplanationImagePresignedUrl.mockResolvedValue(presignedImageUrl);
+    questionStorageMock.getExplanationImagePresignedUrl.mockResolvedValue(
+      presignedImageUrl,
+    );
 
     await quizManager.sendQuestionSummary(channelId, currentQuestion, 1);
 
@@ -868,7 +876,8 @@ describe("QuizManager", () => {
           {
             title: `Summary for Question 1`,
             description: `0 user(s) answered correctly!\nThe correct answer was: ${
-                currentQuestion.answers[currentQuestion.correctAnswerIndex]?.answer
+              currentQuestion.answers[currentQuestion.correctAnswerIndex]
+                ?.answer
             }`,
             image: { url: presignedImageUrl },
           },
@@ -877,17 +886,23 @@ describe("QuizManager", () => {
     };
 
     expect(postSpy).toHaveBeenCalledWith(
-        Routes.channelMessages(channelId),
-        expectedMessageBody,
+      Routes.channelMessages(channelId),
+      expectedMessageBody,
     );
   });
 
   it("should return an error response if no quiz is found in handleAnswer", async () => {
-    const interaction = createAPIMessageComponentInteraction(channelId, "user123", "answer_a1");
+    const interaction = createAPIMessageComponentInteraction(
+      channelId,
+      "user123",
+      "answer_a1",
+    );
 
     const response = await quizManager.handleAnswer(interaction);
 
-    expect(response).toEqual(createEphemeralResponse("No quiz found for this channel."));
+    expect(response).toEqual(
+      createEphemeralResponse("No quiz found for this channel."),
+    );
   });
 
   it("should return an error response if no active question is found in handleAnswer", async () => {
@@ -902,7 +917,11 @@ describe("QuizManager", () => {
     };
     quizManager.quizzes.set(channelId, quizState);
 
-    const interaction = createAPIMessageComponentInteraction(channelId, "user123", "answer_a1");
+    const interaction = createAPIMessageComponentInteraction(
+      channelId,
+      "user123",
+      "answer_a1",
+    );
 
     const response = await quizManager.handleAnswer(interaction);
 
@@ -921,11 +940,17 @@ describe("QuizManager", () => {
     };
     quizManager.quizzes.set(channelId, quizState);
 
-    const interaction = createAPIMessageComponentInteraction(channelId, "user123", "answer_a1");
+    const interaction = createAPIMessageComponentInteraction(
+      channelId,
+      "user123",
+      "answer_a1",
+    );
 
     const response = await quizManager.handleAnswer(interaction);
 
-    expect(response).toEqual(createEphemeralResponse("No quiz question found for this channel."));
+    expect(response).toEqual(
+      createEphemeralResponse("No quiz question found for this channel."),
+    );
   });
 
   it("should return an error response if no user ID is present in the interaction", async () => {
@@ -941,7 +966,11 @@ describe("QuizManager", () => {
     quizManager.quizzes.set(channelId, quizState);
 
     const interaction = {
-      ...createAPIMessageComponentInteraction(channelId, "user123", "answer_a1"),
+      ...createAPIMessageComponentInteraction(
+        channelId,
+        "user123",
+        "answer_a1",
+      ),
       member: { user: null }, // No user ID
     } as any;
 
@@ -962,11 +991,19 @@ describe("QuizManager", () => {
     };
     quizManager.quizzes.set(channelId, quizState);
 
-    const interaction = createAPIMessageComponentInteraction(channelId, "user123", "answer_invalid");
+    const interaction = createAPIMessageComponentInteraction(
+      channelId,
+      "user123",
+      "answer_invalid",
+    );
 
     const response = await quizManager.handleAnswer(interaction);
 
-    expect(response).toEqual(createEphemeralResponse("This answer is not part of the current quiz, answer again."));
+    expect(response).toEqual(
+      createEphemeralResponse(
+        "This answer is not part of the current quiz, answer again.",
+      ),
+    );
   });
 
   it("should log and return if no quiz state is found in showScores", async () => {
@@ -993,7 +1030,9 @@ describe("QuizManager", () => {
 
     await quizManager.showScores(quizState);
 
-    expect(consoleLogSpy).toHaveBeenCalledWith("no valid channel defined for the quiz to send scores to");
+    expect(consoleLogSpy).toHaveBeenCalledWith(
+      "no valid channel defined for the quiz to send scores to",
+    );
     consoleLogSpy.mockRestore();
   });
 
@@ -1011,7 +1050,9 @@ describe("QuizManager", () => {
 
     const response = await quizManager.nextQuizQuestion(channelId);
 
-    expect(response).toEqual(createEphemeralResponse("No quiz question found for this channel."));
+    expect(response).toEqual(
+      createEphemeralResponse("No quiz question found for this channel."),
+    );
   });
 
   it("should return an error response if there are no more questions in nextQuizQuestion", async () => {
@@ -1028,6 +1069,8 @@ describe("QuizManager", () => {
 
     const response = await quizManager.nextQuizQuestion(channelId);
 
-    expect(response).toEqual(createEphemeralResponse("No more questions in the quiz."));
+    expect(response).toEqual(
+      createEphemeralResponse("No more questions in the quiz."),
+    );
   });
 });

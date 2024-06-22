@@ -6,17 +6,16 @@ export class GuildStorage {
   constructor(connectionString?: string, guildClient?: TableClient) {
     if (!guildClient) {
       connectionString =
-          connectionString ?? process.env.AZURE_STORAGE_CONNECTION_STRING;
+        connectionString ?? process.env.AZURE_STORAGE_CONNECTION_STRING;
       if (!connectionString) throw Error("Invalid connection string");
 
       this.guildClient = TableClient.fromConnectionString(
-          connectionString,
-          "GuildRegistrations",
+        connectionString,
+        "GuildRegistrations",
       );
     } else {
       this.guildClient = guildClient;
     }
-
   }
 
   public async isGuildRegistered(guildId: string): Promise<boolean> {

@@ -28,7 +28,7 @@ describe("AddQuestionToBankCommand", () => {
     };
 
     addQuestionToBankCommand = new AddQuestionToBankCommand(
-        questionStorageMock,
+      questionStorageMock,
     );
   });
 
@@ -77,7 +77,7 @@ describe("AddQuestionToBankCommand", () => {
                 },
                 {
                   custom_id:
-                  AddQuestionToBankCommand.componentIds.correctAnswerIndex,
+                    AddQuestionToBankCommand.componentIds.correctAnswerIndex,
                   value: "1",
                   type: ComponentType.TextInput,
                 },
@@ -90,20 +90,20 @@ describe("AddQuestionToBankCommand", () => {
       };
 
       const response =
-          await addQuestionToBankCommand.handleModalSubmit(interaction);
+        await addQuestionToBankCommand.handleModalSubmit(interaction);
 
       expect(response).toEqual(
-          createEphemeralResponse("Added question to bank test bank."),
+        createEphemeralResponse("Added question to bank test bank."),
       );
       expect(questionStorageMock.generateAndAddQuestion).toHaveBeenCalledWith(
-          "test bank",
-          "Sample question?",
-          expect.any(Array),
-          1,
-          expect.any(Number),
-          undefined,
-          undefined,
-          undefined,
+        "test bank",
+        "Sample question?",
+        expect.any(Array),
+        1,
+        expect.any(Number),
+        undefined,
+        undefined,
+        undefined,
       );
     });
 
@@ -135,7 +135,7 @@ describe("AddQuestionToBankCommand", () => {
                 },
                 {
                   custom_id:
-                  AddQuestionToBankCommand.componentIds.correctAnswerIndex,
+                    AddQuestionToBankCommand.componentIds.correctAnswerIndex,
                   value: "1",
                   type: ComponentType.TextInput,
                 },
@@ -147,7 +147,8 @@ describe("AddQuestionToBankCommand", () => {
         guild_id: "guild-id",
       };
 
-      const response = await addQuestionToBankCommand.handleModalSubmit(interaction);
+      const response =
+        await addQuestionToBankCommand.handleModalSubmit(interaction);
 
       expect(response).toEqual(createEphemeralResponse("Invalid bank name"));
     });
@@ -180,7 +181,7 @@ describe("AddQuestionToBankCommand", () => {
                 },
                 {
                   custom_id:
-                  AddQuestionToBankCommand.componentIds.correctAnswerIndex,
+                    AddQuestionToBankCommand.componentIds.correctAnswerIndex,
                   value: "1",
                   type: ComponentType.TextInput,
                 },
@@ -192,10 +193,13 @@ describe("AddQuestionToBankCommand", () => {
         guild_id: "guild-id",
       };
 
-      const response = await addQuestionToBankCommand.handleModalSubmit(interaction);
+      const response =
+        await addQuestionToBankCommand.handleModalSubmit(interaction);
 
       expect(response).toEqual(
-          createEphemeralResponse(`There is no valid question text for test bank`),
+        createEphemeralResponse(
+          `There is no valid question text for test bank`,
+        ),
       );
     });
 
@@ -227,7 +231,7 @@ describe("AddQuestionToBankCommand", () => {
                 },
                 {
                   custom_id:
-                  AddQuestionToBankCommand.componentIds.correctAnswerIndex,
+                    AddQuestionToBankCommand.componentIds.correctAnswerIndex,
                   value: "",
                   type: ComponentType.TextInput,
                 },
@@ -239,12 +243,13 @@ describe("AddQuestionToBankCommand", () => {
         guild_id: "guild-id",
       };
 
-      const response = await addQuestionToBankCommand.handleModalSubmit(interaction);
+      const response =
+        await addQuestionToBankCommand.handleModalSubmit(interaction);
 
       expect(response).toEqual(
-          createEphemeralResponse(
-              "Invalid correct answer index. No answer is specified.",
-          ),
+        createEphemeralResponse(
+          "Invalid correct answer index. No answer is specified.",
+        ),
       );
     });
 
@@ -276,7 +281,7 @@ describe("AddQuestionToBankCommand", () => {
                 },
                 {
                   custom_id:
-                  AddQuestionToBankCommand.componentIds.correctAnswerIndex,
+                    AddQuestionToBankCommand.componentIds.correctAnswerIndex,
                   value: "5", // Assuming there are less than 5 answers
                   type: ComponentType.TextInput,
                 },
@@ -288,17 +293,21 @@ describe("AddQuestionToBankCommand", () => {
         guild_id: "guild-id",
       };
 
-      const response = await addQuestionToBankCommand.handleModalSubmit(interaction);
+      const response =
+        await addQuestionToBankCommand.handleModalSubmit(interaction);
 
       expect(response).toEqual(
-          createEphemeralResponse(
-              "Invalid correct answer index. Please enter a number between 0 and 3",
-          ),
+        createEphemeralResponse(
+          "Invalid correct answer index. Please enter a number between 0 and 3",
+        ),
       );
     });
 
     it("should handle errors when adding a question to the bank", async () => {
-      vi.spyOn(questionStorageMock, 'generateAndAddQuestion').mockRejectedValueOnce(new Error("Test error"));
+      vi.spyOn(
+        questionStorageMock,
+        "generateAndAddQuestion",
+      ).mockRejectedValueOnce(new Error("Test error"));
 
       const interaction: APIModalSubmitInteraction = {
         app_permissions: "",
@@ -327,7 +336,7 @@ describe("AddQuestionToBankCommand", () => {
                 },
                 {
                   custom_id:
-                  AddQuestionToBankCommand.componentIds.correctAnswerIndex,
+                    AddQuestionToBankCommand.componentIds.correctAnswerIndex,
                   value: "1",
                   type: ComponentType.TextInput,
                 },
@@ -339,17 +348,21 @@ describe("AddQuestionToBankCommand", () => {
         guild_id: "guild-id",
       };
 
-      const response = await addQuestionToBankCommand.handleModalSubmit(interaction);
+      const response =
+        await addQuestionToBankCommand.handleModalSubmit(interaction);
 
       expect(response).toEqual(
-          createEphemeralResponse(
-              "Failed to add question to bank test bank: Test error",
-          ),
+        createEphemeralResponse(
+          "Failed to add question to bank test bank: Test error",
+        ),
       );
     });
 
     it("should handle unknown errors when adding a question to the bank", async () => {
-      vi.spyOn(questionStorageMock, 'generateAndAddQuestion').mockRejectedValueOnce("Unknown error");
+      vi.spyOn(
+        questionStorageMock,
+        "generateAndAddQuestion",
+      ).mockRejectedValueOnce("Unknown error");
 
       const interaction: APIModalSubmitInteraction = {
         app_permissions: "",
@@ -378,7 +391,7 @@ describe("AddQuestionToBankCommand", () => {
                 },
                 {
                   custom_id:
-                  AddQuestionToBankCommand.componentIds.correctAnswerIndex,
+                    AddQuestionToBankCommand.componentIds.correctAnswerIndex,
                   value: "1",
                   type: ComponentType.TextInput,
                 },
@@ -390,12 +403,13 @@ describe("AddQuestionToBankCommand", () => {
         guild_id: "guild-id",
       };
 
-      const response = await addQuestionToBankCommand.handleModalSubmit(interaction);
+      const response =
+        await addQuestionToBankCommand.handleModalSubmit(interaction);
 
       expect(response).toEqual(
-          createEphemeralResponse(
-              "Failed to add question to bank test bank: An unknown error occurred.",
-          ),
+        createEphemeralResponse(
+          "Failed to add question to bank test bank: An unknown error occurred.",
+        ),
       );
     });
   });

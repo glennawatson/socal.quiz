@@ -80,18 +80,20 @@ export class QuestionStorage implements IQuestionStorage {
     private readonly storageAccountKey: string = process.env
       .AZURE_STORAGE_ACCOUNT_KEY ?? throwError("invalid storage account key"),
     quizQuestionsClient?: TableClient,
-    quizImageClient?: BlobServiceClient) {
+    quizImageClient?: BlobServiceClient,
+  ) {
     if (!connectionString || !storageAccountName || !storageAccountKey) {
       throw new Error(
         "Invalid connection string or storage account credentials",
       );
     }
 
-    this.quizQuestionsClient = quizQuestionsClient ?? TableClient.fromConnectionString(
-      connectionString,
-      "QuizQuestions",
-    );
-    this.quizImageClient = quizImageClient ?? BlobServiceClient.fromConnectionString(connectionString);
+    this.quizQuestionsClient =
+      quizQuestionsClient ??
+      TableClient.fromConnectionString(connectionString, "QuizQuestions");
+    this.quizImageClient =
+      quizImageClient ??
+      BlobServiceClient.fromConnectionString(connectionString);
     this.storageAccountName = storageAccountName;
     this.storageAccountKey = storageAccountKey;
   }
@@ -132,17 +134,20 @@ export class QuestionStorage implements IQuestionStorage {
         filter: odata`PartitionKey eq ${bankName}`,
       },
     };
-    const entitiesToDelete = this.quizQuestionsClient.listEntities<TableEntity<Question>>(options);
+    const entitiesToDelete =
+      this.quizQuestionsClient.listEntities<TableEntity<Question>>(options);
 
     const deletePromises: Promise<TableDeleteEntityHeaders>[] = [];
     for await (const entity of entitiesToDelete) {
       deletePromises.push(
-          this.quizQuestionsClient.deleteEntity(entity.partitionKey, entity.rowKey)
+        this.quizQuestionsClient.deleteEntity(
+          entity.partitionKey,
+          entity.rowKey,
+        ),
       );
     }
     await Promise.all(deletePromises);
   }
-
 
   async deleteQuestion(bankName: string, questionId: string): Promise<void> {
     await this.quizQuestionsClient.deleteEntity(bankName, questionId);
