@@ -79,19 +79,19 @@ export class QuestionStorage implements IQuestionStorage {
       throwError("invalid azure storage connection string"),
     private readonly storageAccountKey: string = process.env
       .AZURE_STORAGE_ACCOUNT_KEY ?? throwError("invalid storage account key"),
-  ) {
+    quizQuestionsClient?: TableClient,
+    quizImageClient?: BlobServiceClient) {
     if (!connectionString || !storageAccountName || !storageAccountKey) {
       throw new Error(
         "Invalid connection string or storage account credentials",
       );
     }
 
-    this.quizQuestionsClient = TableClient.fromConnectionString(
+    this.quizQuestionsClient = quizQuestionsClient ?? TableClient.fromConnectionString(
       connectionString,
       "QuizQuestions",
     );
-    this.quizImageClient =
-      BlobServiceClient.fromConnectionString(connectionString);
+    this.quizImageClient = quizImageClient ?? BlobServiceClient.fromConnectionString(connectionString);
     this.storageAccountName = storageAccountName;
     this.storageAccountKey = storageAccountKey;
   }

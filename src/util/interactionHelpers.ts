@@ -84,18 +84,3 @@ export function getOptionValue(
   }
   return undefined;
 }
-
-export function getOptionValueNumber(
-  components: APIApplicationCommandInteractionDataOption[],
-  customId: string,
-): number | undefined {
-  for (const component of components) {
-    if (
-      component.name === customId &&
-      component.type === ApplicationCommandOptionType.Number
-    ) {
-      return component.value;
-    }
-  }
-  return undefined;
-}
