@@ -1,5 +1,6 @@
 [![codecov](https://codecov.io/gh/glennawatson/socal.quiz/graph/badge.svg?token=A97VS6OVIP)](https://codecov.io/gh/glennawatson/socal.quiz)
 [![Deploy Discord Quiz Bot](https://github.com/glennawatson/socal.quiz/actions/workflows/deploy.yml/badge.svg)](https://github.com/glennawatson/socal.quiz/actions/workflows/deploy.yml)
+[![CodeQL](https://github.com/glennawatson/socal.quiz/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/glennawatson/socal.quiz/actions/workflows/github-code-scanning/codeql)
 
 # SoCal Quiz Bot
 
