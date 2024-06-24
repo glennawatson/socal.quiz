@@ -21,16 +21,16 @@ import { QuizManager } from "../../src/handlers/quizManager";
 import { Question } from "../../src/question.interfaces";
 import { QuizState } from "../../src/handlers/quizState.interfaces";
 import { createEphemeralResponse } from "../../src/util/interactionHelpers";
-import { asyncScheduler, SchedulerLike } from "rxjs";
 import { EmbedBuilder } from "@discordjs/builders";
 
 describe("QuizManager", () => {
   let quizManager: QuizManager;
-  let postSpy: ReturnType<typeof vi.fn>;
+  let postSpy = vi.fn();
   let questionStorageMock: any;
+  let stateManagerMock: any;
   let questions: Question[];
-  let testScheduler: SchedulerLike;
 
+  const guildId = "guild123";
   const channelId = "channel123";
 
   const createAPIUser = (id: string): APIUser => ({
@@ -75,9 +75,9 @@ describe("QuizManager", () => {
   });
 
   const createAPIMessageComponentInteraction = (
-    channelId: string,
-    userId: string,
-    customId: string,
+      channelId: string,
+      userId: string,
+      customId: string,
   ): APIMessageComponentInteraction => ({
     type: InteractionType.MessageComponent,
     data: { custom_id: customId, component_type: ComponentType.Button },
@@ -98,7 +98,7 @@ describe("QuizManager", () => {
     channel_id: channelId,
     channel: { id: channelId, type: ChannelType.GuildVoice },
     message: createAPIMessage(channelId, userId),
-    guild_id: "guild123",
+    guild_id: guildId,
     app_permissions: "0",
     locale: "en-US",
     id: "interaction1",
@@ -108,6 +108,8 @@ describe("QuizManager", () => {
     entitlements: [],
     authorizing_integration_owners: {},
   });
+
+  let mockState: QuizState | null = null;
 
   beforeEach(() => {
     vi.useRealTimers();
@@ -131,9 +133,19 @@ describe("QuizManager", () => {
       generateQuestion: vi.fn(),
     };
 
-    testScheduler = asyncScheduler;
+    // Mock stateManager
+    // Mock stateManager
+    stateManagerMock = {
+      getState: vi.fn(async (_guildId: string, _channelId: string) => mockState),
+      setState: vi.fn(async (state: QuizState) => {
+        mockState = state;
+      }),
+      deleteState: vi.fn(async (_guildId: string, _channelId: string) => {
+        mockState = null;
+      }),
+    };
 
-    quizManager = new QuizManager(rest as any, questionStorageMock, 20);
+    quizManager = new QuizManager(rest as any, questionStorageMock, stateManagerMock, 20);
 
     // Mock Questions
     questions = [
@@ -177,7 +189,7 @@ describe("QuizManager", () => {
     questionStorageMock.getQuestions.mockResolvedValue(questions);
 
     // Start the quiz
-    await quizManager.startQuiz(channelId, questionBankName, testScheduler);
+    await quizManager.startQuiz(guildId, channelId, questionBankName);
 
     // Expected message bodies (for each question and summary)
     const expectedMessageBodies = [
@@ -203,7 +215,7 @@ describe("QuizManager", () => {
         embeds: [
           expect.objectContaining({
             description: expect.stringContaining(
-              "What is the capital of France?",
+                "What is the capital of France?",
             ),
           }),
         ],
@@ -223,15 +235,12 @@ describe("QuizManager", () => {
       },
     ];
 
-    // Assert that the postSpy was called with the expected message bodies
-    expect(postSpy).toHaveBeenCalledTimes(expectedMessageBodies.length);
-
     // Ensure the correct order of calls with the right data
     expectedMessageBodies.forEach((body, index) => {
       expect(postSpy).toHaveBeenNthCalledWith(
-        index + 1,
-        Routes.channelMessages(channelId),
-        { body },
+          index + 1,
+          Routes.channelMessages(channelId),
+          { body },
       );
 
       // Check if this call is for a question (not a summary or scores)
@@ -253,6 +262,10 @@ describe("QuizManager", () => {
         }
       }
     });
+
+    // Assert that the postSpy was called with the expected message bodies
+    expect(postSpy).toHaveBeenCalledTimes(expectedMessageBodies.length);
+
   });
 
   it("should handle a correct answer", async () => {
@@ -262,25 +275,25 @@ describe("QuizManager", () => {
       questionBank: questions,
       activeUsers: new Map([["user123", 0]]), // User with initial score of 0
       correctUsersForQuestion: new Set(),
-      quizSubscription: null,
       channelId,
       answeredUsersForQuestion: new Set(),
+      guildId,
     };
-    quizManager.quizzes.set(channelId, quizState);
+    stateManagerMock.getState.mockResolvedValue(quizState);
 
     const interaction = createAPIMessageComponentInteraction(
-      channelId,
-      "user123",
-      `answer_${questions[0]?.answers[questions[0]?.correctAnswerIndex]?.answerId}`,
+        channelId,
+        "user123",
+        `answer_${questions[0]?.answers[questions[0]?.correctAnswerIndex]?.answerId}`,
     );
 
     const response = (await quizManager.handleAnswer(
-      interaction,
+        interaction,
     )) as APIInteractionResponseChannelMessageWithSource;
 
     // Assert
     expect(response.type).toBe(
-      InteractionResponseType.ChannelMessageWithSource,
+        InteractionResponseType.ChannelMessageWithSource,
     );
     expect(response.data.content).toBe("Correct!");
     expect(quizState.activeUsers.get("user123")).toBe(1);
@@ -294,11 +307,11 @@ describe("QuizManager", () => {
       questionBank: questions,
       activeUsers: new Map(),
       correctUsersForQuestion: new Set(),
-      quizSubscription: null,
       channelId,
       answeredUsersForQuestion: new Set(),
+      guildId,
     };
-    quizManager.quizzes.set(channelId, quizState);
+    stateManagerMock.getState.mockResolvedValue(quizState);
 
     const questionIndex = 0;
 
@@ -308,7 +321,7 @@ describe("QuizManager", () => {
 
     if (!currentQuestion) throw Error();
 
-    await quizManager.sendQuestionSummary(channelId, currentQuestion, 1);
+    await quizManager.sendQuestionSummary(quizState, currentQuestion, 1);
 
     const expectedMessageBody = {
       body: {
@@ -316,9 +329,9 @@ describe("QuizManager", () => {
           {
             title: `Summary for Question 1`,
             description: `0 user(s) answered correctly!\nThe correct answer was: ${
-              questions[questionIndex]?.answers[
-                questions[questionIndex]?.correctAnswerIndex
-              ]?.answer ?? ""
+                questions[questionIndex]?.answers[
+                    questions[questionIndex]?.correctAnswerIndex
+                    ]?.answer ?? ""
             }`,
           },
         ],
@@ -326,8 +339,8 @@ describe("QuizManager", () => {
     };
 
     expect(postSpy).toHaveBeenCalledWith(
-      Routes.channelMessages(channelId),
-      expectedMessageBody,
+        Routes.channelMessages(channelId),
+        expectedMessageBody,
     );
   });
 
@@ -341,19 +354,19 @@ describe("QuizManager", () => {
         ["user3", 3],
       ]),
       correctUsersForQuestion: new Set(["user1", "user2", "user3"]),
-      quizSubscription: null,
       channelId: channelId,
       answeredUsersForQuestion: new Set(),
+      guildId,
     };
 
     await quizManager.showScores(quizState);
 
     const expectedDescription =
-      "<@user3>: 3 points\n<@user1>: 2 points\n<@user2>: 1 points\n";
+        "<@user3>: 3 points\n<@user1>: 2 points\n<@user2>: 1 points\n";
 
     const expectedEmbed = new EmbedBuilder()
-      .setTitle("Quiz Scores")
-      .setDescription(expectedDescription);
+        .setTitle("Quiz Scores")
+        .setDescription(expectedDescription);
 
     expect(postSpy).toHaveBeenCalledWith(Routes.channelMessages(channelId), {
       body: {
@@ -370,15 +383,16 @@ describe("QuizManager", () => {
 
   it("should move to the next question", async () => {
     // Arrange
-    quizManager.quizzes.set(channelId, {
+    const quizState: QuizState = {
       currentQuestionId: questions[0]?.questionId,
       questionBank: questions,
       activeUsers: new Map(),
       correctUsersForQuestion: new Set(),
-      quizSubscription: null,
-      channelId: channelId,
+      channelId,
       answeredUsersForQuestion: new Set(),
-    });
+      guildId,
+    };
+    stateManagerMock.getState.mockResolvedValue(quizState);
 
     // Act
     await quizManager.nextQuizQuestion(channelId);
@@ -409,8 +423,8 @@ describe("QuizManager", () => {
     };
 
     expect(postSpy).toHaveBeenCalledWith(
-      Routes.channelMessages(channelId),
-      expectedMessageBody,
+        Routes.channelMessages(channelId),
+        expectedMessageBody,
     );
   });
 
@@ -420,25 +434,24 @@ describe("QuizManager", () => {
       questionBank: questions,
       activeUsers: new Map([["user123", 0]]), // User with initial score of 0
       correctUsersForQuestion: new Set(),
-      quizSubscription: null,
-      answeredUsersForQuestion: new Set(),
       channelId,
+      answeredUsersForQuestion: new Set(),
+      guildId,
     };
-
-    quizManager.quizzes.set(channelId, quizState);
+    stateManagerMock.getState.mockResolvedValue(quizState);
 
     const interaction = createAPIMessageComponentInteraction(
-      channelId,
-      "user123",
-      `answer_${questions[0]?.answers[2]?.answerId}`,
+        channelId,
+        "user123",
+        `answer_${questions[0]?.answers[2]?.answerId}`,
     );
 
     const response = (await quizManager.handleAnswer(
-      interaction,
+        interaction,
     )) as APIInteractionResponseChannelMessageWithSource;
 
     expect(response.type).toBe(
-      InteractionResponseType.ChannelMessageWithSource,
+        InteractionResponseType.ChannelMessageWithSource,
     );
     expect(response.data.content).toBe("Incorrect!");
     expect(quizState.activeUsers.get("user123")).toBe(0); // Score should not change
@@ -469,7 +482,7 @@ describe("QuizManager", () => {
     const response = await quizManager.handleAnswer(interaction);
 
     expect(response).toEqual(
-      createEphemeralResponse("Invalid interaction type."),
+        createEphemeralResponse("Invalid interaction type."),
     );
   });
 
@@ -478,7 +491,7 @@ describe("QuizManager", () => {
     questionStorageMock.getQuestions.mockResolvedValue([]);
 
     // Start the quiz (expecting it to fail)
-    await quizManager.startQuiz(channelId, "emptyBank", testScheduler);
+    await quizManager.startQuiz(guildId, channelId, "emptyBank");
 
     // You might expect a specific error message or behavior in this case
     expect(postSpy).not.toHaveBeenCalled();
@@ -487,7 +500,7 @@ describe("QuizManager", () => {
   it("should not start a quiz if there are no questions in the bank", async () => {
     questionStorageMock.getQuestions.mockResolvedValue([]);
 
-    await quizManager.startQuiz(channelId, "emptyBank", testScheduler);
+    await quizManager.startQuiz(guildId, channelId, "emptyBank");
 
     expect(postSpy).not.toHaveBeenCalled();
   });
@@ -498,15 +511,15 @@ describe("QuizManager", () => {
       questionBank: questions,
       activeUsers: new Map(),
       correctUsersForQuestion: new Set(),
-      quizSubscription: null,
       channelId,
       answeredUsersForQuestion: new Set(),
+      guildId,
     };
-    quizManager.quizzes.set(channelId, quizState);
+    stateManagerMock.getState.mockResolvedValue(quizState);
 
-    quizManager.stopQuiz(channelId);
+    await quizManager.stopQuiz(guildId, channelId);
 
-    expect(quizManager.quizzes.has(channelId)).toBe(false);
+    expect(stateManagerMock.deleteState).toHaveBeenCalledWith(guildId, channelId);
   });
 
   it("should correctly handle user answering the same question multiple times", async () => {
@@ -515,16 +528,16 @@ describe("QuizManager", () => {
       questionBank: questions,
       activeUsers: new Map(),
       correctUsersForQuestion: new Set(),
-      quizSubscription: null,
       channelId,
       answeredUsersForQuestion: new Set(),
+      guildId,
     };
-    quizManager.quizzes.set(channelId, quizState);
+    stateManagerMock.getState.mockResolvedValue(quizState);
 
     const interaction = createAPIMessageComponentInteraction(
-      channelId,
-      "user123",
-      `answer_${questions[0]?.answers[1]?.answerId}`,
+        channelId,
+        "user123",
+        `answer_${questions[0]?.answers[1]?.answerId}`,
     );
 
     await quizManager.handleAnswer(interaction);
@@ -540,21 +553,21 @@ describe("QuizManager", () => {
       questionBank: questions,
       activeUsers: new Map(),
       correctUsersForQuestion: new Set(),
-      quizSubscription: null,
       channelId,
       answeredUsersForQuestion: new Set(),
+      guildId,
     };
-    quizManager.quizzes.set(channelId, quizState);
+    stateManagerMock.getState.mockResolvedValue(quizState);
 
     const user1Interaction = createAPIMessageComponentInteraction(
-      channelId,
-      "user1",
-      `answer_${questions[0]?.answers[1]?.answerId}`,
+        channelId,
+        "user1",
+        `answer_${questions[0]?.answers[1]?.answerId}`,
     );
     const user2Interaction = createAPIMessageComponentInteraction(
-      channelId,
-      "user2",
-      `answer_${questions[0]?.answers[1]?.answerId}`,
+        channelId,
+        "user2",
+        `answer_${questions[0]?.answers[1]?.answerId}`,
     );
 
     await quizManager.handleAnswer(user1Interaction);
@@ -568,26 +581,26 @@ describe("QuizManager", () => {
     questions[0]!.imagePartitionKey = "question-image-key";
     const questionBankName = "bankWithImage";
     const presignedImageUrl =
-      "https://example.com/presigned-question-image-url";
+        "https://example.com/presigned-question-image-url";
 
     questionStorageMock.getQuestions.mockResolvedValue(questions);
     questionStorageMock.getQuestionImagePresignedUrl.mockResolvedValue(
-      presignedImageUrl,
+        presignedImageUrl,
     );
 
-    await quizManager.startQuiz(channelId, questionBankName, testScheduler);
+    await quizManager.startQuiz(guildId, channelId, questionBankName);
 
     expect(postSpy).toHaveBeenCalledWith(
-      Routes.channelMessages(channelId),
-      expect.objectContaining({
-        body: expect.objectContaining({
-          embeds: expect.arrayContaining([
-            expect.objectContaining({
-              image: { url: presignedImageUrl },
-            }),
-          ]),
+        Routes.channelMessages(channelId),
+        expect.objectContaining({
+          body: expect.objectContaining({
+            embeds: expect.arrayContaining([
+              expect.objectContaining({
+                image: { url: presignedImageUrl },
+              }),
+            ]),
+          }),
         }),
-      }),
     );
   });
 
@@ -598,21 +611,21 @@ describe("QuizManager", () => {
       questionBank: questions,
       activeUsers: new Map([["user123", 0]]),
       correctUsersForQuestion: new Set(),
-      quizSubscription: null,
       channelId,
       answeredUsersForQuestion: new Set(),
+      guildId,
     };
 
-    quizManager.quizzes.set(channelId, quizState);
+    stateManagerMock.getState.mockResolvedValue(quizState);
 
     const interaction = createAPIMessageComponentInteraction(
-      channelId,
-      "user123",
-      `answer_${questions[0]?.answers[1]?.answerId}`,
+        channelId,
+        "user123",
+        `answer_${questions[0]?.answers[1]?.answerId}`,
     );
 
     const response = (await quizManager.handleAnswer(
-      interaction,
+        interaction,
     )) as APIInteractionResponseChannelMessageWithSource;
 
     expect(response.data.content).toBe("Incorrect!");
@@ -623,13 +636,13 @@ describe("QuizManager", () => {
     questionStorageMock.getQuestions.mockResolvedValue(questions);
 
     const response = await quizManager.startQuiz(
-      channelId,
-      "invalidBank",
-      testScheduler,
+        guildId,
+        channelId,
+        "invalidBank",
     );
 
     expect(response).toEqual(
-      createEphemeralResponse("There are invalid questions with IDs: q1"),
+        createEphemeralResponse("There are invalid questions with IDs: q1"),
     );
   });
 
@@ -641,11 +654,11 @@ describe("QuizManager", () => {
       questionBank: questions,
       activeUsers: new Map(),
       correctUsersForQuestion: new Set(),
-      quizSubscription: null,
       channelId,
       answeredUsersForQuestion: new Set(),
+      guildId,
     };
-    quizManager.quizzes.set(channelId, quizState);
+    stateManagerMock.getState.mockResolvedValue(quizState);
 
     const consoleErrorSpy = vi.spyOn(console, "error");
 
@@ -662,13 +675,13 @@ describe("QuizManager", () => {
       questionBank: questions,
       activeUsers: new Map(),
       correctUsersForQuestion: new Set(),
-      quizSubscription: null,
       channelId,
       answeredUsersForQuestion: new Set(),
+      guildId,
     };
-    quizManager.quizzes.set(channelId, quizState);
+    stateManagerMock.getState.mockResolvedValue(quizState);
 
-    quizManager.stopQuiz(channelId);
+    await quizManager.stopQuiz(guildId, channelId);
     await quizManager.nextQuizQuestion(channelId);
 
     const expectedNextQuestion = questions[0];
@@ -681,96 +694,82 @@ describe("QuizManager", () => {
       questionBank: questions,
       activeUsers: new Map([["user1", 2]]),
       correctUsersForQuestion: new Set(["user1"]),
-      quizSubscription: null,
       channelId,
       answeredUsersForQuestion: new Set(),
+      guildId,
     };
 
-    quizManager.quizzes.set(channelId, quizState);
+    mockState = quizState;
 
     // Mock the REST post method to simulate user answers
     postSpy.mockImplementation(
-      async (
-        route: string,
-        { body }: { body: RESTPostAPIChannelMessageJSONBody },
-      ) => {
-        if (route === Routes.channelMessages(channelId)) {
-          const content =
-            body.content || (body.embeds && body.embeds[0]?.description);
+        async (
+            route: string,
+            { body }: { body: RESTPostAPIChannelMessageJSONBody },
+        ) => {
+          if (route === Routes.channelMessages(channelId)) {
+            const content =
+                body.content || (body.embeds && body.embeds[0]?.description);
 
-          if (content?.includes("What is 2 + 2?")) {
-            // Simulate user answering the first question correctly
-            await quizManager.handleAnswer(
-              createAPIMessageComponentInteraction(
-                channelId,
-                "user1",
-                `answer_${questions[0]?.answers[1]?.answerId}`,
-              ),
-            );
-          } else if (content?.includes("What is the capital of France?")) {
-            // Simulate user answering the second question correctly
-            await quizManager.handleAnswer(
-              createAPIMessageComponentInteraction(
-                channelId,
-                "user1",
-                `answer_${questions[1]?.answers[1]?.answerId}`,
-              ),
-            );
+            if (content?.includes("What is 2 + 2?")) {
+              // Simulate user answering the first question correctly
+              await quizManager.handleAnswer(
+                  createAPIMessageComponentInteraction(
+                      channelId,
+                      "user1",
+                      `answer_${questions[0]?.answers[1]?.answerId}`,
+                  ),
+              );
+            } else if (content?.includes("What is the capital of France?")) {
+              // Simulate user answering the second question correctly
+              await quizManager.handleAnswer(
+                  createAPIMessageComponentInteraction(
+                      channelId,
+                      "user1",
+                      `answer_${questions[1]?.answers[1]?.answerId}`,
+                  ),
+              );
+            }
           }
-        }
-      },
+        },
     );
 
-    await quizManager.startQuizInternal(questions, channelId, testScheduler);
+    questions[0]!.questionShowTimeMs = 200;
+    questions[1]!.questionShowTimeMs = 200;
+
+    await quizManager.startQuizInternal(questions, guildId, channelId);
 
     expect(postSpy).toHaveBeenCalledTimes(5);
 
     const expectedDescription = "<@user1>: 2 points\n";
 
     const expectedEmbed = new EmbedBuilder()
-      .setTitle("Quiz Scores")
-      .setDescription(expectedDescription);
+        .setTitle("Quiz Scores")
+        .setDescription(expectedDescription);
 
     expect(postSpy).toHaveBeenNthCalledWith(
-      5,
-      Routes.channelMessages(channelId),
-      {
-        body: {
-          embeds: [expectedEmbed.toJSON()],
+        5,
+        Routes.channelMessages(channelId),
+        {
+          body: {
+            embeds: [expectedEmbed.toJSON()],
+          },
         },
-      },
     );
-  });
-
-  it("should unsubscribe from quiz timer when the quiz is stopped", async () => {
-    const quizState: QuizState = {
-      currentQuestionId: questions[0]?.questionId,
-      questionBank: questions,
-      activeUsers: new Map(),
-      correctUsersForQuestion: new Set(),
-      quizSubscription: { unsubscribe: vi.fn() } as any,
-      channelId,
-      answeredUsersForQuestion: new Set(),
-    };
-    quizManager.quizzes.set(channelId, quizState);
-
-    quizManager.stopQuiz(channelId);
-
-    expect(quizState.quizSubscription?.unsubscribe).toHaveBeenCalled();
   });
 
   it("should handle case where question time is less than summary duration", async () => {
     questions[0]!.questionShowTimeMs = 10;
     questionStorageMock.getQuestions.mockResolvedValue(questions);
 
-    await quizManager.startQuiz(channelId, "quickBank", testScheduler);
+    await quizManager.startQuiz(guildId, channelId, "quickBank");
     expect(postSpy).toHaveBeenCalledTimes(5);
   });
 
   it("should correctly handle a quiz with a single question", async () => {
     questionStorageMock.getQuestions.mockResolvedValue([questions[0]]);
 
-    await quizManager.startQuiz(channelId, "singleQuestionBank", testScheduler);
+    await quizManager.startQuiz(guildId, channelId, "singleQuestionBank");
 
     expect(postSpy).toHaveBeenCalledTimes(3);
 
@@ -786,16 +785,14 @@ describe("QuizManager", () => {
     });
   });
 
-  // New Tests for Uncovered Lines
-
   it("should return an ephemeral response if there are no valid questions", async () => {
     const response = await quizManager.startQuizInternal(
-      [],
-      channelId,
-      testScheduler,
+        [],
+        guildId,
+        channelId,
     );
     expect(response).toEqual(
-      createEphemeralResponse("There are no valid questions"),
+        createEphemeralResponse("There are no valid questions"),
     );
   });
 
@@ -805,11 +802,11 @@ describe("QuizManager", () => {
       questionBank: questions,
       activeUsers: new Map(),
       correctUsersForQuestion: new Set(),
-      quizSubscription: null,
       channelId,
       answeredUsersForQuestion: new Set(),
+      guildId,
     };
-    quizManager.quizzes.set(channelId, quizState);
+    stateManagerMock.getState.mockResolvedValue(quizState);
 
     const questionIndex = 0;
     const currentQuestion = questions[questionIndex];
@@ -819,7 +816,7 @@ describe("QuizManager", () => {
 
     currentQuestion.explanation = "Sample explanation";
 
-    await quizManager.sendQuestionSummary(channelId, currentQuestion, 1);
+    await quizManager.sendQuestionSummary(quizState, currentQuestion, 1);
 
     const expectedMessageBody = {
       body: {
@@ -827,8 +824,8 @@ describe("QuizManager", () => {
           {
             title: `Summary for Question 1`,
             description: `0 user(s) answered correctly!\nThe correct answer was: ${
-              currentQuestion.answers[currentQuestion.correctAnswerIndex]
-                ?.answer
+                currentQuestion.answers[currentQuestion.correctAnswerIndex]
+                    ?.answer
             }\nExplanation: Sample explanation`,
           },
         ],
@@ -836,8 +833,8 @@ describe("QuizManager", () => {
     };
 
     expect(postSpy).toHaveBeenCalledWith(
-      Routes.channelMessages(channelId),
-      expectedMessageBody,
+        Routes.channelMessages(channelId),
+        expectedMessageBody,
     );
   });
 
@@ -847,11 +844,11 @@ describe("QuizManager", () => {
       questionBank: questions,
       activeUsers: new Map(),
       correctUsersForQuestion: new Set(),
-      quizSubscription: null,
       channelId,
       answeredUsersForQuestion: new Set(),
+      guildId,
     };
-    quizManager.quizzes.set(channelId, quizState);
+    stateManagerMock.getState.mockResolvedValue(quizState);
 
     const questionIndex = 0;
     const currentQuestion = questions[questionIndex];
@@ -862,13 +859,13 @@ describe("QuizManager", () => {
 
     currentQuestion.explanationImagePartitionKey = "explanation-image-key";
     const presignedImageUrl =
-      "https://example.com/presigned-explanation-image-url";
+        "https://example.com/presigned-explanation-image-url";
 
     questionStorageMock.getExplanationImagePresignedUrl.mockResolvedValue(
-      presignedImageUrl,
+        presignedImageUrl,
     );
 
-    await quizManager.sendQuestionSummary(channelId, currentQuestion, 1);
+    await quizManager.sendQuestionSummary(quizState, currentQuestion, 1);
 
     const expectedMessageBody = {
       body: {
@@ -876,8 +873,8 @@ describe("QuizManager", () => {
           {
             title: `Summary for Question 1`,
             description: `0 user(s) answered correctly!\nThe correct answer was: ${
-              currentQuestion.answers[currentQuestion.correctAnswerIndex]
-                ?.answer
+                currentQuestion.answers[currentQuestion.correctAnswerIndex]
+                    ?.answer
             }`,
             image: { url: presignedImageUrl },
           },
@@ -886,22 +883,24 @@ describe("QuizManager", () => {
     };
 
     expect(postSpy).toHaveBeenCalledWith(
-      Routes.channelMessages(channelId),
-      expectedMessageBody,
+        Routes.channelMessages(channelId),
+        expectedMessageBody,
     );
   });
 
   it("should return an error response if no quiz is found in handleAnswer", async () => {
+    stateManagerMock.getState.mockResolvedValue(null);
+
     const interaction = createAPIMessageComponentInteraction(
-      channelId,
-      "user123",
-      "answer_a1",
+        channelId,
+        "user123",
+        "answer_a1",
     );
 
     const response = await quizManager.handleAnswer(interaction);
 
     expect(response).toEqual(
-      createEphemeralResponse("No quiz found for this channel."),
+        createEphemeralResponse("No quiz found for this channel."),
     );
   });
 
@@ -911,16 +910,16 @@ describe("QuizManager", () => {
       questionBank: questions,
       activeUsers: new Map(),
       correctUsersForQuestion: new Set(),
-      quizSubscription: null,
       channelId,
       answeredUsersForQuestion: new Set(),
+      guildId,
     };
-    quizManager.quizzes.set(channelId, quizState);
+    stateManagerMock.getState.mockResolvedValue(quizState);
 
     const interaction = createAPIMessageComponentInteraction(
-      channelId,
-      "user123",
-      "answer_a1",
+        channelId,
+        "user123",
+        "answer_a1",
     );
 
     const response = await quizManager.handleAnswer(interaction);
@@ -934,22 +933,22 @@ describe("QuizManager", () => {
       questionBank: questions,
       activeUsers: new Map(),
       correctUsersForQuestion: new Set(),
-      quizSubscription: null,
       channelId,
       answeredUsersForQuestion: new Set(),
+      guildId,
     };
-    quizManager.quizzes.set(channelId, quizState);
+    stateManagerMock.getState.mockResolvedValue(quizState);
 
     const interaction = createAPIMessageComponentInteraction(
-      channelId,
-      "user123",
-      "answer_a1",
+        channelId,
+        "user123",
+        "answer_a1",
     );
 
     const response = await quizManager.handleAnswer(interaction);
 
     expect(response).toEqual(
-      createEphemeralResponse("No quiz question found for this channel."),
+        createEphemeralResponse("No quiz question found for this channel."),
     );
   });
 
@@ -959,17 +958,17 @@ describe("QuizManager", () => {
       questionBank: questions,
       activeUsers: new Map(),
       correctUsersForQuestion: new Set(),
-      quizSubscription: null,
       channelId,
       answeredUsersForQuestion: new Set(),
+      guildId,
     };
-    quizManager.quizzes.set(channelId, quizState);
+    stateManagerMock.getState.mockResolvedValue(quizState);
 
     const interaction = {
       ...createAPIMessageComponentInteraction(
-        channelId,
-        "user123",
-        "answer_a1",
+          channelId,
+          "user123",
+          "answer_a1",
       ),
       member: { user: null }, // No user ID
     } as any;
@@ -985,24 +984,24 @@ describe("QuizManager", () => {
       questionBank: questions,
       activeUsers: new Map(),
       correctUsersForQuestion: new Set(),
-      quizSubscription: null,
       channelId,
       answeredUsersForQuestion: new Set(),
+      guildId,
     };
-    quizManager.quizzes.set(channelId, quizState);
+    stateManagerMock.getState.mockResolvedValue(quizState);
 
     const interaction = createAPIMessageComponentInteraction(
-      channelId,
-      "user123",
-      "answer_invalid",
+        channelId,
+        "user123",
+        "answer_invalid",
     );
 
     const response = await quizManager.handleAnswer(interaction);
 
     expect(response).toEqual(
-      createEphemeralResponse(
-        "This answer is not part of the current quiz, answer again.",
-      ),
+        createEphemeralResponse(
+            "This answer is not part of the current quiz, answer again.",
+        ),
     );
   });
 
@@ -1021,9 +1020,9 @@ describe("QuizManager", () => {
       questionBank: questions,
       activeUsers: new Map(),
       correctUsersForQuestion: new Set(),
-      quizSubscription: null,
       channelId: null as any,
       answeredUsersForQuestion: new Set(),
+      guildId,
     };
 
     const consoleLogSpy = vi.spyOn(console, "log");
@@ -1031,7 +1030,7 @@ describe("QuizManager", () => {
     await quizManager.showScores(quizState);
 
     expect(consoleLogSpy).toHaveBeenCalledWith(
-      "no valid channel defined for the quiz to send scores to",
+        "no valid channel defined for the quiz to send scores to",
     );
     consoleLogSpy.mockRestore();
   });
@@ -1042,16 +1041,16 @@ describe("QuizManager", () => {
       questionBank: questions,
       activeUsers: new Map(),
       correctUsersForQuestion: new Set(),
-      quizSubscription: null,
       channelId,
       answeredUsersForQuestion: new Set(),
+      guildId,
     };
-    quizManager.quizzes.set(channelId, quizState);
+    stateManagerMock.getState.mockResolvedValue(quizState);
 
     const response = await quizManager.nextQuizQuestion(channelId);
 
     expect(response).toEqual(
-      createEphemeralResponse("No quiz question found for this channel."),
+        createEphemeralResponse("No quiz question found for this channel."),
     );
   });
 
@@ -1061,56 +1060,101 @@ describe("QuizManager", () => {
       questionBank: questions,
       activeUsers: new Map(),
       correctUsersForQuestion: new Set(),
-      quizSubscription: null,
       channelId,
       answeredUsersForQuestion: new Set(),
+      guildId,
     };
-    quizManager.quizzes.set(channelId, quizState);
+    stateManagerMock.getState.mockResolvedValue(quizState);
 
     const response = await quizManager.nextQuizQuestion(channelId);
 
     expect(response).toEqual(
-      createEphemeralResponse("No more questions in the quiz."),
+        createEphemeralResponse("No more questions in the quiz."),
     );
   });
 
   it("should return an error if the question bank name is null", async () => {
     const response = await quizManager.startQuiz(
-      channelId,
-      null as any,
-      testScheduler,
+        guildId,
+        channelId,
+        null as any,
     );
     expect(response).toEqual(
-      createEphemeralResponse("There is no valid question bank name"),
+        createEphemeralResponse("There is no valid question bank name"),
     );
   });
 
   it("should return an error if the question bank name is undefined", async () => {
     const response = await quizManager.startQuiz(
-      channelId,
-      undefined as any,
-      testScheduler,
+        guildId,
+        channelId,
+        undefined as any,
     );
     expect(response).toEqual(
-      createEphemeralResponse("There is no valid question bank name"),
+        createEphemeralResponse("There is no valid question bank name"),
     );
   });
 
   it("should return an error if the question bank name is an empty string", async () => {
-    const response = await quizManager.startQuiz(channelId, "", testScheduler);
+    const response = await quizManager.startQuiz(
+        guildId,
+        channelId,
+        "",
+    );
     expect(response).toEqual(
-      createEphemeralResponse("There is no valid question bank name"),
+        createEphemeralResponse("There is no valid question bank name"),
     );
   });
 
   it("should return an error if the question bank name is a whitespace string", async () => {
     const response = await quizManager.startQuiz(
-      channelId,
-      "   ",
-      testScheduler,
+        guildId,
+        channelId,
+        "   ",
     );
     expect(response).toEqual(
-      createEphemeralResponse("There is no valid question bank name"),
+        createEphemeralResponse("There is no valid question bank name"),
     );
+  });
+
+  it("should return an error response if guild_id is missing in handleAnswer", async () => {
+    const interaction = {
+      ...createAPIMessageComponentInteraction(channelId, "user123", "answer_a1"),
+      guild_id: null, // Missing guild_id
+    } as any;
+
+    const response = await quizManager.handleAnswer(interaction);
+
+    expect(response).toEqual(createEphemeralResponse("Must have a valid guild id."));
+  });
+
+  it("should return an error response if channel.id is missing in handleAnswer", async () => {
+    const interaction = {
+      ...createAPIMessageComponentInteraction(channelId, "user123", "answer_a1"),
+      channel_id: null, // Missing channel.id
+    } as any;
+
+    const response = await quizManager.handleAnswer(interaction);
+
+    expect(response).toEqual(createEphemeralResponse("No quiz found for this channel."));
+  });
+
+  it("should return an error response if no quiz is found in nextQuizQuestion", async () => {
+    stateManagerMock.getState.mockResolvedValue(null);
+
+    const response = await quizManager.nextQuizQuestion(channelId);
+
+    expect(response).toEqual(createEphemeralResponse("No quiz found for this channel."));
+  });
+
+  it("should return an error response if channel.id is missing in handleAnswer", async () => {
+    const interaction = {
+      ...createAPIMessageComponentInteraction(channelId, "user123", "answer_a1"),
+      channel: { id: null } // Missing channel.id
+    } as any;
+
+    const response = await quizManager.handleAnswer(interaction);
+
+    expect(response).toEqual(createEphemeralResponse("Must have a valid channel"));
   });
 });
