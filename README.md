@@ -1,3 +1,5 @@
+[![codecov](https://codecov.io/gh/glennawatson/socal.quiz/graph/badge.svg?token=A97VS6OVIP)](https://codecov.io/gh/glennawatson/socal.quiz)
+
 # SoCal Quiz Bot
 
 ## Overview
