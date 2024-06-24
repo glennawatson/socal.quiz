@@ -21,6 +21,7 @@
     "@discordjs/rest": "^2.3.0",
     "discord-api-types": "^0.37.90",
     "discord-verify": "^1.2.0",
+    "durable-functions": "^3.1.0",
     "file-type": "^19.0.0",
     "rxjs": "^7.8.1",
     "set-interval-async": "^3.0.3",

@@ -19,6 +19,7 @@ import { Question } from "../question.interfaces.js";
 import { IQuestionStorage } from "../util/IQuestionStorage.interfaces.js";
 import { StateManager } from "../util/stateManager.js";
 import { asyncScheduler, lastValueFrom, timer } from "rxjs";
+import {DurableClient} from "durable-functions";
 
 export abstract class QuizManagerBase {
   protected constructor(
@@ -381,3 +382,20 @@ export class QuizManager extends QuizManagerBase {
     await this.stopQuiz(quiz.guildId, quiz.channelId);
   }
 }
+
+export class DurableQuizManager extends QuizManagerBase {
+  public constructor(
+      rest: REST,
+      quizStateStorage: IQuestionStorage,
+      stateManager: StateManager,
+      private readonly durableClient : DurableClient,
+      public readonly summaryDurationMs = 5000,
+  ) {
+    super(rest, quizStateStorage, stateManager);
+  }
+
+  public async runQuiz(quiz: QuizState): Promise<void> {
+    await this.durableClient.startNew("runQuiz", {input: quiz});
+  }
+}
+

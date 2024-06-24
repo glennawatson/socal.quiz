@@ -12,11 +12,14 @@ import {
 } from "discord-api-types/v10";
 
 import { Config } from "../util/config.js";
+import {getClient} from "durable-functions";
 
 export async function interactions(
   request: HttpRequest,
   context: InvocationContext,
 ): Promise<HttpResponseInit> {
+
+  var durableClient = getClient(context);
   context.log(`Http function processed request for url "${request.url}"`);
 
   await Config.initialize();
