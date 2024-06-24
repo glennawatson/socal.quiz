@@ -11,11 +11,12 @@ import {
   StorageSharedKeyCredential,
 } from "@azure/storage-blob";
 import { v4 as uuidv4 } from "uuid";
-import { Question } from "../question";
+import { Question } from "../question.interfaces";
 import fileType from "file-type";
 import sharp from "sharp";
-import { Answer } from "../answer";
+import { Answer } from "../answer.interfaces";
 import { throwError } from "./errorHelpers";
+import { IQuestionStorage } from "./IQuestionStorage.interfaces";
 
 const MAX_FILE_SIZE_BYTES = 8 * 1024 * 1024; // 8MB for Discord
 const VALID_IMAGE_TYPES = [
@@ -25,77 +26,48 @@ const VALID_IMAGE_TYPES = [
   "image/webp",
 ];
 
-export interface IQuestionStorage {
-  getQuestions(bankName: string): Promise<Question[]>;
-
-  deleteQuestionBank(bankName: string): Promise<void>;
-
-  deleteQuestion(bankName: string, questionId: string): Promise<void>;
-
-  getPresignedUrl(containerName: string, partitionKey: string): Promise<string>;
-
-  getQuestionImagePresignedUrl(
-    bankName: string,
-    questionId: string,
-  ): Promise<string>;
-
-  getExplanationImagePresignedUrl(
-    bankName: string,
-    questionId: string,
-  ): Promise<string>;
-
-  generateAndAddQuestion(
-    bankName: string,
-    questionText: string,
-    answersText: string[],
-    correctAnswerIndex: number,
-    questionShowTimeMs: number,
-    imageUrl?: string,
-    explanation?: string,
-    explanationImageUrl?: string,
-  ): Promise<void>;
-
-  generateQuestion(
-    bankName: string,
-    questionText: string,
-    answersText: string[],
-    correctAnswerIndex: number,
-    questionShowTimeMs: number,
-    imageUrl?: string,
-    explanation?: string,
-    explanationImageUrl?: string,
-  ): Promise<Question>;
-}
-
 export class QuestionStorage implements IQuestionStorage {
   private quizQuestionsClient: TableClient;
   private quizImageClient: BlobServiceClient;
 
   constructor(
-    connectionString: string = process.env.AZURE_STORAGE_CONNECTION_STRING ??
-      throwError("No valid connection string to azure storage"),
+    connectionString?: string | undefined,
     private readonly storageAccountName: string = process.env
-      .AZURE_STORAGE_CONNECTION_STRING ??
-      throwError("invalid azure storage connection string"),
+      .AZURE_STORAGE_ACCOUNT_NAME ?? throwError("invalid storage account name"),
     private readonly storageAccountKey: string = process.env
       .AZURE_STORAGE_ACCOUNT_KEY ?? throwError("invalid storage account key"),
     quizQuestionsClient?: TableClient,
     quizImageClient?: BlobServiceClient,
   ) {
-    if (!connectionString || !storageAccountName || !storageAccountKey) {
-      throw new Error(
-        "Invalid connection string or storage account credentials",
-      );
-    }
-
-    this.quizQuestionsClient =
-      quizQuestionsClient ??
-      TableClient.fromConnectionString(connectionString, "QuizQuestions");
-    this.quizImageClient =
-      quizImageClient ??
-      BlobServiceClient.fromConnectionString(connectionString);
     this.storageAccountName = storageAccountName;
     this.storageAccountKey = storageAccountKey;
+
+    if (!quizQuestionsClient) {
+      if (!connectionString) {
+        connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING;
+      }
+
+      if (!connectionString) {
+        throw new Error("invalid azure storage connection string");
+      }
+
+      this.quizQuestionsClient =
+        quizQuestionsClient ??
+        TableClient.fromConnectionString(connectionString, "QuizQuestions");
+    } else {
+      this.quizQuestionsClient = quizQuestionsClient;
+    }
+
+    if (!quizImageClient) {
+      if (!connectionString) {
+        throw new Error("invalid connection string");
+      }
+
+      this.quizImageClient =
+        BlobServiceClient.fromConnectionString(connectionString);
+    } else {
+      this.quizImageClient = quizImageClient;
+    }
   }
 
   async getQuestions(bankName: string): Promise<Question[]> {
@@ -334,6 +306,12 @@ export class QuestionStorage implements IQuestionStorage {
       explanation,
       explanationImagePartitionKey,
     };
+  }
+
+  public async updateQuestion(question: Question): Promise<void> {
+    // New method for updating questions
+    const entity = toTableEntity(question);
+    await this.quizQuestionsClient.updateEntity(entity, "Merge");
   }
 }
 

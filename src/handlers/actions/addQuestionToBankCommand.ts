@@ -1,4 +1,4 @@
-import { IModalHandlerCommand } from "./discordCommand";
+import { IModalHandlerCommand } from "./discordCommand.interfaces";
 import {
   APIChatInputApplicationCommandInteraction,
   APIInteractionResponse,
@@ -18,7 +18,8 @@ import {
   getComponentValue,
   getComponentValueNumber,
 } from "../../util/interactionHelpers";
-import { IQuestionStorage } from "../../util/questionStorage";
+import { createTextInput } from "../../util/commandHelpers";
+import { IQuestionStorage } from "../../util/IQuestionStorage.interfaces";
 
 export class AddQuestionToBankCommand implements IModalHandlerCommand {
   public static readonly componentIds = {
@@ -42,20 +43,6 @@ export class AddQuestionToBankCommand implements IModalHandlerCommand {
 
   name = "add_question_to_bank";
 
-  // Helper function to create text input components
-  private createTextInput(
-    customId: string,
-    label: string,
-    style: TextInputStyle,
-    required = true,
-  ) {
-    return new TextInputBuilder()
-      .setCustomId(customId)
-      .setLabel(label)
-      .setStyle(style)
-      .setRequired(required);
-  }
-
   public async execute(
     _: APIChatInputApplicationCommandInteraction, // eslint-disable-line @typescript-eslint/no-unused-vars
   ): Promise<APIInteractionResponse> {
@@ -65,48 +52,52 @@ export class AddQuestionToBankCommand implements IModalHandlerCommand {
 
     modal.addComponents(
       new ActionRowBuilder<TextInputBuilder>().addComponents(
-        this.createTextInput(
+        createTextInput(
           AddQuestionToBankCommand.componentIds.bankName,
           "Question Bank Name",
           TextInputStyle.Short,
         ),
       ),
       new ActionRowBuilder<TextInputBuilder>().addComponents(
-        this.createTextInput(
+        createTextInput(
           AddQuestionToBankCommand.componentIds.questionText,
           "Question Text",
           TextInputStyle.Paragraph,
         ),
       ),
       new ActionRowBuilder<TextInputBuilder>().addComponents(
-        this.createTextInput(
+        createTextInput(
           AddQuestionToBankCommand.componentIds.timeoutTimeSeconds,
           "Question timeout time",
           TextInputStyle.Short,
+          undefined,
           false,
         ),
       ),
       new ActionRowBuilder<TextInputBuilder>().addComponents(
-        this.createTextInput(
+        createTextInput(
           AddQuestionToBankCommand.componentIds.imageUrl,
           "Image URL (optional)",
           TextInputStyle.Short,
+          undefined,
           false,
         ),
       ),
       new ActionRowBuilder<TextInputBuilder>().addComponents(
-        this.createTextInput(
+        createTextInput(
           AddQuestionToBankCommand.componentIds.explanation,
           "Explanation (Optional)",
           TextInputStyle.Paragraph,
+          undefined,
           false,
         ),
       ),
       new ActionRowBuilder<TextInputBuilder>().addComponents(
-        this.createTextInput(
+        createTextInput(
           AddQuestionToBankCommand.componentIds.explanationImageUrl,
           "Explanation Image URL (Optional)",
           TextInputStyle.Short,
+          undefined,
           false,
         ),
       ),
@@ -116,7 +107,7 @@ export class AddQuestionToBankCommand implements IModalHandlerCommand {
     for (const answerId of AddQuestionToBankCommand.componentIds.answers) {
       modal.addComponents(
         new ActionRowBuilder<TextInputBuilder>().addComponents(
-          this.createTextInput(
+          createTextInput(
             answerId,
             `Answer ${answerId.replace("answer", "")}`,
             TextInputStyle.Short,
@@ -128,7 +119,7 @@ export class AddQuestionToBankCommand implements IModalHandlerCommand {
     // Correct answer index (last row)
     modal.addComponents(
       new ActionRowBuilder<TextInputBuilder>().addComponents(
-        this.createTextInput(
+        createTextInput(
           AddQuestionToBankCommand.componentIds.correctAnswerIndex,
           "Correct Answer Index (0-based)",
           TextInputStyle.Short,

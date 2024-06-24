@@ -12,7 +12,7 @@ import {
 import { CommandManager } from "../../src/handlers/actions/commandManager";
 import { createEphemeralResponse } from "../../src/util/interactionHelpers";
 import { SlashCommandBuilder } from "@discordjs/builders";
-import { IModalHandlerCommand } from "../../src/handlers/actions/discordCommand";
+import { IModalHandlerCommand } from "../../src/handlers/actions/discordCommand.interfaces";
 
 describe("CommandManager", () => {
   let commandManager: CommandManager;

@@ -1,4 +1,4 @@
-import { IDiscordCommand } from "./discordCommand";
+import { IDiscordCommand } from "./discordCommand.interfaces";
 import { DiscordBotService } from "../discordBotService";
 import {
   SlashCommandBuilder,

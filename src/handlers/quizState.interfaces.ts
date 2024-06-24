@@ -1,4 +1,4 @@
-import { Question } from "../question";
+import { Question } from "../question.interfaces";
 import { Subscription } from "rxjs";
 
 export interface QuizState {

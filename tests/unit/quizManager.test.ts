@@ -18,8 +18,8 @@ import {
   Routes,
 } from "discord-api-types/v10";
 import { QuizManager } from "../../src/handlers/quizManager";
-import { Question } from "../../src/question";
-import { QuizState } from "../../src/handlers/quizState";
+import { Question } from "../../src/question.interfaces";
+import { QuizState } from "../../src/handlers/quizState.interfaces";
 import { createEphemeralResponse } from "../../src/util/interactionHelpers";
 import { asyncScheduler, SchedulerLike } from "rxjs";
 import { EmbedBuilder } from "@discordjs/builders";
@@ -398,10 +398,10 @@ describe("QuizManager", () => {
           {
             type: 1,
             components: [
-              { custom_id: "answer_b1", label: "A", style: 1, type: 2 },
-              { custom_id: "answer_b2", label: "B", style: 1, type: 2 },
-              { custom_id: "answer_b3", label: "C", style: 1, type: 2 },
-              { custom_id: "answer_b4", label: "D", style: 1, type: 2 },
+              { custom_id: "answer_b1", label: "A", type: 2 },
+              { custom_id: "answer_b2", label: "B", type: 2 },
+              { custom_id: "answer_b3", label: "C", type: 2 },
+              { custom_id: "answer_b4", label: "D", type: 2 },
             ],
           },
         ],
@@ -1071,6 +1071,46 @@ describe("QuizManager", () => {
 
     expect(response).toEqual(
       createEphemeralResponse("No more questions in the quiz."),
+    );
+  });
+
+  it("should return an error if the question bank name is null", async () => {
+    const response = await quizManager.startQuiz(
+      channelId,
+      null as any,
+      testScheduler,
+    );
+    expect(response).toEqual(
+      createEphemeralResponse("There is no valid question bank name"),
+    );
+  });
+
+  it("should return an error if the question bank name is undefined", async () => {
+    const response = await quizManager.startQuiz(
+      channelId,
+      undefined as any,
+      testScheduler,
+    );
+    expect(response).toEqual(
+      createEphemeralResponse("There is no valid question bank name"),
+    );
+  });
+
+  it("should return an error if the question bank name is an empty string", async () => {
+    const response = await quizManager.startQuiz(channelId, "", testScheduler);
+    expect(response).toEqual(
+      createEphemeralResponse("There is no valid question bank name"),
+    );
+  });
+
+  it("should return an error if the question bank name is a whitespace string", async () => {
+    const response = await quizManager.startQuiz(
+      channelId,
+      "   ",
+      testScheduler,
+    );
+    expect(response).toEqual(
+      createEphemeralResponse("There is no valid question bank name"),
     );
   });
 });

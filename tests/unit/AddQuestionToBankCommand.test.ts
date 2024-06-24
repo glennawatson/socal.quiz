@@ -8,8 +8,9 @@ import {
 } from "discord-api-types/v10";
 import { AddQuestionToBankCommand } from "../../src/handlers/actions/addQuestionToBankCommand";
 import { createEphemeralResponse } from "../../src/util/interactionHelpers";
-import { Question } from "../../src/question";
-import { IQuestionStorage } from "../../src/util/questionStorage";
+import { Question } from "../../src/question.interfaces";
+
+import { IQuestionStorage } from "../../src/util/IQuestionStorage.interfaces";
 
 describe("AddQuestionToBankCommand", () => {
   let questionStorageMock: IQuestionStorage;
@@ -25,6 +26,7 @@ describe("AddQuestionToBankCommand", () => {
       getExplanationImagePresignedUrl: vi.fn(() => Promise.resolve("")),
       generateAndAddQuestion: vi.fn(() => Promise.resolve()),
       generateQuestion: vi.fn(() => Promise.resolve({} as Question)),
+      updateQuestion: vi.fn(),
     };
 
     addQuestionToBankCommand = new AddQuestionToBankCommand(

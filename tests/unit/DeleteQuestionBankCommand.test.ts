@@ -1,12 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { APIChatInputApplicationCommandInteraction } from "discord-api-types/v10";
+import {
+  APIChatInputApplicationCommandInteraction,
+  ApplicationCommandOptionType,
+  ApplicationCommandType,
+  ChannelType,
+  GuildMemberFlags,
+} from "discord-api-types/v10";
 import { QuestionStorage } from "../../src/util/questionStorage";
 import { DeleteQuestionBankCommand } from "../../src/handlers/actions/deleteQuestionBankCommand";
 import {
   createEphemeralResponse,
+  generateErrorResponse,
   generateOptionMissingErrorResponse,
 } from "../../src/util/interactionHelpers";
-import { generateBankOptions } from "./optionsHelper";
 
 describe("DeleteQuestionBankCommand", () => {
   let questionStorageMock: QuestionStorage;
@@ -52,5 +58,70 @@ describe("DeleteQuestionBankCommand", () => {
 
       expect(response).toEqual(generateOptionMissingErrorResponse("bankname"));
     });
+
+    it("should return a generic error response if an exception occurs", async () => {
+      const interaction: APIChatInputApplicationCommandInteraction =
+        generateBankOptions("123", "sampleBank");
+
+      // Simulate an error during the deleteQuestionBank method call
+      questionStorageMock.deleteQuestionBank = vi
+        .fn()
+        .mockRejectedValue(new Error("Some error"));
+
+      const response = await deleteQuestionBankCommand.execute(interaction);
+
+      expect(response).toEqual(generateErrorResponse(new Error("Some error")));
+    });
   });
 });
+
+// Helper function to generate interaction options
+function generateBankOptions(
+  userId: string,
+  bankName: string,
+): APIChatInputApplicationCommandInteraction {
+  return {
+    app_permissions: "",
+    authorizing_integration_owners: {},
+    channel: { id: "channel-id", type: ChannelType.GuildVoice },
+    entitlements: [],
+    locale: "en-US",
+    version: 1,
+    type: 2,
+    data: {
+      id: "command-id",
+      name: "delete_question_bank",
+      options: [
+        {
+          name: "bankname",
+          type: ApplicationCommandOptionType.String,
+          value: bankName,
+        },
+      ],
+      resolved: {},
+      type: ApplicationCommandType.ChatInput,
+    },
+    guild_id: "guild-id",
+    channel_id: "channel-id",
+    member: {
+      user: {
+        id: userId,
+        username: "username",
+        discriminator: "0001",
+        avatar: "avatar-hash",
+        global_name: userId,
+      },
+      roles: [],
+      premium_since: null,
+      permissions: "0",
+      pending: false,
+      mute: false,
+      deaf: false,
+      joined_at: "",
+      flags: GuildMemberFlags.CompletedOnboarding,
+    },
+    token: "interaction-token",
+    id: "interaction-id",
+    application_id: "application-id",
+  };
+}

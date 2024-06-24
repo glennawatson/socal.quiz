@@ -4,7 +4,10 @@ import { DeleteQuestionFromBankCommand } from "./deleteQuestionFromBankCommand";
 import { StopQuizCommand } from "./stopQuizCommand";
 import { StartQuizCommand } from "./startQuizCommand";
 import { DeleteQuestionBankCommand } from "./deleteQuestionBankCommand";
-import { IDiscordCommand, IModalHandlerCommand } from "./discordCommand";
+import {
+  IDiscordCommand,
+  IModalHandlerCommand,
+} from "./discordCommand.interfaces";
 import { DiscordBotService } from "../discordBotService";
 import {
   APIInteraction,
@@ -18,7 +21,8 @@ import {
 import { isChatInputApplicationCommandInteraction } from "discord-api-types/utils";
 import { REST } from "@discordjs/rest";
 import { createEphemeralResponse } from "../../util/interactionHelpers";
-import { IQuestionStorage } from "../../util/questionStorage";
+import { EditQuestionCommand } from "./editQuestionCommand";
+import { IQuestionStorage } from "../../util/IQuestionStorage.interfaces";
 
 export class CommandManager {
   private readonly commands: Map<string, IDiscordCommand>;
@@ -80,6 +84,7 @@ export class CommandManager {
       new DeleteQuestionFromBankCommand(this.questionStorage),
     );
     this.registerCommand(new DeleteQuestionBankCommand(this.questionStorage));
+    this.registerCommand(new EditQuestionCommand(this.questionStorage));
     await this.registerCommandsForGuild(guildId);
   }
 

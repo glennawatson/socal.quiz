@@ -7,8 +7,8 @@ import {
   generateErrorResponse,
 } from "../util/interactionHelpers";
 import { GuildStorage } from "../util/guildStorage";
-import { IQuestionStorage } from "../util/questionStorage";
 import "../util/mapExtensions";
+import { IQuestionStorage } from "../util/IQuestionStorage.interfaces";
 
 export class DiscordBotService {
   private quizManagers: Map<string, Promise<QuizManager>>;
