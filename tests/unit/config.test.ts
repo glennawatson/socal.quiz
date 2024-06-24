@@ -4,10 +4,12 @@ import { DiscordBotService } from "../../src/handlers/discordBotService";
 import { QuestionStorage } from "../../src/util/questionStorage";
 import { GuildStorage } from "../../src/util/guildStorage";
 import { throwError } from "../../src/util/errorHelpers";
+import { StateManager } from "../../src/util/stateManager";
 
 vi.mock("../../src/handlers/discordBotService");
 vi.mock("../../src/util/questionStorage");
 vi.mock("../../src/util/guildStorage");
+vi.mock("../../src/util/stateManager");
 vi.mock("../../src/util/errorHelpers", () => ({
   throwError: vi.fn(),
 }));
@@ -27,11 +29,13 @@ describe("Config", () => {
     const mockPublicKey = "mockPublicKey";
     const mockQuestionStorage = new QuestionStorage();
     const mockGuildStorage = new GuildStorage();
+    const mockStateManager = new StateManager();
     const mockDiscordBotService = new DiscordBotService(
       mockToken,
       mockClientId,
       mockGuildStorage,
       mockQuestionStorage,
+      mockStateManager,
     );
 
     await Config.initialize(
@@ -40,6 +44,7 @@ describe("Config", () => {
       mockPublicKey,
       mockQuestionStorage,
       mockGuildStorage,
+      mockStateManager,
       mockDiscordBotService,
     );
 
@@ -108,11 +113,14 @@ describe("Config", () => {
     const mockPublicKey = "mockPublicKey";
     const mockQuestionStorage = new QuestionStorage();
     const mockGuildStorage = new GuildStorage();
+    const mockStorage = new StateManager();
+    const mockStateManager = new StateManager();
     const mockDiscordBotService = new DiscordBotService(
       mockToken,
       mockClientId,
       mockGuildStorage,
       mockQuestionStorage,
+      mockStorage,
     );
 
     await Config.initialize(
@@ -121,6 +129,7 @@ describe("Config", () => {
       mockPublicKey,
       mockQuestionStorage,
       mockGuildStorage,
+      mockStateManager,
       mockDiscordBotService,
     );
     const initialConfig = Config["_initializePromise"];
@@ -131,6 +140,7 @@ describe("Config", () => {
       mockPublicKey,
       mockQuestionStorage,
       mockGuildStorage,
+      mockStateManager,
       mockDiscordBotService,
     );
     const subsequentConfig = Config["_initializePromise"];
@@ -152,6 +162,7 @@ describe("Config", () => {
     const mockPublicKey = "mockPublicKey";
     const mockQuestionStorage = new QuestionStorage();
     const mockGuildStorage = new GuildStorage();
+    const mockStateManager = new StateManager();
 
     await Config.initialize(
       mockToken,
@@ -159,6 +170,7 @@ describe("Config", () => {
       mockPublicKey,
       mockQuestionStorage,
       mockGuildStorage,
+      mockStateManager,
     );
 
     expect(Config.discordBotService).toBeInstanceOf(DiscordBotService);
@@ -167,6 +179,7 @@ describe("Config", () => {
       mockClientId,
       mockGuildStorage,
       mockQuestionStorage,
+      mockStateManager,
     );
   });
 });

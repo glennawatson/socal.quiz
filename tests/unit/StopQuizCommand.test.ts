@@ -69,7 +69,10 @@ describe("StopQuizCommand", () => {
 
       const response = await stopQuizCommand.execute(interaction);
 
-      expect(quizManagerMock.stopQuiz).toHaveBeenCalledWith("channel-id");
+      expect(quizManagerMock.stopQuiz).toHaveBeenCalledWith(
+        "guild-id",
+        "channel-id",
+      );
       expect(response).toEqual(createEphemeralResponse("Stopped quiz"));
     });
 

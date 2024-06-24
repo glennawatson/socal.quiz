@@ -16,6 +16,7 @@ import { DiscordBotService } from "../../src/handlers/discordBotService";
 import { TableClient } from "@azure/data-tables";
 import { BlobServiceClient } from "@azure/storage-blob"; // Adjust the path as needed
 import { verify } from "discord-verify";
+import { StateManager } from "../../src/util/stateManager";
 
 // Mock implementations
 vi.mock("@azure/data-tables", () => {
@@ -131,6 +132,7 @@ describe("interactions function", () => {
         blobServiceClientMock as unknown as BlobServiceClient,
       ),
       new GuildStorage(undefined, tableClientMock as unknown as TableClient),
+      new StateManager(undefined, tableClientMock as unknown as TableClient),
       mockDiscordBotService as unknown as DiscordBotService,
     );
   });

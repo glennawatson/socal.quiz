@@ -2,6 +2,7 @@ import { DiscordBotService } from "../handlers/discordBotService";
 import { QuestionStorage } from "../util/questionStorage";
 import { GuildStorage } from "../util/guildStorage";
 import { throwError } from "../util/errorHelpers";
+import { StateManager } from "../util/stateManager";
 
 export class Config {
   public static token: string;
@@ -10,6 +11,7 @@ export class Config {
   public static questionStorage: QuestionStorage;
   public static guildStorage: GuildStorage;
   public static discordBotService: DiscordBotService;
+  public static stateManager: StateManager;
 
   private static _initialized = false;
   private static _initializePromise: Promise<Config> | null = null;
@@ -24,6 +26,7 @@ export class Config {
     publicKey?: string,
     questionStorage?: QuestionStorage,
     guildStorage?: GuildStorage,
+    stateManager?: StateManager,
     discordBotService?: DiscordBotService,
   ): Promise<Config> {
     if (Config._initializePromise) {
@@ -44,6 +47,7 @@ export class Config {
 
         Config.questionStorage = questionStorage ?? new QuestionStorage();
         Config.guildStorage = guildStorage ?? new GuildStorage();
+        Config.stateManager = stateManager ?? new StateManager();
         Config.discordBotService =
           discordBotService ??
           new DiscordBotService(
@@ -51,6 +55,7 @@ export class Config {
             Config.clientId,
             Config.guildStorage,
             Config.questionStorage,
+            Config.stateManager,
           );
 
         Config._initialized = true;

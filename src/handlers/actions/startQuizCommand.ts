@@ -48,7 +48,11 @@ export class StartQuizCommand implements IDiscordCommand {
       }
 
       const quizManager = await this.discordBotService.getQuizManager(guildId);
-      return await quizManager.startQuiz(interaction.channel.id, bankName);
+      return await quizManager.startQuiz(
+        guildId,
+        interaction.channel.id,
+        bankName,
+      );
     } catch (error) {
       return generateErrorResponse(error as Error);
     }

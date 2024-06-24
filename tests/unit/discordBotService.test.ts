@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { REST } from "@discordjs/rest";
 import { APIInteraction, InteractionType } from "discord-api-types/v10";
 import { GuildStorage } from "../../src/util/guildStorage";
@@ -10,6 +10,7 @@ import {
   createEphemeralResponse,
   generateErrorResponse,
 } from "../../src/util/interactionHelpers";
+import { StateManager } from "../../src/util/stateManager";
 
 // Define mock implementations
 const mockCommandManager = {
@@ -38,11 +39,17 @@ const mockQuestionStorage = {
   deleteQuestionBank: vi.fn(),
 };
 
+const mockStateManager = {
+  getState: vi.fn(),
+  setState: vi.fn(),
+};
+
 describe("DiscordBotService", () => {
   let token: string;
   let clientId: string;
   let guildStorageMock: GuildStorage;
   let questionStorageMock: QuestionStorage;
+  let stateManagerMock: StateManager;
   let restMock: REST;
   let discordBotService: DiscordBotService;
 
@@ -53,6 +60,7 @@ describe("DiscordBotService", () => {
     guildStorageMock = mockGuildStorage as unknown as GuildStorage;
     questionStorageMock = mockQuestionStorage as unknown as QuestionStorage;
     restMock = mockRest as unknown as REST;
+    stateManagerMock = mockStateManager as unknown as StateManager;
   });
 
   describe("constructor", () => {
@@ -62,6 +70,7 @@ describe("DiscordBotService", () => {
         clientId,
         guildStorageMock,
         questionStorageMock,
+        stateManagerMock,
         restMock,
       );
 
@@ -78,6 +87,7 @@ describe("DiscordBotService", () => {
         clientId,
         guildStorageMock,
         questionStorageMock,
+        stateManagerMock,
         restMock,
         mockCommandManager as unknown as CommandManager,
       );
@@ -100,6 +110,7 @@ describe("DiscordBotService", () => {
         clientId,
         guildStorageMock,
         questionStorageMock,
+        stateManagerMock,
         restMock,
         mockCommandManager as unknown as CommandManager,
       );
@@ -121,6 +132,7 @@ describe("DiscordBotService", () => {
         clientId,
         guildStorageMock,
         questionStorageMock,
+        stateManagerMock,
         restMock,
         mockCommandManager as unknown as CommandManager,
       );
@@ -139,6 +151,7 @@ describe("DiscordBotService", () => {
         clientId,
         guildStorageMock,
         questionStorageMock,
+        stateManagerMock,
         restMock,
         mockCommandManager as unknown as CommandManager,
       );
@@ -173,6 +186,7 @@ describe("DiscordBotService", () => {
         clientId,
         guildStorageMock,
         questionStorageMock,
+        stateManagerMock,
         restMock,
         mockCommandManager as unknown as CommandManager,
       );
@@ -211,6 +225,7 @@ describe("DiscordBotService", () => {
         clientId,
         guildStorageMock,
         questionStorageMock,
+        stateManagerMock,
         restMock,
         mockCommandManager as unknown as CommandManager,
       );
@@ -253,6 +268,7 @@ describe("DiscordBotService", () => {
         clientId,
         guildStorageMock,
         questionStorageMock,
+        stateManagerMock,
         restMock,
         mockCommandManager as unknown as CommandManager,
       );
@@ -288,6 +304,7 @@ describe("DiscordBotService", () => {
         clientId,
         guildStorageMock,
         questionStorageMock,
+        stateManagerMock,
         restMock,
         mockCommandManager as unknown as CommandManager,
       );

@@ -9,6 +9,7 @@ import {
 import { GuildStorage } from "../util/guildStorage";
 import "../util/mapExtensions";
 import { IQuestionStorage } from "../util/IQuestionStorage.interfaces";
+import { StateManager } from "../util/stateManager";
 
 export class DiscordBotService {
   private quizManagers: Map<string, Promise<QuizManager>>;
@@ -20,6 +21,7 @@ export class DiscordBotService {
     private readonly clientId: string,
     private readonly guildStorage: GuildStorage,
     private readonly questionStorage: IQuestionStorage,
+    private readonly stateManager: StateManager,
     rest?: REST,
     commandManager?: CommandManager,
   ) {
@@ -38,7 +40,8 @@ export class DiscordBotService {
   public async getQuizManager(guildId: string): Promise<QuizManager> {
     const manager = await this.quizManagers.getOrAdd(
       guildId,
-      async () => new QuizManager(this.rest, this.questionStorage),
+      async () =>
+        new QuizManager(this.rest, this.questionStorage, this.stateManager),
     );
 
     if (!manager)

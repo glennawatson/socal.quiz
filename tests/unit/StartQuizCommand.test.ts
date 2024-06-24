@@ -51,6 +51,7 @@ describe("StartQuizCommand", () => {
       const response = await startQuizCommand.execute(interaction);
 
       expect(quizManagerMock.startQuiz).toHaveBeenCalledWith(
+        "123",
         "channel-id",
         "sampleBank",
       );
