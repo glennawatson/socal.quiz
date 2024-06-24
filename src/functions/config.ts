@@ -4,6 +4,7 @@ import { GuildStorage } from "../util/guildStorage";
 import { throwError } from "../util/errorHelpers";
 import { StateManager } from "../util/stateManager";
 
+/* eslint-disable @typescript-eslint/no-extraneous-class */
 export class Config {
   public static token: string;
   public static clientId: string;
@@ -33,7 +34,7 @@ export class Config {
       return Config._initializePromise;
     }
 
-    Config._initializePromise = new Promise<Config>(async (resolve, reject) => {
+    Config._initializePromise = new Promise<Config>((resolve, reject) => {
       try {
         if (Config._initialized) {
           resolve(new Config()); // Return existing instance if already initialized

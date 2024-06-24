@@ -24,6 +24,7 @@ import {
 import { createTextInput } from "../../util/commandHelpers";
 import { Question } from "../../question.interfaces";
 import { IQuestionStorage } from "../../util/IQuestionStorage.interfaces";
+import {throwError} from "../../util/errorHelpers";
 
 export class EditQuestionCommand implements IModalHandlerCommand {
   public static readonly componentIds = {
@@ -128,10 +129,13 @@ export class EditQuestionCommand implements IModalHandlerCommand {
       const updatedQuestion: Question = {
         ...existingQuestion,
         question: questionText,
-        answers: existingQuestion.answers.map((answer, index) => ({
-          answerId: answer.answerId,
-          answer: answersText[index]!,
-        })),
+        answers: existingQuestion.answers.map((answer, index) => {
+          const answerText = answersText[index] ?? throwError('invalid answer text');
+          return ({
+            answerId: answer.answerId,
+            answer: answerText,
+          });
+        }),
         correctAnswerIndex,
         questionShowTimeMs: (timeoutTimeSeconds ?? 20) * 1000,
         imagePartitionKey: imageUrl
@@ -171,7 +175,7 @@ export class EditQuestionCommand implements IModalHandlerCommand {
       );
   }
 
-  public name: string = "edit_question";
+  public name = "edit_question";
 
   public async execute(
     interaction: APIChatInputApplicationCommandInteraction,

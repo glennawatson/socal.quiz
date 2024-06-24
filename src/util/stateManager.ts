@@ -2,7 +2,7 @@ import { TableClient, TableEntity } from "@azure/data-tables";
 import { QuizState } from "../handlers/quizState.interfaces";
 
 export class StateManager {
-  private static tableName: string = "quiz_state_table";
+  private static tableName = "quiz_state_table";
   private client: TableClient;
 
   public constructor(
