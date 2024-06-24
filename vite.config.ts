@@ -6,7 +6,7 @@ export default defineConfig({
         setupFiles: './tests/setupTests.ts',
         coverage: {
             include: ['**/src/**'],
-            reporter: process.env.GITHUB_ACTIONS ? ['github-actions', 'json'] : ['json'],
+            reporter: process.env.GITHUB_ACTIONS ? ['html', 'json'] : ['json'],
             reportsDirectory: './coverage',
             provider: 'v8',
             exclude: [
