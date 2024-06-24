@@ -25,7 +25,9 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Install dependencies
-        run: npm install
+        run: | 
+          npm install
+          npm install --include=optional sharp
 
       - name: Run tests with coverage
         run: npx vitest --coverage
