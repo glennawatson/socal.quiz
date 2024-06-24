@@ -10,7 +10,8 @@
     "clean": "rimraf dist",
     "prestart": "npm run clean && npm run build",
     "start": "func start",
-    "test": "npx vitest"
+    "test": "npx vitest",
+    "coverage": "npx vitest run --coverage"
   },
   "dependencies": {
     "@azure/data-tables": "^13.2.2",
@@ -41,6 +42,9 @@
     "typescript": "^5.5.2",
     "typescript-eslint": "^7.13.0",
     "vitest": "^1.6.0"
+  },
+  "optionalDependencies": {
+    "@rollup/rollup-linux-x64-gnu": "^4.18.0"
   },
   "main": "dist/src/functions/*.js"
 }
