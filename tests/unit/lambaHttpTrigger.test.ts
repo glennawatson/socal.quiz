@@ -8,15 +8,15 @@ import {
   InteractionResponseType,
   InteractionType,
 } from "discord-api-types/v10";
-import { interactions } from "../../src/functions/lambdaHttpTrigger";
-import { Config } from "../../src/functions/config";
-import { QuestionStorage } from "../../src/util/questionStorage";
-import { GuildStorage } from "../../src/util/guildStorage";
-import { DiscordBotService } from "../../src/handlers/discordBotService";
+import { interactions } from "../../src/functions/lambdaHttpTrigger.js";
+import { Config } from "../../src/util/config.js";
+import { QuestionStorage } from "../../src/util/questionStorage.js";
+import { GuildStorage } from "../../src/util/guildStorage.js";
+import { DiscordBotService } from "../../src/handlers/discordBotService.js";
 import { TableClient } from "@azure/data-tables";
 import { BlobServiceClient } from "@azure/storage-blob"; // Adjust the path as needed
 import { verify } from "discord-verify";
-import { StateManager } from "../../src/util/stateManager";
+import { StateManager } from "../../src/util/stateManager.js";
 
 // Mock implementations
 vi.mock("@azure/data-tables", () => {

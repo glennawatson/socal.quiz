@@ -1,15 +1,15 @@
-import { QuizManager } from "./quizManager";
-import { CommandManager } from "./actions/commandManager";
+import { QuizManager } from "./quizManager.js";
+import { CommandManager } from "./actions/commandManager.js";
 import { REST } from "@discordjs/rest";
 import { APIInteraction, InteractionType } from "discord-api-types/v10";
 import {
   createEphemeralResponse,
   generateErrorResponse,
-} from "../util/interactionHelpers";
-import { GuildStorage } from "../util/guildStorage";
-import "../util/mapExtensions";
-import { IQuestionStorage } from "../util/IQuestionStorage.interfaces";
-import { StateManager } from "../util/stateManager";
+} from "../util/interactionHelpers.js";
+import { GuildStorage } from "../util/guildStorage.js";
+import "../util/mapExtensions.js";
+import { IQuestionStorage } from "../util/IQuestionStorage.interfaces.js";
+import { StateManager } from "../util/stateManager.js";
 
 export class DiscordBotService {
   private quizManagers: Map<string, Promise<QuizManager>>;

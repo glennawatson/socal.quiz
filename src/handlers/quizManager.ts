@@ -1,4 +1,4 @@
-import { QuizState } from "./quizState.interfaces";
+import { QuizState } from "./quizState.interfaces.js";
 import {
   APIInteraction,
   APIInteractionResponse,
@@ -14,10 +14,10 @@ import {
 import {
   createEphemeralResponse,
   isNullOrWhitespace,
-} from "../util/interactionHelpers";
-import { Question } from "../question.interfaces";
-import { IQuestionStorage } from "../util/IQuestionStorage.interfaces";
-import { StateManager } from "../util/stateManager";
+} from "../util/interactionHelpers.js";
+import { Question } from "../question.interfaces.js";
+import { IQuestionStorage } from "../util/IQuestionStorage.interfaces.js";
+import { StateManager } from "../util/stateManager.js";
 import { asyncScheduler, lastValueFrom, timer } from "rxjs";
 
 export abstract class QuizManagerBase {

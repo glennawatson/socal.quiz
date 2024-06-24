@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { throwError } from "../../src/util/errorHelpers";
+import { throwError } from "../../src/util/errorHelpers.js";
 
 describe("throwError", () => {
   it("should throw an Error with the provided message", () => {

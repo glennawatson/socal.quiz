@@ -1,5 +1,5 @@
-import { IDiscordCommand } from "./discordCommand.interfaces";
-import { DiscordBotService } from "../discordBotService";
+import { IDiscordCommand } from "./discordCommand.interfaces.js";
+import { DiscordBotService } from "../discordBotService.js";
 import {
   APIChatInputApplicationCommandInteraction,
   APIInteractionResponse,
@@ -8,7 +8,7 @@ import {
   generateErrorResponse,
   generateOptionMissingErrorResponse,
   getOptionValue,
-} from "../../util/interactionHelpers";
+} from "../../util/interactionHelpers.js";
 import {
   SlashCommandBuilder,
   SlashCommandOptionsOnlyBuilder,

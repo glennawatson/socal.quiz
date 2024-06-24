@@ -1,4 +1,4 @@
-import { Question } from "../question.interfaces";
+import { Question } from "../question.interfaces.js";
 
 export interface QuizState {
   questionBank: Question[];

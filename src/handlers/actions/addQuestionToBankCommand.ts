@@ -1,4 +1,4 @@
-import { IModalHandlerCommand } from "./discordCommand.interfaces";
+import { IModalHandlerCommand } from "./discordCommand.interfaces.js";
 import {
   APIChatInputApplicationCommandInteraction,
   APIInteractionResponse,
@@ -17,9 +17,9 @@ import {
   createEphemeralResponse,
   getComponentValue,
   getComponentValueNumber,
-} from "../../util/interactionHelpers";
-import { createTextInput } from "../../util/commandHelpers";
-import { IQuestionStorage } from "../../util/IQuestionStorage.interfaces";
+} from "../../util/interactionHelpers.js";
+import { createTextInput } from "../../util/commandHelpers.js";
+import { IQuestionStorage } from "../../util/IQuestionStorage.interfaces.js";
 
 export class AddQuestionToBankCommand implements IModalHandlerCommand {
   public static readonly componentIds = {

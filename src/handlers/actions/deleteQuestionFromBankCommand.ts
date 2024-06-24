@@ -1,4 +1,4 @@
-import { IDiscordCommand } from "./discordCommand.interfaces";
+import { IDiscordCommand } from "./discordCommand.interfaces.js";
 import {
   SlashCommandBuilder,
   SlashCommandOptionsOnlyBuilder,
@@ -12,9 +12,9 @@ import {
   generateErrorResponse,
   generateOptionMissingErrorResponse,
   getOptionValue,
-} from "../../util/interactionHelpers";
+} from "../../util/interactionHelpers.js";
 
-import { IQuestionStorage } from "../../util/IQuestionStorage.interfaces";
+import { IQuestionStorage } from "../../util/IQuestionStorage.interfaces.js";
 
 export class DeleteQuestionFromBankCommand implements IDiscordCommand {
   constructor(private readonly questionStorage: IQuestionStorage) {}

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { RestError, TableClient } from "@azure/data-tables";
-import { GuildStorage } from "../../src/util/guildStorage";
+import { GuildStorage } from "../../src/util/guildStorage.js";
 
 vi.mock("@azure/data-tables", async () => {
   const actual =

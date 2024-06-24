@@ -13,9 +13,9 @@ import {
   MessageFlags,
   ModalSubmitActionRowComponent,
 } from "discord-api-types/v10";
-import { Question } from "../../src/question.interfaces";
-import { EditQuestionCommand } from "../../src/handlers/actions/editQuestionCommand";
-import { IQuestionStorage } from "../../src/util/IQuestionStorage.interfaces";
+import { Question } from "../../src/question.interfaces.js";
+import { EditQuestionCommand } from "../../src/handlers/actions/editQuestionCommand.js";
+import { IQuestionStorage } from "../../src/util/IQuestionStorage.interfaces.js";
 
 function createComponents(
   fields: { custom_id: string; value: string }[],

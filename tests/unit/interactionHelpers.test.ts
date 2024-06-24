@@ -6,7 +6,7 @@ import {
   isNullOrWhitespace,
   createEphemeralResponse,
   getOptionValue,
-} from "../../src/util/interactionHelpers";
+} from "../../src/util/interactionHelpers.js";
 import {
   ApplicationCommandOptionType,
   APIApplicationCommandInteractionDataOption,

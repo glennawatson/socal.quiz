@@ -1,8 +1,8 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
-import { QuestionStorage } from "../../src/util/questionStorage";
+import { QuestionStorage } from "../../src/util/questionStorage.js";
 import { odata, TableClient, TableEntity } from "@azure/data-tables";
-import { Question } from "../../src/question.interfaces";
-import fileType from "file-type";
+import { Question } from "../../src/question.interfaces.js";
+import { fileTypeFromBuffer } from 'file-type';
 import { BlobServiceClient } from "@azure/storage-blob";
 
 vi.mock("@azure/data-tables", () => ({
@@ -47,9 +47,7 @@ vi.mock("sharp", () => ({
 
 vi.mock("file-type", () => ({
   __esModule: true,
-  default: {
-    fileTypeFromBuffer: vi.fn(),
-  },
+  fileTypeFromBuffer: vi.fn(),
 }));
 
 vi.mock("../../src/util/errorHelpers", () => ({
@@ -116,7 +114,7 @@ describe("QuestionStorage", () => {
     );
 
     // Reset the mock for fileTypeFromBuffer before each test
-    vi.mocked(fileType.fileTypeFromBuffer).mockReset();
+    vi.mocked(fileTypeFromBuffer).mockReset();
   });
 
   afterEach(() => {
@@ -504,7 +502,7 @@ describe("QuestionStorage", () => {
         statusText: "OK",
       } as unknown as Response);
 
-      (fileType.fileTypeFromBuffer as any)
+      (fileTypeFromBuffer as any)
         .mockResolvedValueOnce({ mime: "image/jpeg" })
         .mockResolvedValueOnce({ mime: "image/png" }); // Assuming a different mime type for the second image
 
@@ -574,7 +572,7 @@ describe("QuestionStorage", () => {
         },
       } as unknown as Response);
 
-      vi.mocked(fileType.fileTypeFromBuffer).mockResolvedValueOnce({
+      vi.mocked(fileTypeFromBuffer).mockResolvedValueOnce({
         mime: "image/jpeg",
       } as any);
 
@@ -629,7 +627,7 @@ describe("QuestionStorage", () => {
         },
       } as unknown as Response);
 
-      vi.mocked(fileType.fileTypeFromBuffer).mockResolvedValueOnce({
+      vi.mocked(fileTypeFromBuffer).mockResolvedValueOnce({
         mime: "image/jpeg",
       } as any);
 
@@ -681,7 +679,7 @@ describe("QuestionStorage", () => {
       } as unknown as Response);
 
       // Mock fileTypeFromBuffer to return an invalid mime type (e.g., "image/bmp")
-      vi.mocked(fileType.fileTypeFromBuffer).mockResolvedValueOnce({
+      vi.mocked(fileTypeFromBuffer).mockResolvedValueOnce({
         mime: "image/bmp",
       } as any);
 

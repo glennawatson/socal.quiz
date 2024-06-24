@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { DiscordBotService } from "../../src/handlers/discordBotService";
-import { NextQuestionCommand } from "../../src/handlers/actions/nextQuestionCommand";
+import { DiscordBotService } from "../../src/handlers/discordBotService.js";
+import { NextQuestionCommand } from "../../src/handlers/actions/nextQuestionCommand.js";
 import {
   APIChatInputApplicationCommandInteraction,
   ApplicationCommandType,
@@ -11,7 +11,7 @@ import {
   createEphemeralResponse,
   generateErrorResponse,
   generateOptionMissingErrorResponse,
-} from "../../src/util/interactionHelpers";
+} from "../../src/util/interactionHelpers.js";
 
 describe("NextQuestionCommand", () => {
   let discordBotServiceMock: DiscordBotService;

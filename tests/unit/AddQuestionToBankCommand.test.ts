@@ -6,11 +6,11 @@ import {
   InteractionResponseType,
   InteractionType,
 } from "discord-api-types/v10";
-import { AddQuestionToBankCommand } from "../../src/handlers/actions/addQuestionToBankCommand";
-import { createEphemeralResponse } from "../../src/util/interactionHelpers";
-import { Question } from "../../src/question.interfaces";
+import { AddQuestionToBankCommand } from "../../src/handlers/actions/addQuestionToBankCommand.js";
+import { createEphemeralResponse } from "../../src/util/interactionHelpers.js";
+import { Question } from "../../src/question.interfaces.js";
 
-import { IQuestionStorage } from "../../src/util/IQuestionStorage.interfaces";
+import { IQuestionStorage } from "../../src/util/IQuestionStorage.interfaces.js";
 
 describe("AddQuestionToBankCommand", () => {
   let questionStorageMock: IQuestionStorage;

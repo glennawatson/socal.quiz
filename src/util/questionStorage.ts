@@ -11,12 +11,12 @@ import {
   StorageSharedKeyCredential,
 } from "@azure/storage-blob";
 import { v4 as uuidv4 } from "uuid";
-import { Question } from "../question.interfaces";
-import fileType from "file-type";
+import { Question } from "../question.interfaces.js";
 import sharp from "sharp";
-import { Answer } from "../answer.interfaces";
-import { throwError } from "./errorHelpers";
-import { IQuestionStorage } from "./IQuestionStorage.interfaces";
+import { Answer } from "../answer.interfaces.js";
+import { throwError } from "./errorHelpers.js";
+import { IQuestionStorage } from "./IQuestionStorage.interfaces.js";
+import { fileTypeFromBuffer } from 'file-type';
 
 const MAX_FILE_SIZE_BYTES = 8 * 1024 * 1024; // 8MB for Discord
 const VALID_IMAGE_TYPES = [
@@ -170,7 +170,7 @@ export class QuestionStorage implements IQuestionStorage {
     const buffer = Buffer.concat(chunks);
 
     // Validate file type
-    const fileTypeResult = await fileType.fileTypeFromBuffer(buffer);
+    const fileTypeResult = await fileTypeFromBuffer(buffer);
     if (!fileTypeResult || !VALID_IMAGE_TYPES.includes(fileTypeResult.mime)) {
       throw new Error("Invalid image file type for Discord.");
     }

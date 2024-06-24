@@ -1,16 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { REST } from "@discordjs/rest";
 import { APIInteraction, InteractionType } from "discord-api-types/v10";
-import { GuildStorage } from "../../src/util/guildStorage";
-import { QuestionStorage } from "../../src/util/questionStorage";
-import { CommandManager } from "../../src/handlers/actions/commandManager";
-import { DiscordBotService } from "../../src/handlers/discordBotService";
-import { QuizManager } from "../../src/handlers/quizManager";
+import { GuildStorage } from "../../src/util/guildStorage.js";
+import { QuestionStorage } from "../../src/util/questionStorage.js";
+import { CommandManager } from "../../src/handlers/actions/commandManager.js";
+import { DiscordBotService } from "../../src/handlers/discordBotService.js";
+import { QuizManager } from "../../src/handlers/quizManager.js";
 import {
   createEphemeralResponse,
   generateErrorResponse,
-} from "../../src/util/interactionHelpers";
-import { StateManager } from "../../src/util/stateManager";
+} from "../../src/util/interactionHelpers.js";
+import { StateManager } from "../../src/util/stateManager.js";
 
 // Define mock implementations
 const mockCommandManager = {

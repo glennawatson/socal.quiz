@@ -1,4 +1,4 @@
-import { Answer } from "./answer.interfaces";
+import { Answer } from "./answer.interfaces.js";
 
 export interface Question {
   bankName: string;

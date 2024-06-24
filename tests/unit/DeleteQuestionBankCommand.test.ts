@@ -6,13 +6,13 @@ import {
   ChannelType,
   GuildMemberFlags,
 } from "discord-api-types/v10";
-import { QuestionStorage } from "../../src/util/questionStorage";
-import { DeleteQuestionBankCommand } from "../../src/handlers/actions/deleteQuestionBankCommand";
+import { QuestionStorage } from "../../src/util/questionStorage.js";
+import { DeleteQuestionBankCommand } from "../../src/handlers/actions/deleteQuestionBankCommand.js";
 import {
   createEphemeralResponse,
   generateErrorResponse,
   generateOptionMissingErrorResponse,
-} from "../../src/util/interactionHelpers";
+} from "../../src/util/interactionHelpers.js";
 
 describe("DeleteQuestionBankCommand", () => {
   let questionStorageMock: QuestionStorage;

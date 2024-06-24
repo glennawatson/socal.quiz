@@ -1,4 +1,4 @@
-import { IModalHandlerCommand } from "./discordCommand.interfaces";
+import { IModalHandlerCommand } from "./discordCommand.interfaces.js";
 import {
   ActionRowBuilder,
   ModalBuilder,
@@ -20,11 +20,11 @@ import {
   getOptionValue,
   getComponentValue,
   getComponentValueNumber,
-} from "../../util/interactionHelpers";
-import { createTextInput } from "../../util/commandHelpers";
-import { Question } from "../../question.interfaces";
-import { IQuestionStorage } from "../../util/IQuestionStorage.interfaces";
-import {throwError} from "../../util/errorHelpers";
+} from "../../util/interactionHelpers.js";
+import { createTextInput } from "../../util/commandHelpers.js";
+import { Question } from "../../question.interfaces.js";
+import { IQuestionStorage } from "../../util/IQuestionStorage.interfaces.js";
+import {throwError} from "../../util/errorHelpers.js";
 
 export class EditQuestionCommand implements IModalHandlerCommand {
   public static readonly componentIds = {

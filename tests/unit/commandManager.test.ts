@@ -9,10 +9,10 @@ import {
   InteractionType,
   MessageFlags,
 } from "discord-api-types/v10";
-import { CommandManager } from "../../src/handlers/actions/commandManager";
-import { createEphemeralResponse } from "../../src/util/interactionHelpers";
+import { CommandManager } from "../../src/handlers/actions/commandManager.js";
+import { createEphemeralResponse } from "../../src/util/interactionHelpers.js";
 import { SlashCommandBuilder } from "@discordjs/builders";
-import { IModalHandlerCommand } from "../../src/handlers/actions/discordCommand.interfaces";
+import { IModalHandlerCommand } from "../../src/handlers/actions/discordCommand.interfaces.js";
 
 describe("CommandManager", () => {
   let commandManager: CommandManager;

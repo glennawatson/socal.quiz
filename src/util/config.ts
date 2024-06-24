@@ -1,8 +1,8 @@
-import { DiscordBotService } from "../handlers/discordBotService";
-import { QuestionStorage } from "../util/questionStorage";
-import { GuildStorage } from "../util/guildStorage";
-import { throwError } from "../util/errorHelpers";
-import { StateManager } from "../util/stateManager";
+import { DiscordBotService } from "../handlers/discordBotService.js";
+import { QuestionStorage } from "./questionStorage.js";
+import { GuildStorage } from "./guildStorage.js";
+import { throwError } from "./errorHelpers.js";
+import { StateManager } from "./stateManager.js";
 
 /* eslint-disable @typescript-eslint/no-extraneous-class */
 export class Config {

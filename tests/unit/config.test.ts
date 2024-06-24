@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { Config } from "../../src/functions/config";
-import { DiscordBotService } from "../../src/handlers/discordBotService";
-import { QuestionStorage } from "../../src/util/questionStorage";
-import { GuildStorage } from "../../src/util/guildStorage";
-import { throwError } from "../../src/util/errorHelpers";
-import { StateManager } from "../../src/util/stateManager";
+import { Config } from "../../src/util/config.js";
+import { DiscordBotService } from "../../src/handlers/discordBotService.js";
+import { QuestionStorage } from "../../src/util/questionStorage.js";
+import { GuildStorage } from "../../src/util/guildStorage.js";
+import { throwError } from "../../src/util/errorHelpers.js";
+import { StateManager } from "../../src/util/stateManager.js";
 
 vi.mock("../../src/handlers/discordBotService");
 vi.mock("../../src/util/questionStorage");

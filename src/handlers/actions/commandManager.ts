@@ -1,14 +1,14 @@
-import { NextQuestionCommand } from "./nextQuestionCommand";
-import { AddQuestionToBankCommand } from "./addQuestionToBankCommand";
-import { DeleteQuestionFromBankCommand } from "./deleteQuestionFromBankCommand";
-import { StopQuizCommand } from "./stopQuizCommand";
-import { StartQuizCommand } from "./startQuizCommand";
-import { DeleteQuestionBankCommand } from "./deleteQuestionBankCommand";
+import { NextQuestionCommand } from "./nextQuestionCommand.js";
+import { AddQuestionToBankCommand } from "./addQuestionToBankCommand.js";
+import { DeleteQuestionFromBankCommand } from "./deleteQuestionFromBankCommand.js";
+import { StopQuizCommand } from "./stopQuizCommand.js";
+import { StartQuizCommand } from "./startQuizCommand.js";
+import { DeleteQuestionBankCommand } from "./deleteQuestionBankCommand.js";
 import {
   IDiscordCommand,
   IModalHandlerCommand,
-} from "./discordCommand.interfaces";
-import { DiscordBotService } from "../discordBotService";
+} from "./discordCommand.interfaces.js";
+import { DiscordBotService } from "../discordBotService.js";
 import {
   APIInteraction,
   APIInteractionResponse,
@@ -20,9 +20,9 @@ import {
 } from "discord-api-types/v10";
 import { isChatInputApplicationCommandInteraction } from "discord-api-types/utils";
 import { REST } from "@discordjs/rest";
-import { createEphemeralResponse } from "../../util/interactionHelpers";
-import { EditQuestionCommand } from "./editQuestionCommand";
-import { IQuestionStorage } from "../../util/IQuestionStorage.interfaces";
+import { createEphemeralResponse } from "../../util/interactionHelpers.js";
+import { EditQuestionCommand } from "./editQuestionCommand.js";
+import { IQuestionStorage } from "../../util/IQuestionStorage.interfaces.js";
 
 export class CommandManager {
   private readonly commands: Map<string, IDiscordCommand>;

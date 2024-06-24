@@ -1,5 +1,5 @@
-import { QuestionStorage } from "../../src/util/questionStorage";
-import { DeleteQuestionFromBankCommand } from "../../src/handlers/actions/deleteQuestionFromBankCommand";
+import { QuestionStorage } from "../../src/util/questionStorage.js";
+import { DeleteQuestionFromBankCommand } from "../../src/handlers/actions/deleteQuestionFromBankCommand.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   APIChatInputApplicationCommandInteraction,
@@ -12,7 +12,7 @@ import {
   createEphemeralResponse,
   generateErrorResponse,
   generateOptionMissingErrorResponse,
-} from "../../src/util/interactionHelpers";
+} from "../../src/util/interactionHelpers.js";
 
 describe("DeleteQuestionFromBankCommand", () => {
   let questionStorageMock: QuestionStorage;

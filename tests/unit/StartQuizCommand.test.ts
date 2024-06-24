@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { DiscordBotService } from "../../src/handlers/discordBotService";
-import { StartQuizCommand } from "../../src/handlers/actions/startQuizCommand";
+import { DiscordBotService } from "../../src/handlers/discordBotService.js";
+import { StartQuizCommand } from "../../src/handlers/actions/startQuizCommand.js";
 import {
   createEphemeralResponse,
   generateErrorResponse,
   generateOptionMissingErrorResponse,
-} from "../../src/util/interactionHelpers";
+} from "../../src/util/interactionHelpers.js";
 import {
   APIChatInputApplicationCommandInteraction,
   ApplicationCommandOptionType,

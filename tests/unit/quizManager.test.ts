@@ -17,10 +17,10 @@ import {
   RESTPostAPIChannelMessageJSONBody,
   Routes,
 } from "discord-api-types/v10";
-import { QuizManager } from "../../src/handlers/quizManager";
-import { Question } from "../../src/question.interfaces";
-import { QuizState } from "../../src/handlers/quizState.interfaces";
-import { createEphemeralResponse } from "../../src/util/interactionHelpers";
+import { QuizManager } from "../../src/handlers/quizManager.js";
+import { Question } from "../../src/question.interfaces.js";
+import { QuizState } from "../../src/handlers/quizState.interfaces.js";
+import { createEphemeralResponse } from "../../src/util/interactionHelpers.js";
 import { EmbedBuilder } from "@discordjs/builders";
 
 describe("QuizManager", () => {

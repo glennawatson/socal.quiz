@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach, Mock } from "vitest";
 import { TableClient, TableEntity } from "@azure/data-tables";
-import { QuizState } from "../../src/handlers/quizState.interfaces";
-import { StateManager } from "../../src/util/stateManager";
+import { QuizState } from "../../src/handlers/quizState.interfaces.js";
+import { StateManager } from "../../src/util/stateManager.js";
 
 vi.mock("@azure/data-tables");
 

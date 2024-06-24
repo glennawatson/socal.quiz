@@ -1,13 +1,13 @@
 {
   "compilerOptions": {
-    "module": "ESNext",
+    "module": "NodeNext",
     "target": "ESNext",
     "outDir": "dist",
     "rootDir": ".",
     "sourceRoot": "/",
     "sourceMap": true,
     "strict": true,
-    "moduleResolution":"bundler",
+    "moduleResolution": "NodeNext",
     "removeComments": true,
     "forceConsistentCasingInFileNames": true,  
     "esModuleInterop": true,     

@@ -1,5 +1,5 @@
-import { IDiscordCommand } from "./discordCommand.interfaces";
-import { DiscordBotService } from "../discordBotService";
+import { IDiscordCommand } from "./discordCommand.interfaces.js";
+import { DiscordBotService } from "../discordBotService.js";
 import {
   SlashCommandBuilder,
   SlashCommandOptionsOnlyBuilder,
@@ -12,7 +12,7 @@ import {
   createEphemeralResponse,
   generateErrorResponse,
   generateOptionMissingErrorResponse,
-} from "../../util/interactionHelpers";
+} from "../../util/interactionHelpers.js";
 
 export class StopQuizCommand implements IDiscordCommand {
   constructor(private discordBotService: DiscordBotService) {}

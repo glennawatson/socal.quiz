@@ -11,7 +11,7 @@ import {
   InteractionType,
 } from "discord-api-types/v10";
 
-import { Config } from "./config";
+import { Config } from "../util/config.js";
 
 export async function interactions(
   request: HttpRequest,
