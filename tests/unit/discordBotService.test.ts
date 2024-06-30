@@ -1,335 +1,122 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { REST } from "@discordjs/rest";
-import { APIInteraction, InteractionType } from "discord-api-types/v10";
-import { GuildStorage } from "../../src/util/guildStorage.js";
-import { QuestionStorage } from "../../src/util/questionStorage.js";
-import { CommandManager } from "../../src/handlers/actions/commandManager.js";
-import { DiscordBotService } from "../../src/handlers/discordBotService.js";
-import { QuizManager } from "../../src/handlers/quizManager.js";
-import {
-  createEphemeralResponse,
-  generateErrorResponse,
-} from "../../src/util/interactionHelpers.js";
-import { StateManager } from "../../src/util/stateManager.js";
+import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
+import {DiscordBotService} from "../../src/handlers/discordBotService.js";
+import {createEphemeralResponse, generateErrorResponse} from "../../src/util/interactionHelpers.js";
+import {APIInteraction, InteractionType} from "discord-api-types/v10";
+import {GuildStorage} from "../../src/util/guildStorage.js";
+import {CommandManager} from "../../src/handlers/actions/commandManager.js";
+import {QuizManagerFactoryManager} from "../../src/handlers/quizManagerFactoryManager.js";
+import {MockQuizManager} from "./mocks/mockQuizManager.js";
 
-// Define mock implementations
-const mockCommandManager = {
-  registerDefaultCommands: vi.fn(),
-  handleInteraction: vi.fn(),
-};
+vi.mock("@discordjs/rest");
+vi.mock("../../src/util/interactionHelpers.js");
 
-const mockQuizManager = {
-  handleAnswer: vi.fn(),
-};
-
-const mockRest = {
-  setToken: vi.fn().mockReturnThis(),
-  post: vi.fn(),
-};
-
-const mockGuildStorage = {
-  markGuildAsRegistered: vi.fn(),
-  isGuildRegistered: vi.fn(),
-};
-
-const mockQuestionStorage = {
-  getQuestions: vi.fn(),
-  addQuestion: vi.fn(),
-  deleteQuestion: vi.fn(),
-  deleteQuestionBank: vi.fn(),
-};
-
-const mockStateManager = {
-  getState: vi.fn(),
-  setState: vi.fn(),
-};
-
-describe("DiscordBotService", () => {
-  let token: string;
-  let clientId: string;
-  let guildStorageMock: GuildStorage;
-  let questionStorageMock: QuestionStorage;
-  let stateManagerMock: StateManager;
-  let restMock: REST;
-  let discordBotService: DiscordBotService;
+describe('DiscordBotService', () => {
+  let guildStorage: GuildStorage;
+  let quizManager: QuizManagerFactoryManager;
+  let commandManager: CommandManager;
+  let service: DiscordBotService;
 
   beforeEach(() => {
-    token = "test-token";
-    clientId = "test-client-id";
+    guildStorage = {
+      markGuildAsRegistered: vi.fn(),
+      isGuildRegistered: vi.fn(),
+    } as any as GuildStorage;
 
-    guildStorageMock = mockGuildStorage as unknown as GuildStorage;
-    questionStorageMock = mockQuestionStorage as unknown as QuestionStorage;
-    restMock = mockRest as unknown as REST;
-    stateManagerMock = mockStateManager as unknown as StateManager;
+    quizManager = new QuizManagerFactoryManager(() => new MockQuizManager());
+
+    commandManager = {
+      registerDefaultCommands: vi.fn(),
+      handleInteraction: vi.fn(),
+    } as any as CommandManager;
+    service = new DiscordBotService(guildStorage, quizManager, commandManager);
   });
 
-  describe("constructor", () => {
-    it("should create a new CommandManager if one is not provided", () => {
-      discordBotService = new DiscordBotService(
-        token,
-        clientId,
-        guildStorageMock,
-        questionStorageMock,
-        stateManagerMock,
-        restMock,
-      );
-
-      expect(discordBotService["commandManager"]).toBeInstanceOf(
-        CommandManager,
-      );
-    });
+  afterEach(() => {
+    vi.resetAllMocks();
   });
 
-  describe("start", () => {
-    it("should register default commands and mark the guild as registered", async () => {
-      discordBotService = new DiscordBotService(
-        token,
-        clientId,
-        guildStorageMock,
-        questionStorageMock,
-        stateManagerMock,
-        restMock,
-        mockCommandManager as unknown as CommandManager,
-      );
-
-      await discordBotService.start("guild-id");
-
-      expect(mockCommandManager.registerDefaultCommands).toHaveBeenCalledWith(
-        "guild-id",
-      );
-      expect(guildStorageMock.markGuildAsRegistered).toHaveBeenCalledWith(
-        "guild-id",
-      );
-    });
+  it('should register default commands and mark guild as registered when starting', async () => {
+    await service.start('guildId');
+    expect(commandManager.registerDefaultCommands).toHaveBeenCalledWith('guildId');
+    expect(guildStorage.markGuildAsRegistered).toHaveBeenCalledWith('guildId');
   });
 
-  describe("getQuizManager", () => {
-    it("should return an existing QuizManager", async () => {
-      discordBotService = new DiscordBotService(
-        token,
-        clientId,
-        guildStorageMock,
-        questionStorageMock,
-        stateManagerMock,
-        restMock,
-        mockCommandManager as unknown as CommandManager,
-      );
+  it('should handle interaction within a guild', async () => {
+    const interaction = {
+      guild_id: 'guildId',
+      type: InteractionType.MessageComponent,
+      data: { custom_id: 'answer_123' },
+      channel: { id: "channel123", type: 0 },
+      channel_id: 'channel123',
+    } as any as APIInteraction;
 
-      const guildId = "guild-id";
-      discordBotService["quizManagers"].set(
-        guildId,
-        Promise.resolve(mockQuizManager as unknown as QuizManager),
-      );
+    guildStorage.isGuildRegistered = vi.fn().mockResolvedValue(false);
 
-      const result = await discordBotService.getQuizManager(guildId);
+    await service.handleInteraction(interaction);
 
-      expect(result).toBe(mockQuizManager);
-    });
-
-    it("should create a new QuizManager if one does not exist", async () => {
-      discordBotService = new DiscordBotService(
-        token,
-        clientId,
-        guildStorageMock,
-        questionStorageMock,
-        stateManagerMock,
-        restMock,
-        mockCommandManager as unknown as CommandManager,
-      );
-
-      const guildId = "guild-id";
-      const result = await discordBotService.getQuizManager(guildId);
-
-      expect(result).toBeInstanceOf(QuizManager);
-    });
+    expect(guildStorage.isGuildRegistered).toHaveBeenCalledWith('guildId');
+    expect(commandManager.registerDefaultCommands).toHaveBeenCalledWith('guildId');
   });
 
-  describe("handleInteraction", () => {
-    it("should handle interactions outside a guild with an ephemeral response", async () => {
-      discordBotService = new DiscordBotService(
-        token,
-        clientId,
-        guildStorageMock,
-        questionStorageMock,
-        stateManagerMock,
-        restMock,
-        mockCommandManager as unknown as CommandManager,
-      );
+  it('should handle unknown interaction type', async () => {
+    const interaction = {
+      guild_id: 'guildId',
+      type: InteractionType.ApplicationCommand,
+      data: { custom_id: 'unknown_123' },
+      channel: { id: "channel123", type: 0 },
+      channel_id: 'channel123',
+    } as any as APIInteraction;
+    guildStorage.isGuildRegistered = vi.fn().mockResolvedValue(true);
+    commandManager.handleInteraction = vi.fn().mockResolvedValue(null);
 
-      const interaction: APIInteraction = {
-        type: InteractionType.Ping,
-        id: "interaction-id",
-        application_id: "app-id",
-        data: {},
-        guild_id: null,
-        channel_id: "channel-id",
-        member: null,
-        user: null,
-        token: "interaction-token",
-        version: 1,
-        locale: "en-US",
-        app_permissions: "",
-      } as unknown as APIInteraction;
+    await service.handleInteraction(interaction);
 
-      const response = await discordBotService.handleInteraction(interaction);
+    expect(createEphemeralResponse).toHaveBeenCalledWith('Unknown command or interaction type.');
+  });
 
-      expect(response).toEqual(
-        createEphemeralResponse(
-          "This interaction must be performed within a guild.",
-        ),
-      );
-    });
+  it('should handle interaction errors', async () => {
+    const interaction = {
+      guild_id: 'guildId',
+      type: InteractionType.MessageComponent,
+      data: { custom_id: '' },
+      channel: { id: "channel123", type: 0 },
+      channel_id: 'channel123',
+    } as any as APIInteraction;
+    guildStorage.isGuildRegistered = vi.fn().mockResolvedValue(true);
+    commandManager.handleInteraction = vi.fn().mockRejectedValue(new Error('Test error'));
 
-    it("should register commands for a guild if not already registered", async () => {
-      discordBotService = new DiscordBotService(
-        token,
-        clientId,
-        guildStorageMock,
-        questionStorageMock,
-        stateManagerMock,
-        restMock,
-        mockCommandManager as unknown as CommandManager,
-      );
+    await service.handleInteraction(interaction);
 
-      const interaction: APIInteraction = {
-        type: InteractionType.ApplicationCommand,
-        id: "interaction-id",
-        application_id: "app-id",
-        data: {},
-        guild_id: "guild-id",
-        channel_id: "channel-id",
-        member: null,
-        user: null,
-        token: "interaction-token",
-        version: 1,
-        locale: "en-US",
-        app_permissions: "",
-      } as unknown as APIInteraction;
+    expect(generateErrorResponse).toHaveBeenCalledWith(new Error('Test error'));
+  });
 
-      guildStorageMock.isGuildRegistered = vi.fn().mockResolvedValue(false);
-      mockCommandManager.handleInteraction = vi.fn().mockResolvedValue(null);
+  it('should handle interaction outside a guild', async () => {
+    const interaction = {
+      type: InteractionType.MessageComponent,
+      data: { custom_id: 'answer_123' },
+      channel: { id: "channel123", type: 0 },
+      channel_id: 'channel123',
+    } as any as APIInteraction;
 
-      await discordBotService.handleInteraction(interaction);
+    await service.handleInteraction(interaction);
 
-      expect(mockCommandManager.registerDefaultCommands).toHaveBeenCalledWith(
-        "guild-id",
-      );
-      expect(guildStorageMock.markGuildAsRegistered).toHaveBeenCalledWith(
-        "guild-id",
-      );
-    });
+    expect(createEphemeralResponse).toHaveBeenCalledWith('This interaction must be performed within a guild.');
+  });
 
-    it("should delegate answer interactions to the QuizManager", async () => {
-      discordBotService = new DiscordBotService(
-        token,
-        clientId,
-        guildStorageMock,
-        questionStorageMock,
-        stateManagerMock,
-        restMock,
-        mockCommandManager as unknown as CommandManager,
-      );
+  it('should return a response when commandManager provides one', async () => {
+    const interaction = {
+      guild_id: 'guildId',
+      type: InteractionType.ApplicationCommand,
+      data: { custom_id: 'command_123' },
+      channel: { id: "channel123", type: 0 },
+      channel_id: 'channel123',
+    } as any as APIInteraction;
+    const expectedResponse = { type: 4, data: { content: 'Response' } };
+    guildStorage.isGuildRegistered = vi.fn().mockResolvedValue(true);
+    commandManager.handleInteraction = vi.fn().mockResolvedValue(expectedResponse);
 
-      const interaction: APIInteraction = {
-        type: InteractionType.MessageComponent,
-        id: "interaction-id",
-        application_id: "app-id",
-        data: {
-          custom_id: "answer_123",
-        },
-        guild_id: "guild-id",
-        channel_id: "channel-id",
-        member: null,
-        user: null,
-        token: "interaction-token",
-        version: 1,
-        locale: "en-US",
-        app_permissions: "",
-      } as unknown as APIInteraction;
+    const response = await service.handleInteraction(interaction);
 
-      guildStorageMock.isGuildRegistered = vi.fn().mockResolvedValue(true);
-      mockQuizManager.handleAnswer = vi
-        .fn()
-        .mockResolvedValue(createEphemeralResponse("Answer handled"));
-
-      discordBotService["quizManagers"].set(
-        "guild-id",
-        Promise.resolve(mockQuizManager as unknown as QuizManager),
-      );
-
-      const response = await discordBotService.handleInteraction(interaction);
-
-      expect(response).toEqual(createEphemeralResponse("Answer handled"));
-    });
-
-    it("should delegate other interactions to the CommandManager", async () => {
-      discordBotService = new DiscordBotService(
-        token,
-        clientId,
-        guildStorageMock,
-        questionStorageMock,
-        stateManagerMock,
-        restMock,
-        mockCommandManager as unknown as CommandManager,
-      );
-
-      const interaction: APIInteraction = {
-        type: InteractionType.ApplicationCommand,
-        id: "interaction-id",
-        application_id: "app-id",
-        data: {},
-        guild_id: "guild-id",
-        channel_id: "channel-id",
-        member: null,
-        user: null,
-        token: "interaction-token",
-        version: 1,
-        locale: "en-US",
-        app_permissions: "",
-      } as unknown as APIInteraction;
-
-      guildStorageMock.isGuildRegistered = vi.fn().mockResolvedValue(true);
-      mockCommandManager.handleInteraction = vi
-        .fn()
-        .mockResolvedValue(createEphemeralResponse("Command handled"));
-
-      const response = await discordBotService.handleInteraction(interaction);
-
-      expect(response).toEqual(createEphemeralResponse("Command handled"));
-    });
-
-    it("should handle errors gracefully", async () => {
-      discordBotService = new DiscordBotService(
-        token,
-        clientId,
-        guildStorageMock,
-        questionStorageMock,
-        stateManagerMock,
-        restMock,
-        mockCommandManager as unknown as CommandManager,
-      );
-
-      const interaction: APIInteraction = {
-        type: InteractionType.ApplicationCommand,
-        id: "interaction-id",
-        application_id: "app-id",
-        data: {},
-        guild_id: "guild-id",
-        channel_id: "channel-id",
-        member: null,
-        user: null,
-        token: "interaction-token",
-        version: 1,
-        locale: "en-US",
-        app_permissions: "",
-      } as unknown as APIInteraction;
-
-      const error = new Error("Test error");
-      mockCommandManager.handleInteraction = vi.fn().mockRejectedValue(error);
-
-      const response = await discordBotService.handleInteraction(interaction);
-
-      expect(response).toEqual(generateErrorResponse(error));
-    });
+    expect(response).toBe(expectedResponse);
   });
 });

@@ -8,7 +8,6 @@ import {
   IDiscordCommand,
   IModalHandlerCommand,
 } from "./discordCommand.interfaces.js";
-import { DiscordBotService } from "../discordBotService.js";
 import {
   APIInteraction,
   APIInteractionResponse,
@@ -23,12 +22,13 @@ import { REST } from "@discordjs/rest";
 import { createEphemeralResponse } from "../../util/interactionHelpers.js";
 import { EditQuestionCommand } from "./editQuestionCommand.js";
 import { IQuestionStorage } from "../../util/IQuestionStorage.interfaces.js";
+import {QuizManagerFactoryManager} from "../quizManagerFactoryManager.js";
 
 export class CommandManager {
   private readonly commands: Map<string, IDiscordCommand>;
 
   constructor(
-    private readonly botService: DiscordBotService,
+    private readonly quizStateManager: QuizManagerFactoryManager,
     private readonly questionStorage: IQuestionStorage,
     private readonly clientId: string,
     private readonly rest: REST,
@@ -76,9 +76,9 @@ export class CommandManager {
   }
 
   public async registerDefaultCommands(guildId: string): Promise<void> {
-    this.registerCommand(new StartQuizCommand(this.botService));
-    this.registerCommand(new StopQuizCommand(this.botService));
-    this.registerCommand(new NextQuestionCommand(this.botService));
+    this.registerCommand(new StartQuizCommand(this.quizStateManager));
+    this.registerCommand(new StopQuizCommand(this.quizStateManager));
+    this.registerCommand(new NextQuestionCommand(this.quizStateManager));
     this.registerCommand(new AddQuestionToBankCommand(this.questionStorage));
     this.registerCommand(
       new DeleteQuestionFromBankCommand(this.questionStorage),

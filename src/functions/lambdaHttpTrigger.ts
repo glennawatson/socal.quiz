@@ -12,17 +12,17 @@ import {
 } from "discord-api-types/v10";
 
 import { Config } from "../util/config.js";
-import {getClient} from "durable-functions";
+import { getClient } from "durable-functions";
+import * as df from 'durable-functions';
 
 export async function interactions(
   request: HttpRequest,
   context: InvocationContext,
 ): Promise<HttpResponseInit> {
-
-  var durableClient = getClient(context);
+  const durableClient = getClient(context);
   context.log(`Http function processed request for url "${request.url}"`);
 
-  await Config.initialize();
+  await Config.initialize(durableClient);
   // 1. Verify Request (using discord-verify)
   const signature = request.headers.get("x-signature-ed25519");
   const timestamp = request.headers.get("x-signature-timestamp");
@@ -63,6 +63,7 @@ export async function interactions(
 
 app.http("interactions", {
   methods: ["POST"],
+  extraInputs: [df.input.durableClient()],
   authLevel: "anonymous",
   handler: interactions,
 });

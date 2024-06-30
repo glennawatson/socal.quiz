@@ -1,5 +1,4 @@
 import { IDiscordCommand } from "./discordCommand.interfaces.js";
-import { DiscordBotService } from "../discordBotService.js";
 import {
   SlashCommandBuilder,
   SlashCommandOptionsOnlyBuilder,
@@ -13,9 +12,10 @@ import {
   generateErrorResponse,
   generateOptionMissingErrorResponse,
 } from "../../util/interactionHelpers.js";
+import {QuizManagerFactoryManager} from "../quizManagerFactoryManager.js";
 
 export class NextQuestionCommand implements IDiscordCommand {
-  constructor(private discordBotService: DiscordBotService) {}
+  constructor(private readonly quizStateManager: QuizManagerFactoryManager) {}
 
   data(): SlashCommandOptionsOnlyBuilder {
     return new SlashCommandBuilder()
@@ -35,13 +35,13 @@ export class NextQuestionCommand implements IDiscordCommand {
         return generateOptionMissingErrorResponse("guild id");
       }
 
-      const quizManager = await this.discordBotService.getQuizManager(guildId);
+      const quizManager = await this.quizStateManager.getQuizManager(guildId);
 
       if (!quizManager) {
         return generateOptionMissingErrorResponse("invalid quiz manager");
       }
 
-      await quizManager.nextQuizQuestion(interaction.channel.id);
+      await quizManager.nextQuizQuestion(guildId, interaction.channel.id);
 
       return createEphemeralResponse("Showing next question.");
     } catch (error) {
