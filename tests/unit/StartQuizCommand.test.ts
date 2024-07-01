@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { DiscordBotService } from "../../src/handlers/discordBotService.js";
 import { StartQuizCommand } from "../../src/handlers/actions/startQuizCommand.js";
 import {
   createEphemeralResponse,
@@ -13,17 +12,19 @@ import {
   ChannelType,
   GuildMemberFlags,
 } from "discord-api-types/v10";
+import {QuizManagerFactoryManager} from "../../src/handlers/quizManagerFactoryManager.js";
+import {MockQuizManager} from "./mocks/mockQuizManager.js";
 
 describe("StartQuizCommand", () => {
-  let discordBotServiceMock: DiscordBotService;
   let startQuizCommand: StartQuizCommand;
+  let quizFactoryManager: QuizManagerFactoryManager;
+  let quizManager: MockQuizManager;
 
   beforeEach(() => {
-    discordBotServiceMock = {
-      getQuizManager: vi.fn(),
-    } as unknown as DiscordBotService;
-
-    startQuizCommand = new StartQuizCommand(discordBotServiceMock);
+    vi.clearAllMocks();
+    quizManager = new MockQuizManager();
+    quizFactoryManager = new QuizManagerFactoryManager(() => quizManager);
+    startQuizCommand = new StartQuizCommand(quizFactoryManager);
   });
 
   describe("data", () => {
@@ -41,9 +42,7 @@ describe("StartQuizCommand", () => {
           .mockResolvedValue(createEphemeralResponse("Quiz started")),
       };
 
-      discordBotServiceMock.getQuizManager = vi
-        .fn()
-        .mockResolvedValue(quizManagerMock);
+      quizFactoryManager.getQuizManager = vi.fn().mockResolvedValue(quizManagerMock);
 
       const interaction: APIChatInputApplicationCommandInteraction =
         generateBankOptions("123", "sampleBank");
@@ -77,9 +76,7 @@ describe("StartQuizCommand", () => {
         startQuiz: vi.fn().mockRejectedValue(new Error("Some error")),
       };
 
-      discordBotServiceMock.getQuizManager = vi
-        .fn()
-        .mockResolvedValue(quizManagerMock);
+      quizFactoryManager.getQuizManager = vi.fn().mockResolvedValue(quizManagerMock);
 
       const interaction: APIChatInputApplicationCommandInteraction =
         generateBankOptions("123", "sampleBank");

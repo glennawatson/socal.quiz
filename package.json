@@ -5,13 +5,14 @@
   "module": "esnext",
   "type": "module",
   "scripts": {
-    "build": "tsc",
     "watch": "tsc -w",
     "clean": "rimraf dist",
     "prestart": "npm run clean && npm run build",
     "start": "func start",
-    "test": "npx vitest",
-    "coverage": "npx vitest run --coverage"
+    "build": "tsc --build tsconfig.json",
+    "build:tests": "tsc --build tsconfig.tests.json",
+    "test": "npm run build:tests && npx vitest",
+    "coverage": "npm run build:tests && npx vitest run --coverage"
   },
   "dependencies": {
     "@azure/data-tables": "^13.2.2",

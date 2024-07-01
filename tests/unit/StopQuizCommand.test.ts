@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { DiscordBotService } from "../../src/handlers/discordBotService.js";
 import { StopQuizCommand } from "../../src/handlers/actions/stopQuizCommand.js";
 import {
   APIChatInputApplicationCommandInteraction,
@@ -12,26 +11,19 @@ import {
   generateErrorResponse,
   generateOptionMissingErrorResponse,
 } from "../../src/util/interactionHelpers.js";
+import {QuizManagerFactoryManager} from "../../src/handlers/quizManagerFactoryManager.js";
+import {MockQuizManager} from "./mocks/mockQuizManager.js";
 
 describe("StopQuizCommand", () => {
-  let discordBotServiceMock: DiscordBotService;
   let stopQuizCommand: StopQuizCommand;
+  let quizFactoryManager: QuizManagerFactoryManager;
+  let quizManager: MockQuizManager;
 
   beforeEach(() => {
-    const mockRest = {
-      request: vi.fn(),
-      get: vi.fn(),
-    };
-
-    discordBotServiceMock = {
-      rest: mockRest,
-
-      handleInteraction: vi.fn(),
-      start: vi.fn(),
-      getQuizManager: vi.fn(),
-    } as unknown as DiscordBotService;
-
-    stopQuizCommand = new StopQuizCommand(discordBotServiceMock);
+    vi.clearAllMocks();
+    quizManager = new MockQuizManager();
+    quizFactoryManager = new QuizManagerFactoryManager(() => quizManager);
+    stopQuizCommand = new StopQuizCommand(quizFactoryManager);
   });
 
   describe("data", () => {
@@ -47,9 +39,7 @@ describe("StopQuizCommand", () => {
         stopQuiz: vi.fn(),
       };
 
-      discordBotServiceMock.getQuizManager = vi
-        .fn()
-        .mockResolvedValue(quizManagerMock);
+      quizFactoryManager.getQuizManager = vi.fn().mockResolvedValue(quizManagerMock);
 
       const interaction: APIChatInputApplicationCommandInteraction = {
         guild_id: "guild-id",
@@ -87,9 +77,9 @@ describe("StopQuizCommand", () => {
     });
 
     it("should return a generic error response if an exception occurs", async () => {
-      discordBotServiceMock.getQuizManager = vi
-        .fn()
-        .mockRejectedValue(new Error("Some error"));
+      quizFactoryManager.getQuizManager = vi
+          .fn()
+          .mockRejectedValue(new Error("Some error"));
 
       const interaction: APIChatInputApplicationCommandInteraction = {
         guild_id: "guild-id",
