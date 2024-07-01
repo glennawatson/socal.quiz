@@ -10,7 +10,7 @@ import {isAnswerEvent} from "../handlers/answerEvent.interfaces.js";
 
 const summaryDurationMs = 5000;
 
-const QuizOrchestrator: OrchestrationHandler = function* (context: OrchestrationContext) {
+export const QuizOrchestrator: OrchestrationHandler = function* (context: OrchestrationContext) {
     const quiz: QuizState = context.df.getInput();
 
     for (let index = 0; index < quiz.questionBank.length; index++) {
@@ -33,12 +33,18 @@ const QuizOrchestrator: OrchestrationHandler = function* (context: Orchestration
         let shouldSkip = false;
 
         while (true) {
+            const timer = context.df.createTimer(questionTime.toJSDate());
             const winner = yield context.df.Task.any([
-                context.df.createTimer(questionTime.toJSDate()),
+                timer,
                 skipQuestionEvent,
                 cancelEvent,
                 answerEvent
             ]);
+
+            if (winner === timer) {
+                shouldSkip = false;
+                break;
+            }
 
             // If the cancelQuiz signal is received, terminate the orchestrator
             if (winner === cancelEvent) {
@@ -114,7 +120,7 @@ async function getQuestionServerDetails(input: QuizState, context: InvocationCon
     return {currentQuestion: currentQuestion, currentQuestionId: questionNumber, durableClient: durableClient};
 }
 
-const PostQuestion: ActivityHandler = async (input: QuizState, context: InvocationContext) => {
+export const PostQuestion: ActivityHandler = async (input: QuizState, context: InvocationContext) => {
     const questionData = await getQuestionServerDetails(input, context);
 
     if (!questionData.currentQuestion) {
@@ -125,7 +131,7 @@ const PostQuestion: ActivityHandler = async (input: QuizState, context: Invocati
     await postQuestion(Config.rest, Config.imageStorage, input.channelId, context.invocationId, questionData.currentQuestion);
 };
 
-const SendQuestionSummary: ActivityHandler = async (input: QuizState, context: InvocationContext) => {
+export const SendQuestionSummary: ActivityHandler = async (input: QuizState, context: InvocationContext) => {
     const questionData = await getQuestionServerDetails(input, context);
 
     if (!questionData.currentQuestion) {
@@ -136,7 +142,7 @@ const SendQuestionSummary: ActivityHandler = async (input: QuizState, context: I
     await sendQuestionSummary(Config.rest, Config.imageStorage, questionData.currentQuestion, input, questionData.currentQuestionId);
 };
 
-const ShowScores: ActivityHandler = async (input: QuizState, context: InvocationContext) => {
+export const ShowScores: ActivityHandler = async (input: QuizState, context: InvocationContext) => {
     const durableClient = df.getClient(context);
 
     await Config.initialize(durableClient);

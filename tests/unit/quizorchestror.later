@@ -1,8 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { DateTime } from 'luxon';
-import {Config} from "../../src/util/config.js";
-import {QuizState} from "../../src/handlers/quizState.interfaces.js";
+import { QuizState } from '../../src/handlers/quizState.interfaces.js';
+import { postQuestion, sendQuestionSummary, showScores } from '../../src/handlers/quizStateManager.js';
+import { Config } from '../../src/util/config.js';
+import {REST} from "@discordjs/rest";
+import {QuizImageStorage} from "../../src/util/quizImageStorage.js";
+import {PostQuestion, QuizOrchestrator, SendQuestionSummary, ShowScores} from "../../src/functions/QuizOrchestrator.js";
 
+// Mocks
 // Mocks
 vi.mock('durable-functions', () => {
     return {
@@ -16,15 +20,14 @@ vi.mock('durable-functions', () => {
         }
     };
 });
-vi.mock('../handlers/quizStateManager.js');
-vi.mock('../util/config.js');
+vi.mock('../../src/handlers/quizStateManager.js');
+vi.mock('../../src/util/config.js');
 
 const mockCallActivity = vi.fn();
 const mockGetInput = vi.fn();
 const mockWaitForExternalEvent = vi.fn();
 const mockCreateTimer = vi.fn();
 const mockTaskAny = vi.fn();
-const mockGetClient = vi.fn();
 
 const orchestrationContext = {
     df: {
@@ -34,21 +37,22 @@ const orchestrationContext = {
         createTimer: mockCreateTimer,
         Task: { any: mockTaskAny }
     }
-};
+} as any;
 
 const mockRest = {
     post: vi.fn()
-};
+} as any as REST;
+
 const mockImageStorage = {
     getExplanationImagePresignedUrl: vi.fn(),
     getQuestionImagePresignedUrl: vi.fn()
-};
+} as any as QuizImageStorage;
 
 Config.rest = mockRest;
 Config.imageStorage = mockImageStorage;
 
 describe('QuizOrchestrator', () => {
-    let quiz : QuizState;
+    let quiz: QuizState;
 
     beforeEach(() => {
         vi.clearAllMocks();
@@ -61,6 +65,7 @@ describe('QuizOrchestrator', () => {
                 {
                     questionId: 'q1',
                     question: 'What is the capital of France?',
+                    bankName: 'default',
                     answers: [
                         { answerId: '1', answer: 'Paris' },
                         { answerId: '2', answer: 'London' },
@@ -76,16 +81,41 @@ describe('QuizOrchestrator', () => {
         };
 
         mockGetInput.mockReturnValue(quiz);
-        mockTaskAny.mockImplementation((tasks) => Promise.race(tasks));
+        mockTaskAny.mockImplementation((tasks: Promise<any>[]) => Promise.race(tasks));
     });
 
-    it('should execute quiz orchestrator normally', async () => {
-        const questionTime = DateTime.now().plus({ milliseconds: quiz.questionBank[0].questionShowTimeMs });
-        mockCreateTimer.mockReturnValue(Promise.resolve());
-        mockWaitForExternalEvent.mockReturnValue(Promise.resolve());
+    const runGenerator = async (generator: Generator) => {
+        let result = generator.next();
+        while (!result.done) {
+            result = generator.next(await result.value);
+        }
+    };
 
-        const orchestrator = (await import('../handlers/quizOrchestrator.js')).QuizOrchestrator;
-        await orchestrator(orchestrationContext);
+    it('should execute quiz orchestrator normally', async () => {
+        let timerResolve: () => void;
+        const timerPromise = new Promise<void>((resolve) => {
+            timerResolve = resolve;
+        });
+
+        let externalEventResolve: () => void;
+        const externalEventPromise = new Promise<void>((resolve) => {
+            externalEventResolve = resolve;
+        });
+
+        mockCreateTimer.mockReturnValue(timerPromise);
+        mockWaitForExternalEvent.mockReturnValue(externalEventPromise);
+
+        const generator = QuizOrchestrator(orchestrationContext);
+
+        const generatorExecution = runGenerator(generator);
+
+        // Resolve the timer and external event promises to simulate real behavior
+        setTimeout(() => {
+            timerResolve();
+            externalEventResolve();
+        }, 1000);
+
+        await generatorExecution;
 
         expect(mockCallActivity).toHaveBeenCalledWith('PostQuestion', quiz);
         expect(mockCallActivity).toHaveBeenCalledWith('SendQuestionSummary', { quiz, questionNumber: 1 });
@@ -93,23 +123,50 @@ describe('QuizOrchestrator', () => {
     });
 
     it('should skip question when skipQuestion event is received', async () => {
-        const questionTime = DateTime.now().plus({ milliseconds: quiz.questionBank[0].questionShowTimeMs });
-        mockCreateTimer.mockReturnValue(Promise.resolve());
-        mockWaitForExternalEvent.mockReturnValueOnce(Promise.resolve('skipQuestion')).mockReturnValue(Promise.resolve());
+        let timerResolve: () => void;
+        const timerPromise = new Promise<void>((resolve) => {
+            timerResolve = resolve;
+        });
 
-        const orchestrator = (await import('../handlers/quizOrchestrator.js')).QuizOrchestrator;
-        await orchestrator(orchestrationContext);
+        const skipQuestionEventPromise = Promise.resolve('skipQuestion');
+        mockCreateTimer.mockReturnValue(timerPromise);
+        mockWaitForExternalEvent.mockReturnValueOnce(skipQuestionEventPromise).mockReturnValue(timerPromise);
+
+        const generator = QuizOrchestrator(orchestrationContext);
+
+        const generatorExecution = runGenerator(generator);
+
+        // Resolve the timer promise to simulate real behavior
+        setTimeout(() => {
+            timerResolve();
+        }, 1000);
+
+        await generatorExecution;
 
         expect(mockCallActivity).toHaveBeenCalledWith('PostQuestion', quiz);
         expect(mockCallActivity).toHaveBeenCalledWith('ShowScores', quiz);
     });
 
     it('should cancel quiz when cancelQuiz event is received', async () => {
-        mockCreateTimer.mockReturnValue(Promise.resolve());
-        mockWaitForExternalEvent.mockReturnValueOnce(Promise.resolve('cancelQuiz')).mockReturnValue(Promise.resolve());
+        let timerResolve: () => void;
+        const timerPromise = new Promise<void>((resolve) => {
+            timerResolve = resolve;
+        });
 
-        const orchestrator = (await import('../handlers/quizOrchestrator.js')).QuizOrchestrator;
-        await orchestrator(orchestrationContext);
+        const cancelQuizEventPromise = Promise.resolve('cancelQuiz');
+        mockCreateTimer.mockReturnValue(timerPromise);
+        mockWaitForExternalEvent.mockReturnValueOnce(cancelQuizEventPromise).mockReturnValue(timerPromise);
+
+        const generator = QuizOrchestrator(orchestrationContext);
+
+        const generatorExecution = runGenerator(generator);
+
+        // Resolve the timer promise to simulate real behavior
+        setTimeout(() => {
+            timerResolve();
+        }, 1000);
+
+        await generatorExecution;
 
         expect(mockCallActivity).not.toHaveBeenCalledWith('SendQuestionSummary', { quiz, questionNumber: 1 });
         expect(mockCallActivity).toHaveBeenCalledWith('ShowScores', quiz);
@@ -120,42 +177,18 @@ describe('Activity Functions', () => {
     const context = {
         invocationId: '123',
         log: vi.fn()
-    };
+    } as any;
 
     describe('PostQuestion', () => {
         it('should post question', async () => {
-            const input = {
+            const input: QuizState = {
                 channelId: 'channel-id',
                 currentQuestionId: 'q1',
                 questionBank: [
                     {
                         questionId: 'q1',
                         question: 'What is the capital of France?',
-                        answers: [
-                            { answerId: '1', answer: 'Paris' },
-                            { answerId: '2', answer: 'London' },
-                            { answerId: '3', answer: 'Berlin' }
-                        ],
-                        correctAnswerId: '1',
-                        questionShowTimeMs: 5000
-                    }
-                ]
-            };
-
-            await (await import('../handlers/quizOrchestrator.js')).PostQuestion(input, context);
-
-            expect(postQuestion).toHaveBeenCalledWith(Config.rest, Config.imageStorage, 'channel-id', context.invocationId, input.questionBank[0]);
-        });
-    });
-
-    describe('SendQuestionSummary', () => {
-        it('should send question summary', async () => {
-            const input = {
-                currentQuestionId: 'q1',
-                questionBank: [
-                    {
-                        questionId: 'q1',
-                        question: 'What is the capital of France?',
+                        bankName: 'default',
                         answers: [
                             { answerId: '1', answer: 'Paris' },
                             { answerId: '2', answer: 'London' },
@@ -165,11 +198,44 @@ describe('Activity Functions', () => {
                         questionShowTimeMs: 5000
                     }
                 ],
+                correctUsersForQuestion: new Set(),
+                answeredUsersForQuestion: new Set(),
+                guildId: 'guildId',
+                activeUsers: new Map()
+            };
+
+            await PostQuestion(input, context);
+
+            expect(postQuestion).toHaveBeenCalledWith(Config.rest, Config.imageStorage, 'channel-id', context.invocationId, input.questionBank[0]);
+        });
+    });
+
+    describe('SendQuestionSummary', () => {
+        it('should send question summary', async () => {
+            const input: QuizState = {
+                currentQuestionId: 'q1',
+                questionBank: [
+                    {
+                        questionId: 'q1',
+                        question: 'What is the capital of France?',
+                        bankName: 'default',
+                        answers: [
+                            { answerId: '1', answer: 'Paris' },
+                            { answerId: '2', answer: 'London' },
+                            { answerId: '3', answer: 'Berlin' }
+                        ],
+                        correctAnswerId: '1',
+                        questionShowTimeMs: 5000,
+                    }
+                ],
+                channelId: 'channel-id',
                 correctUsersForQuestion: new Set(['user1']),
+                answeredUsersForQuestion: new Set(),
+                guildId: 'guildId',
                 activeUsers: new Map([['user1', 1]])
             };
 
-            await (await import('../handlers/quizOrchestrator.js')).SendQuestionSummary(input, context);
+            await SendQuestionSummary(input, context);
 
             expect(sendQuestionSummary).toHaveBeenCalledWith(Config.rest, Config.imageStorage, input.questionBank[0], input, 1);
         });
@@ -177,12 +243,17 @@ describe('Activity Functions', () => {
 
     describe('ShowScores', () => {
         it('should show scores', async () => {
-            const input = {
+            const input: QuizState = {
                 channelId: 'channel-id',
+                currentQuestionId: '',
+                questionBank: [],
+                correctUsersForQuestion: new Set(),
+                answeredUsersForQuestion: new Set(),
+                guildId: 'guildId',
                 activeUsers: new Map([['user1', 1], ['user2', 2]])
             };
 
-            await (await import('../handlers/quizOrchestrator.js')).ShowScores(input, context);
+            await ShowScores(input, context);
 
             expect(showScores).toHaveBeenCalledWith(Config.rest, input);
         });
