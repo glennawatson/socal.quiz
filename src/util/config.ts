@@ -1,80 +1,98 @@
-import { DiscordBotService } from "../handlers/discordBotService.js";
-import { QuestionStorage } from "./questionStorage.js";
-import { GuildStorage } from "./guildStorage.js";
-import { throwError } from "./errorHelpers.js";
-import { StateManager } from "./stateManager.js";
+import {DiscordBotService} from "../handlers/discordBotService.js";
+import {QuestionStorage} from "./questionStorage.js";
+import {GuildStorage} from "./guildStorage.js";
+import {throwError} from "./errorHelpers.js";
+import {StateManager} from "../handlers/stateManager.js";
+import {REST} from "@discordjs/rest";
+import {DurableClient} from "durable-functions";
+import {CommandManager} from "../handlers/actions/commandManager.js";
+import {QuizImageStorage} from "./quizImageStorage.js";
+import {DurableQuizManager} from "../handlers/durableQuizManager.js";
+import {QuizManagerFactoryManager} from "../handlers/quizManagerFactoryManager.js";
 
-/* eslint-disable @typescript-eslint/no-extraneous-class */
 export class Config {
-  public static token: string;
-  public static clientId: string;
-  public static publicKey: string;
-  public static questionStorage: QuestionStorage;
-  public static guildStorage: GuildStorage;
-  public static discordBotService: DiscordBotService;
-  public static stateManager: StateManager;
+    public static token: string;
+    public static clientId: string;
+    public static publicKey: string;
+    public static questionStorage: QuestionStorage;
+    public static imageStorage: QuizImageStorage;
+    public static guildStorage: GuildStorage;
+    public static discordBotService: DiscordBotService;
+    public static stateManager: StateManager;
+    public static quizManagerFactory: QuizManagerFactoryManager;
+    public static rest: REST;
 
-  private static _initialized = false;
-  private static _initializePromise: Promise<Config> | null = null;
+    private static _initialized = false;
+    private static _initializePromise: Promise<Config> | null = null;
 
-  private constructor() {
-    /* Private constructor */
-  }
-
-  public static async initialize(
-    token?: string,
-    clientId?: string,
-    publicKey?: string,
-    questionStorage?: QuestionStorage,
-    guildStorage?: GuildStorage,
-    stateManager?: StateManager,
-    discordBotService?: DiscordBotService,
-  ): Promise<Config> {
-    if (Config._initializePromise) {
-      return Config._initializePromise;
+    private constructor() {
+        /* Private constructor */
     }
 
-    Config._initializePromise = new Promise<Config>((resolve, reject) => {
-      try {
-        if (Config._initialized) {
-          resolve(new Config()); // Return existing instance if already initialized
-          return;
+    public static async initialize(
+        durableClient?: DurableClient,
+        token?: string,
+        clientId?: string,
+        publicKey?: string,
+        questionStorage?: QuestionStorage,
+        guildStorage?: GuildStorage,
+        imageStorage?: QuizImageStorage,
+        stateManager?: StateManager,
+        quizManagerFactory?: QuizManagerFactoryManager,
+        discordBotService?: DiscordBotService,
+    ): Promise<Config> {
+        if (Config._initializePromise) {
+            return Config._initializePromise;
         }
 
-        Config.token = token ?? getEnvVarOrDefault("DISCORD_BOT_TOKEN");
-        Config.clientId = clientId ?? getEnvVarOrDefault("DISCORD_CLIENT_ID");
-        Config.publicKey =
-          publicKey ?? getEnvVarOrDefault("DISCORD_PUBLIC_KEY");
+        Config._initializePromise = new Promise<Config>((resolve, reject) => {
+            try {
+                if (Config._initialized) {
+                    resolve(new Config()); // Return existing instance if already initialized
+                    return;
+                }
 
-        Config.questionStorage = questionStorage ?? new QuestionStorage();
-        Config.guildStorage = guildStorage ?? new GuildStorage();
-        Config.stateManager = stateManager ?? new StateManager();
-        Config.discordBotService =
-          discordBotService ??
-          new DiscordBotService(
-            Config.token,
-            Config.clientId,
-            Config.guildStorage,
-            Config.questionStorage,
-            Config.stateManager,
-          );
+                Config.rest = new REST({version: "10"}).setToken(this.token);
+                Config.token = token ?? getEnvVarOrDefault("DISCORD_BOT_TOKEN");
+                Config.clientId = clientId ?? getEnvVarOrDefault("DISCORD_CLIENT_ID");
+                Config.publicKey =
+                    publicKey ?? getEnvVarOrDefault("DISCORD_PUBLIC_KEY");
 
-        Config._initialized = true;
-        resolve(new Config()); // Resolve with the Config instance
-      } catch (error) {
-        Config._initializePromise = null; // Reset the promise in case of error
-        reject(error); // Reject the promise if initialization fails
-      }
-    });
+                Config.imageStorage = imageStorage ?? new QuizImageStorage();
 
-    return Config._initializePromise;
-  }
+                Config.questionStorage = questionStorage ?? new QuestionStorage(Config.imageStorage);
+                Config.guildStorage = guildStorage ?? new GuildStorage();
+                Config.stateManager = stateManager ?? new StateManager();
+                Config.quizManagerFactory = quizManagerFactory ?? new QuizManagerFactoryManager(() => new DurableQuizManager(Config.rest, Config.questionStorage, durableClient ?? throwError('must have valid durable client')));
+                Config.discordBotService =
+                    discordBotService ??
+                    new DiscordBotService(
+                        Config.guildStorage,
+                        Config.quizManagerFactory,
+                        new CommandManager(
+                            Config.quizManagerFactory,
+                            Config.questionStorage,
+                            Config.clientId,
+                            Config.rest,
+                        ),
+                    );
+
+                Config._initialized = true;
+                resolve(new Config()); // Resolve with the Config instance
+            } catch (error) {
+                Config._initializePromise = null; // Reset the promise in case of error
+                reject(error); // Reject the promise if initialization fails
+            }
+        });
+
+        return Config._initializePromise;
+    }
 }
 
 function getEnvVarOrDefault(varName: string): string {
-  const value = process.env[varName];
-  if (!value) {
-    throwError(`Environment variable ${varName} is missing.`);
-  }
-  return value;
+    const value = process.env[varName];
+    if (!value) {
+        throwError(`Environment variable ${varName} is missing.`);
+    }
+    return value;
 }

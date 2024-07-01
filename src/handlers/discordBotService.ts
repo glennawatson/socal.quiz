@@ -1,6 +1,4 @@
-import { QuizManager } from "./quizManager.js";
 import { CommandManager } from "./actions/commandManager.js";
-import { REST } from "@discordjs/rest";
 import { APIInteraction, InteractionType } from "discord-api-types/v10";
 import {
   createEphemeralResponse,
@@ -8,45 +6,24 @@ import {
 } from "../util/interactionHelpers.js";
 import { GuildStorage } from "../util/guildStorage.js";
 import "../util/mapExtensions.js";
-import { IQuestionStorage } from "../util/IQuestionStorage.interfaces.js";
-import { StateManager } from "../util/stateManager.js";
+import { throwError } from "../util/errorHelpers.js";
+import {QuizManagerFactoryManager} from "./quizManagerFactoryManager.js";
 
 export class DiscordBotService {
-  private quizManagers: Map<string, Promise<QuizManager>>;
   private commandManager: CommandManager;
-  private readonly rest: REST;
 
   constructor(
-    private readonly token: string,
-    private readonly clientId: string,
     private readonly guildStorage: GuildStorage,
-    private readonly questionStorage: IQuestionStorage,
-    private readonly stateManager: StateManager,
-    rest?: REST,
-    commandManager?: CommandManager,
+    private readonly quizManager: QuizManagerFactoryManager,
+    commandManager: CommandManager,
   ) {
-    this.rest = rest ?? new REST({ version: "10" }).setToken(this.token);
-    this.quizManagers = new Map();
     this.commandManager =
-      commandManager ??
-      new CommandManager(this, this.questionStorage, this.clientId, this.rest);
+      commandManager ?? throwError("could not find a valid command manager");
   }
 
   public async start(guildId: string) {
     await this.commandManager.registerDefaultCommands(guildId);
     await this.guildStorage.markGuildAsRegistered(guildId);
-  }
-
-  public async getQuizManager(guildId: string): Promise<QuizManager> {
-    const manager = await this.quizManagers.getOrAdd(
-      guildId,
-      async () =>
-        new QuizManager(this.rest, this.questionStorage, this.stateManager),
-    );
-
-    if (!manager)
-      throw new Error(`could not find a quiz manager for guild ${guildId}`);
-    return manager;
   }
 
   public async handleInteraction(interaction: APIInteraction) {
@@ -70,8 +47,11 @@ export class DiscordBotService {
         interaction.type === InteractionType.MessageComponent &&
         interaction.data.custom_id.startsWith("answer_")
       ) {
-        const quizManager = await this.getQuizManager(interaction.guild_id);
-        return await quizManager.handleAnswer(interaction);
+        const quizManager = await this.quizManager.getQuizManager(
+          interaction.guild_id,
+        );
+        var result = await quizManager.handleAnswerInteraction(interaction);
+        return result;
       }
 
       // Delegate interaction handling to the CommandManager

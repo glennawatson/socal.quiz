@@ -1,5 +1,4 @@
 import { IDiscordCommand } from "./discordCommand.interfaces.js";
-import { DiscordBotService } from "../discordBotService.js";
 import {
   SlashCommandBuilder,
   SlashCommandOptionsOnlyBuilder,
@@ -13,9 +12,10 @@ import {
   generateErrorResponse,
   generateOptionMissingErrorResponse,
 } from "../../util/interactionHelpers.js";
+import {QuizManagerFactoryManager} from "../quizManagerFactoryManager.js";
 
 export class StopQuizCommand implements IDiscordCommand {
-  constructor(private discordBotService: DiscordBotService) {}
+  constructor(private readonly quizStateManager: QuizManagerFactoryManager) {}
 
   data(): SlashCommandOptionsOnlyBuilder {
     return new SlashCommandBuilder()
@@ -35,7 +35,7 @@ export class StopQuizCommand implements IDiscordCommand {
         return generateOptionMissingErrorResponse("guild id");
       }
 
-      const quizManager = await this.discordBotService.getQuizManager(guildId);
+      const quizManager = await this.quizStateManager.getQuizManager(guildId);
 
       await quizManager.stopQuiz(guildId, interaction.channel.id);
 

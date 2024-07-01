@@ -1,5 +1,4 @@
 import { IDiscordCommand } from "./discordCommand.interfaces.js";
-import { DiscordBotService } from "../discordBotService.js";
 import {
   APIChatInputApplicationCommandInteraction,
   APIInteractionResponse,
@@ -13,9 +12,10 @@ import {
   SlashCommandBuilder,
   SlashCommandOptionsOnlyBuilder,
 } from "@discordjs/builders";
+import {QuizManagerFactoryManager} from "../quizManagerFactoryManager.js";
 
 export class StartQuizCommand implements IDiscordCommand {
-  constructor(private discordBotService: DiscordBotService) {}
+  constructor(private readonly quizStateManager: QuizManagerFactoryManager) {}
 
   public data(): SlashCommandOptionsOnlyBuilder {
     return new SlashCommandBuilder()
@@ -47,7 +47,7 @@ export class StartQuizCommand implements IDiscordCommand {
         return generateOptionMissingErrorResponse("bankname");
       }
 
-      const quizManager = await this.discordBotService.getQuizManager(guildId);
+      const quizManager = await this.quizStateManager.getQuizManager(guildId);
       return await quizManager.startQuiz(
         guildId,
         interaction.channel.id,

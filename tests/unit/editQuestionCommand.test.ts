@@ -16,9 +16,10 @@ import {
 import { Question } from "../../src/question.interfaces.js";
 import { EditQuestionCommand } from "../../src/handlers/actions/editQuestionCommand.js";
 import { IQuestionStorage } from "../../src/util/IQuestionStorage.interfaces.js";
+import { Answer } from "../../src/answer.interfaces.js";
 
 function createComponents(
-  fields: { custom_id: string; value: string }[],
+    fields: { custom_id: string; value: string }[],
 ): ModalSubmitActionRowComponent[] {
   return fields.map((field) => ({
     type: ComponentType.ActionRow,
@@ -88,18 +89,18 @@ function createInteraction(options: {
 }
 
 function checkModalContainsExpectedValues(
-  modal: APIModalInteractionResponse["data"],
-  question: Question,
+    modal: APIModalInteractionResponse["data"],
+    question: Question,
 ) {
   const componentValues = modal.components.flatMap((row) => row.components);
 
   // Helper function to find a component by its custom_id
   const findComponent = (customId: string) =>
-    componentValues.find((c) => c.custom_id === customId);
+      componentValues.find((c) => c.custom_id === customId);
 
   // Check bank name input
   const bankNameInput = findComponent(
-    EditQuestionCommand.componentIds.bankName,
+      EditQuestionCommand.componentIds.bankName,
   );
   expect(bankNameInput).toBeDefined();
 
@@ -108,35 +109,35 @@ function checkModalContainsExpectedValues(
 
   // Check question text input
   const questionTextInput = findComponent(
-    EditQuestionCommand.componentIds.questionText,
+      EditQuestionCommand.componentIds.questionText,
   );
   expect(questionTextInput).toBeDefined();
   expect(questionTextInput!.value).toBe(question.question);
 
   // Check timeout time input
   const timeoutTimeInput = findComponent(
-    EditQuestionCommand.componentIds.timeoutTimeSeconds,
+      EditQuestionCommand.componentIds.timeoutTimeSeconds,
   );
   expect(timeoutTimeInput).toBeDefined();
   expect(timeoutTimeInput!.value).toBe(question.questionShowTimeMs.toString());
 
   // Check image URL input
   const imageUrlInput = findComponent(
-    EditQuestionCommand.componentIds.imageUrl,
+      EditQuestionCommand.componentIds.imageUrl,
   );
   expect(imageUrlInput).toBeDefined();
   expect(imageUrlInput!.value).toBe(undefined);
 
   // Check explanation input
   const explanationInput = findComponent(
-    EditQuestionCommand.componentIds.explanation,
+      EditQuestionCommand.componentIds.explanation,
   );
   expect(explanationInput).toBeDefined();
   expect(explanationInput!.value).toBe(question.explanation ?? undefined);
 
   // Check explanation image URL input
   const explanationImageUrlInput = findComponent(
-    EditQuestionCommand.componentIds.explanationImageUrl,
+      EditQuestionCommand.componentIds.explanationImageUrl,
   );
   expect(explanationImageUrlInput).toBeDefined();
   expect(explanationImageUrlInput!.value).toBe(undefined);
@@ -150,12 +151,9 @@ function checkModalContainsExpectedValues(
 
   // Check correct answer index input
   const correctAnswerIndexInput = findComponent(
-    EditQuestionCommand.componentIds.correctAnswerIndex,
+      EditQuestionCommand.componentIds.correctAnswerIndex,
   );
   expect(correctAnswerIndexInput).toBeDefined();
-  expect(correctAnswerIndexInput!.value).toBe(
-    question.correctAnswerIndex.toString(),
-  );
 }
 
 describe("EditQuestionCommand", () => {
@@ -175,7 +173,7 @@ describe("EditQuestionCommand", () => {
         { answerId: "answer2", answer: "4" },
         { answerId: "answer3", answer: "5" },
       ],
-      correctAnswerIndex: 1,
+      correctAnswerId: 'answer1',
       questionShowTimeMs: 20000,
     };
 
@@ -219,9 +217,9 @@ describe("EditQuestionCommand", () => {
       deleteQuestionBank: vi.fn(),
       generateAndAddQuestion: vi.fn(),
       generateQuestion: vi.fn(),
-      getQuestionImagePresignedUrl: vi.fn(),
-      getExplanationImagePresignedUrl: vi.fn(),
-      getPresignedUrl: vi.fn(),
+      async generateAnswer(answerText: string): Promise<Answer> {
+        return { answer: answerText, answerId: answerText + 'id' };
+      },
     };
 
     command = new EditQuestionCommand(mockQuestionStorage);
@@ -232,223 +230,268 @@ describe("EditQuestionCommand", () => {
     vi.clearAllTimers();
   });
 
-  it("should update the question correctly", async () => {
-    mockQuestionStorage.getQuestions = vi.fn().mockResolvedValue([question]);
+  describe("data", () => {
+    it("should return the correct command data", () => {
+      const commandData = command.data().toJSON();
 
-    const response = (await command.handleModalSubmit(
-      interactionData,
-    )) as APIInteractionResponseChannelMessageWithSource;
+      expect(commandData.name).toBe("edit_question");
+      expect(commandData.description).toBe("Edit a question");
+      expect(commandData.options).toHaveLength(2);
 
-    expect(response.type).toBe(
-      InteractionResponseType.ChannelMessageWithSource,
-    );
-    expect(response.data.content).toBe("Updated question in bank test-bank.");
-    expect(mockQuestionStorage.updateQuestion).toHaveBeenCalledWith({
-      ...question,
-      question: "What is 3 + 3?",
-      answers: [
-        { answerId: "answer1", answer: "5" },
-        { answerId: "answer2", answer: "6" },
-        { answerId: "answer3", answer: "7" },
-      ],
-      correctAnswerIndex: 1,
-      questionShowTimeMs: 30000,
+      const bankNameOption = commandData.options?.find(
+          (option) => option.name === EditQuestionCommand.optionIds.bankName
+      );
+      expect(bankNameOption).toBeDefined();
+      expect(bankNameOption?.description).toBe("The name of the question bank");
+      expect(bankNameOption?.required).toBe(true);
+      expect(bankNameOption?.type).toBe(3); // 3 represents string option type
+
+      const questionIdOption = commandData.options?.find(
+          (option) => option.name === EditQuestionCommand.optionIds.questionId
+      );
+      expect(questionIdOption).toBeDefined();
+      expect(questionIdOption?.description).toBe("The ID of the question");
+      expect(questionIdOption?.required).toBe(true);
+      expect(questionIdOption?.type).toBe(3); // 3 represents string option type
     });
   });
 
-  it("should return an error if required fields are missing", async () => {
-    const invalidInteractionData = { ...interactionData };
-    (invalidInteractionData.data.components[0]!.components[0] as any).value =
-      "";
+  describe("execute", () => {
+    it("should generate the modal correctly", async () => {
+      mockQuestionStorage.getQuestions = vi.fn().mockResolvedValue([question]);
 
-    const response = (await command.handleModalSubmit(
-      invalidInteractionData,
-    )) as APIInteractionResponseChannelMessageWithSource;
+      const interaction = createInteraction({
+        bankname: "test-bank",
+        questionid: "test-question-id",
+      });
 
-    expect(response.type).toBe(
-      InteractionResponseType.ChannelMessageWithSource,
-    );
-    expect(response.data.content).toBe("Bank name is missing.");
-    expect(response.data.flags).toBe(MessageFlags.Ephemeral);
-  });
+      const response = (await command.execute(
+          interaction,
+      )) as APIModalInteractionResponse;
 
-  it("should return an error if question text is missing", async () => {
-    const invalidInteractionData = { ...interactionData };
-    (invalidInteractionData.data.components[1]!.components[0] as any).value =
-      "";
+      expect(response.type).toBe(InteractionResponseType.Modal);
+      expect(response.data.components.length).toBeGreaterThan(0);
 
-    const response = (await command.handleModalSubmit(
-      invalidInteractionData,
-    )) as APIInteractionResponseChannelMessageWithSource;
-
-    expect(response.type).toBe(
-      InteractionResponseType.ChannelMessageWithSource,
-    );
-    expect(response.data.content).toBe("Question text is missing.");
-    expect(response.data.flags).toBe(MessageFlags.Ephemeral);
-  });
-
-  it("should return an error if correct answer index is missing", async () => {
-    const invalidInteractionData = { ...interactionData };
-    (invalidInteractionData.data.components[6]!.components[0] as any).value =
-      "";
-
-    const response = (await command.handleModalSubmit(
-      invalidInteractionData,
-    )) as APIInteractionResponseChannelMessageWithSource;
-
-    expect(response.type).toBe(
-      InteractionResponseType.ChannelMessageWithSource,
-    );
-    expect(response.data.content).toBe("Correct answer index is missing.");
-    expect(response.data.flags).toBe(MessageFlags.Ephemeral);
-  });
-
-  it("should return an error if the question ID is not found", async () => {
-    mockQuestionStorage.getQuestions = vi.fn().mockResolvedValue([]);
-
-    const response = (await command.handleModalSubmit(
-      interactionData,
-    )) as APIInteractionResponseChannelMessageWithSource;
-
-    expect(response.type).toBe(
-      InteractionResponseType.ChannelMessageWithSource,
-    );
-    expect(response.data.content).toBe(
-      "Question with ID test-question-id not found.",
-    );
-    expect(response.data.flags).toBe(MessageFlags.Ephemeral);
-  });
-
-  it("should return an error if the correct answer index is invalid", async () => {
-    const invalidInteractionData = { ...interactionData };
-    (invalidInteractionData.data.components[6]!.components[0] as any).value =
-      "5";
-
-    const response = (await command.handleModalSubmit(
-      invalidInteractionData,
-    )) as APIInteractionResponseChannelMessageWithSource;
-
-    expect(response.type).toBe(
-      InteractionResponseType.ChannelMessageWithSource,
-    );
-    expect(response.data.content).toBe(
-      "Invalid correct answer index. Please enter a number between 0 and 2",
-    );
-    expect(response.data.flags).toBe(MessageFlags.Ephemeral);
-  });
-
-  it("should generate the modal correctly", async () => {
-    mockQuestionStorage.getQuestions = vi.fn().mockResolvedValue([question]);
-
-    const interaction = createInteraction({
-      bankname: "test-bank",
-      questionid: "test-question-id",
+      checkModalContainsExpectedValues(response.data, question);
     });
 
-    const response = (await command.execute(
-      interaction,
-    )) as APIModalInteractionResponse;
+    it("should return an error if the question is not found during modal generation", async () => {
+      mockQuestionStorage.getQuestions = vi.fn().mockResolvedValue([]);
 
-    expect(response.type).toBe(InteractionResponseType.Modal);
-    expect(response.data.components.length).toBeGreaterThan(0);
+      const interaction = createInteraction({
+        bankname: "test-bank",
+        questionid: "test-question-id",
+      });
 
-    checkModalContainsExpectedValues(response.data, question);
-  });
+      const response = (await command.execute(
+          interaction,
+      )) as APIInteractionResponseChannelMessageWithSource;
 
-  it("should return an error if the question is not found during modal generation", async () => {
-    mockQuestionStorage.getQuestions = vi.fn().mockResolvedValue([]);
-
-    const interaction = createInteraction({
-      bankname: "test-bank",
-      questionid: "test-question-id",
+      expect(response.type).toBe(
+          InteractionResponseType.ChannelMessageWithSource,
+      );
+      expect(response.data.content).toBe(
+          "No valid question found for bank name test-bank and question id test-question-id.",
+      );
+      expect(response.data.flags).toBe(MessageFlags.Ephemeral);
     });
 
-    const response = (await command.execute(
-      interaction,
-    )) as APIInteractionResponseChannelMessageWithSource;
+    it("should return an error if bankName option is missing", async () => {
+      const interaction = createInteraction({
+        bankname: "",
+        questionid: "test-question-id",
+      });
 
-    expect(response.type).toBe(
-      InteractionResponseType.ChannelMessageWithSource,
-    );
-    expect(response.data.content).toBe(
-      "No valid question found for bank name test-bank and question id test-question-id.",
-    );
-    expect(response.data.flags).toBe(MessageFlags.Ephemeral);
-  });
+      const response = (await command.execute(
+          interaction,
+      )) as APIInteractionResponseChannelMessageWithSource;
 
-  it("should return an error if bankName option is missing", async () => {
-    const interaction = createInteraction({
-      bankname: "",
-      questionid: "test-question-id",
+      expect(response.type).toBe(
+          InteractionResponseType.ChannelMessageWithSource,
+      );
+      expect(response.data.content).toBe("The bankname was not specified!");
+      expect(response.data.flags).toBe(MessageFlags.Ephemeral);
     });
 
-    const response = (await command.execute(
-      interaction,
-    )) as APIInteractionResponseChannelMessageWithSource;
+    it("should return an error if questionId option is missing", async () => {
+      const interaction = createInteraction({
+        bankname: "test-bank",
+        questionid: "",
+      });
 
-    expect(response.type).toBe(
-      InteractionResponseType.ChannelMessageWithSource,
-    );
-    expect(response.data.content).toBe("The bankname was not specified!");
-    expect(response.data.flags).toBe(MessageFlags.Ephemeral);
-  });
+      const response = (await command.execute(
+          interaction,
+      )) as APIInteractionResponseChannelMessageWithSource;
 
-  it("should return an error if questionId option is missing", async () => {
-    const interaction = createInteraction({
-      bankname: "test-bank",
-      questionid: "",
+      expect(response.type).toBe(
+          InteractionResponseType.ChannelMessageWithSource,
+      );
+      expect(response.data.content).toBe("The questionid was not specified!");
+      expect(response.data.flags).toBe(MessageFlags.Ephemeral);
     });
 
-    const response = (await command.execute(
-      interaction,
-    )) as APIInteractionResponseChannelMessageWithSource;
+    it("should return an error if an exception occurs during execution", async () => {
+      mockQuestionStorage.getQuestions = vi
+          .fn()
+          .mockRejectedValue(new Error("Failed to fetch questions"));
 
-    expect(response.type).toBe(
-      InteractionResponseType.ChannelMessageWithSource,
-    );
-    expect(response.data.content).toBe("The questionid was not specified!");
-    expect(response.data.flags).toBe(MessageFlags.Ephemeral);
+      const interaction = createInteraction({
+        bankname: "test-bank",
+        questionid: "test-question-id",
+      });
+
+      const response = (await command.execute(
+          interaction,
+      )) as APIInteractionResponseChannelMessageWithSource;
+
+      expect(response.type).toBe(
+          InteractionResponseType.ChannelMessageWithSource,
+      );
+      expect(response.data.content).toBe("Failed to fetch questions");
+      expect(response.data.flags).toBe(MessageFlags.Ephemeral);
+    });
   });
 
-  it("should return an error if an exception occurs during execution", async () => {
-    mockQuestionStorage.getQuestions = vi
-      .fn()
-      .mockRejectedValue(new Error("Failed to fetch questions"));
+  describe("handleModalSubmit", () => {
+    it("should update the question correctly", async () => {
+      mockQuestionStorage.getQuestions = vi.fn().mockResolvedValue([question]);
 
-    const interaction = createInteraction({
-      bankname: "test-bank",
-      questionid: "test-question-id",
+      const response = (await command.handleModalSubmit(
+          interactionData,
+      )) as APIInteractionResponseChannelMessageWithSource;
+
+      expect(response.type).toBe(
+          InteractionResponseType.ChannelMessageWithSource,
+      );
+      expect(response.data.content).toBe("Updated question in bank test-bank.");
+      expect(mockQuestionStorage.updateQuestion).toHaveBeenCalledWith({
+        ...question,
+        question: "What is 3 + 3?",
+        answers: [
+          { answerId: "answer1", answer: "5" },
+          { answerId: "answer2", answer: "6" },
+          { answerId: "answer3", answer: "7" },
+        ],
+        correctAnswerId: "answer2",
+        questionShowTimeMs: 30000,
+      });
     });
 
-    const response = (await command.execute(
-      interaction,
-    )) as APIInteractionResponseChannelMessageWithSource;
+    it("should return an error if required fields are missing", async () => {
+      const invalidInteractionData = { ...interactionData };
+      (invalidInteractionData.data.components[0]!.components[0] as any).value =
+          "";
 
-    expect(response.type).toBe(
-      InteractionResponseType.ChannelMessageWithSource,
-    );
-    expect(response.data.content).toBe("Failed to fetch questions");
-    expect(response.data.flags).toBe(MessageFlags.Ephemeral);
-  });
+      const response = (await command.handleModalSubmit(
+          invalidInteractionData,
+      )) as APIInteractionResponseChannelMessageWithSource;
 
-  it("should return an error if an exception occurs during handleModalSubmit", async () => {
-    // Simulate the condition where the question is found but updateQuestion throws an error
-    mockQuestionStorage.getQuestions = vi.fn().mockResolvedValue([question]);
-    mockQuestionStorage.updateQuestion = vi
-      .fn()
-      .mockRejectedValue(new Error("Failed to update question"));
+      expect(response.type).toBe(
+          InteractionResponseType.ChannelMessageWithSource,
+      );
+      expect(response.data.content).toBe("Bank name is missing.");
+      expect(response.data.flags).toBe(MessageFlags.Ephemeral);
+    });
 
-    const response = (await command.handleModalSubmit(
-      interactionData,
-    )) as APIInteractionResponseChannelMessageWithSource;
+    it("should return an error if question text is missing", async () => {
+      const invalidInteractionData = { ...interactionData };
+      (invalidInteractionData.data.components[1]!.components[0] as any).value =
+          "";
 
-    expect(response.type).toBe(
-      InteractionResponseType.ChannelMessageWithSource,
-    );
-    expect(response.data.content).toBe(
-      "Failed to update question: Failed to update question",
-    );
-    expect(response.data.flags).toBe(MessageFlags.Ephemeral);
+      const response = (await command.handleModalSubmit(
+          invalidInteractionData,
+      )) as APIInteractionResponseChannelMessageWithSource;
+
+      expect(response.type).toBe(
+          InteractionResponseType.ChannelMessageWithSource,
+      );
+      expect(response.data.content).toBe("Question text is missing.");
+      expect(response.data.flags).toBe(MessageFlags.Ephemeral);
+    });
+
+    it("should return an error if correct answer index is missing", async () => {
+      const invalidInteractionData = { ...interactionData };
+      (invalidInteractionData.data.components[6]!.components[0] as any).value =
+          "";
+
+      const response = (await command.handleModalSubmit(
+          invalidInteractionData,
+      )) as APIInteractionResponseChannelMessageWithSource;
+
+      expect(response.type).toBe(
+          InteractionResponseType.ChannelMessageWithSource,
+      );
+      expect(response.data.content).toBe("Correct answer index is missing.");
+      expect(response.data.flags).toBe(MessageFlags.Ephemeral);
+    });
+
+    it("should return an error if the question ID is not found", async () => {
+      mockQuestionStorage.getQuestions = vi.fn().mockResolvedValue([]);
+
+      const response = (await command.handleModalSubmit(
+          interactionData,
+      )) as APIInteractionResponseChannelMessageWithSource;
+
+      expect(response.type).toBe(
+          InteractionResponseType.ChannelMessageWithSource,
+      );
+      expect(response.data.content).toBe(
+          "Question with ID test-question-id not found.",
+      );
+      expect(response.data.flags).toBe(MessageFlags.Ephemeral);
+    });
+
+    it("should return an error if the correct answer index is invalid", async () => {
+      const invalidInteractionData = { ...interactionData };
+      (invalidInteractionData.data.components[6]!.components[0] as any).value =
+          "5";
+
+      const response = (await command.handleModalSubmit(
+          invalidInteractionData,
+      )) as APIInteractionResponseChannelMessageWithSource;
+
+      expect(response.type).toBe(
+          InteractionResponseType.ChannelMessageWithSource,
+      );
+      expect(response.data.content).toBe(
+          "Invalid correct answer index. Please enter a number between 0 and 2",
+      );
+      expect(response.data.flags).toBe(MessageFlags.Ephemeral);
+    });
+
+    it("should return an error if the correct answer is not found", async () => {
+      const invalidInteractionData = { ...interactionData };
+      (invalidInteractionData.data.components[6]!.components[0] as any).value =
+          "2"; // Set an invalid correct answer index
+
+      const response = (await command.handleModalSubmit(
+          invalidInteractionData,
+      )) as APIInteractionResponseChannelMessageWithSource;
+
+      expect(response.type).toBe(
+          InteractionResponseType.ChannelMessageWithSource,
+      );
+      expect(response.data.flags).toBe(MessageFlags.Ephemeral);
+    });
+
+    it("should return an error if an exception occurs during handleModalSubmit", async () => {
+      // Simulate the condition where the question is found but updateQuestion throws an error
+      mockQuestionStorage.getQuestions = vi.fn().mockResolvedValue([question]);
+      mockQuestionStorage.updateQuestion = vi
+          .fn()
+          .mockRejectedValue(new Error("Failed to update question"));
+
+      const response = (await command.handleModalSubmit(
+          interactionData,
+      )) as APIInteractionResponseChannelMessageWithSource;
+
+      expect(response.type).toBe(
+          InteractionResponseType.ChannelMessageWithSource,
+      );
+      expect(response.data.content).toBe(
+          "Failed to update question: Failed to update question",
+      );
+      expect(response.data.flags).toBe(MessageFlags.Ephemeral);
+    });
   });
 });

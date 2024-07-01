@@ -5,7 +5,7 @@ export interface Question {
   questionId: string;
   question: string;
   answers: Answer[];
-  correctAnswerIndex: number;
+  correctAnswerId: string;
   imagePartitionKey?: string; // Use partition keys instead of direct URLs
   explanation?: string;
   explanationImagePartitionKey?: string; // Use partition keys instead of direct URLs
