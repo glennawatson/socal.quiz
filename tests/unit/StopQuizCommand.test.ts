@@ -11,8 +11,8 @@ import {
   generateErrorResponse,
   generateOptionMissingErrorResponse,
 } from "../../src/util/interactionHelpers.js";
-import {QuizManagerFactoryManager} from "../../src/handlers/quizManagerFactoryManager.js";
-import {MockQuizManager} from "./mocks/mockQuizManager.js";
+import { QuizManagerFactoryManager } from "../../src/handlers/quizManagerFactoryManager.js";
+import { MockQuizManager } from "./mocks/mockQuizManager.js";
 
 describe("StopQuizCommand", () => {
   let stopQuizCommand: StopQuizCommand;
@@ -39,7 +39,9 @@ describe("StopQuizCommand", () => {
         stopQuiz: vi.fn(),
       };
 
-      quizFactoryManager.getQuizManager = vi.fn().mockResolvedValue(quizManagerMock);
+      quizFactoryManager.getQuizManager = vi
+        .fn()
+        .mockResolvedValue(quizManagerMock);
 
       const interaction: APIChatInputApplicationCommandInteraction = {
         guild_id: "guild-id",
@@ -78,8 +80,8 @@ describe("StopQuizCommand", () => {
 
     it("should return a generic error response if an exception occurs", async () => {
       quizFactoryManager.getQuizManager = vi
-          .fn()
-          .mockRejectedValue(new Error("Some error"));
+        .fn()
+        .mockRejectedValue(new Error("Some error"));
 
       const interaction: APIChatInputApplicationCommandInteraction = {
         guild_id: "guild-id",

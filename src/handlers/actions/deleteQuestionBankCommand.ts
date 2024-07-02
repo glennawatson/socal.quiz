@@ -37,13 +37,19 @@ export class DeleteQuestionBankCommand implements IDiscordCommand {
     interaction: APIChatInputApplicationCommandInteraction,
   ): Promise<APIInteractionResponse> {
     try {
+      const guildId = interaction.guild_id;
+
+      if (!guildId) {
+        return createEphemeralResponse("Must have a valid guild id.");
+      }
+
       const bankName = getOptionValue(interaction.data.options, "bankname");
 
       if (!bankName) {
         return generateOptionMissingErrorResponse("bankname");
       }
 
-      await this.questionStorage.deleteQuestionBank(bankName);
+      await this.questionStorage.deleteQuestionBank(guildId, bankName);
 
       return createEphemeralResponse(`Deleted question bank: ${bankName}`);
     } catch (error) {

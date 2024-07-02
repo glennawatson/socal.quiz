@@ -47,6 +47,7 @@ describe("DeleteQuestionFromBankCommand", () => {
       const response = await deleteQuestionFromBankCommand.execute(interaction);
 
       expect(questionStorageMock.deleteQuestion).toHaveBeenCalledWith(
+        "guild-id",
         "sampleBank",
         "sampleQuestion",
       );

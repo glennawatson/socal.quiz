@@ -7,7 +7,7 @@ import {
 import { GuildStorage } from "../util/guildStorage.js";
 import "../util/mapExtensions.js";
 import { throwError } from "../util/errorHelpers.js";
-import {QuizManagerFactoryManager} from "./quizManagerFactoryManager.js";
+import { QuizManagerFactoryManager } from "./quizManagerFactoryManager.js";
 
 export class DiscordBotService {
   private commandManager: CommandManager;

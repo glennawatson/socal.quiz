@@ -13,7 +13,7 @@ import {
 
 import { Config } from "../util/config.js";
 import { getClient } from "durable-functions";
-import * as df from 'durable-functions';
+import * as df from "durable-functions";
 
 export async function interactions(
   request: HttpRequest,

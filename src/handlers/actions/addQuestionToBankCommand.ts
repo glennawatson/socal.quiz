@@ -14,13 +14,14 @@ import {
   TextInputBuilder,
 } from "@discordjs/builders";
 import {
-    createEphemeralResponse, generateErrorResponse,
-    getComponentValue,
-    getComponentValueNumber,
+  createEphemeralResponse,
+  generateErrorResponse,
+  getComponentValue,
+  getComponentValueNumber,
 } from "../../util/interactionHelpers.js";
 import { createTextInput } from "../../util/commandHelpers.js";
 import { IQuestionStorage } from "../../util/IQuestionStorage.interfaces.js";
-import {Answer} from "../../answer.interfaces.js";
+import { Answer } from "../../answer.interfaces.js";
 
 export class AddQuestionToBankCommand implements IModalHandlerCommand {
   public static readonly componentIds = {
@@ -137,6 +138,12 @@ export class AddQuestionToBankCommand implements IModalHandlerCommand {
   public async handleModalSubmit(
     interaction: APIModalSubmitInteraction,
   ): Promise<APIInteractionResponse> {
+    const guildId = interaction.guild_id;
+
+    if (!guildId) {
+      return createEphemeralResponse("Must have a valid guild id.");
+    }
+
     const components = interaction.data.components;
 
     // Extract values using the componentIds map
@@ -180,13 +187,15 @@ export class AddQuestionToBankCommand implements IModalHandlerCommand {
 
     // Extract answers
     const answers: Answer[] = await Promise.all(
-        AddQuestionToBankCommand.componentIds.answers
-            .map((answerId) => ({
-              answerId,
-              value: getComponentValue(components, answerId),
-            }))
-            .filter(({ value }) => value !== undefined)
-            .map(({ value }) => this.questionStorage.generateAnswer(value as string))
+      AddQuestionToBankCommand.componentIds.answers
+        .map((answerId) => ({
+          answerId,
+          value: getComponentValue(components, answerId),
+        }))
+        .filter(({ value }) => value !== undefined)
+        .map(({ value }) =>
+          this.questionStorage.generateAnswer(value as string),
+        ),
     );
 
     const correctAnswerIndexStr = getComponentValue(
@@ -215,12 +224,13 @@ export class AddQuestionToBankCommand implements IModalHandlerCommand {
 
     if (!correctAnswer) {
       return createEphemeralResponse(
-          `Invalid correct answer index. Could not find a valid answer.`,
+        `Invalid correct answer index. Could not find a valid answer.`,
       );
     }
 
     try {
       await this.questionStorage.generateAndAddQuestion(
+        guildId,
         bankName,
         questionText,
         answers,
@@ -233,13 +243,13 @@ export class AddQuestionToBankCommand implements IModalHandlerCommand {
 
       return createEphemeralResponse(`Added question to bank ${bankName}.`);
     } catch (error) {
-        if (error instanceof Error) {
-            return generateErrorResponse(error);
-        } else {
-            return createEphemeralResponse(
-                `Failed to add question to bank ${bankName}: An unknown error occurred.`,
-            );
-        }
+      if (error instanceof Error) {
+        return generateErrorResponse(error);
+      } else {
+        return createEphemeralResponse(
+          `Failed to add question to bank ${bankName}: An unknown error occurred.`,
+        );
+      }
     }
   }
 }

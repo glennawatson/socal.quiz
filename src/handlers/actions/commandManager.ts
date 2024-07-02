@@ -22,7 +22,7 @@ import { REST } from "@discordjs/rest";
 import { createEphemeralResponse } from "../../util/interactionHelpers.js";
 import { EditQuestionCommand } from "./editQuestionCommand.js";
 import { IQuestionStorage } from "../../util/IQuestionStorage.interfaces.js";
-import {QuizManagerFactoryManager} from "../quizManagerFactoryManager.js";
+import { QuizManagerFactoryManager } from "../quizManagerFactoryManager.js";
 
 export class CommandManager {
   private readonly commands: Map<string, IDiscordCommand>;

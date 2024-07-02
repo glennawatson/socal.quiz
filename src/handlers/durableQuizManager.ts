@@ -4,8 +4,8 @@ import { DurableClient } from "durable-functions";
 import { QuizState } from "./quizState.interfaces.js";
 import { QuizManagerBase } from "./quizManagerBase.js";
 import {
-    APIInteractionResponse,
-    InteractionResponseType
+  APIInteractionResponse,
+  InteractionResponseType,
 } from "discord-api-types/v10";
 import { createEphemeralResponse } from "../util/interactionHelpers.js";
 import { AnswerEvent } from "./answerEvent.interfaces.js";
@@ -17,8 +17,10 @@ import { AnswerEvent } from "./answerEvent.interfaces.js";
  * @returns {string} - The generated instance ID.
  */
 function generateInstanceId(guildId: string, channelId: string): string | null {
-    if (!channelId || !guildId) { return null; }
-    return `${guildId}-${channelId}`;
+  if (!channelId || !guildId) {
+    return null;
+  }
+  return `${guildId}-${channelId}`;
 }
 
 /**
@@ -27,89 +29,107 @@ function generateInstanceId(guildId: string, channelId: string): string | null {
  * @extends QuizManagerBase
  */
 export class DurableQuizManager extends QuizManagerBase {
-    /**
-     * Constructs a DurableQuizManager instance.
-     * @param {REST} rest - The REST client for Discord API.
-     * @param {IQuestionStorage} quizStateStorage - Storage interface for quiz questions.
-     * @param {DurableClient} durableClient - The durable client for managing orchestration.
-     */
-    public constructor(
-        rest: REST,
-        quizStateStorage: IQuestionStorage,
-        private readonly durableClient: DurableClient) {
-        super(rest, quizStateStorage);
+  /**
+   * Constructs a DurableQuizManager instance.
+   * @param {REST} rest - The REST client for Discord API.
+   * @param {IQuestionStorage} quizStateStorage - Storage interface for quiz questions.
+   * @param {DurableClient} durableClient - The durable client for managing orchestration.
+   */
+  public constructor(
+    rest: REST,
+    quizStateStorage: IQuestionStorage,
+    private readonly durableClient: DurableClient,
+  ) {
+    super(rest, quizStateStorage);
+  }
+
+  /**
+   * @inheritdoc
+   */
+  public async answerInteraction(
+    guildId: string,
+    channelId: string,
+    userId: string,
+    selectedAnswerId: string,
+  ): Promise<APIInteractionResponse> {
+    const instanceId = generateInstanceId(guildId, channelId);
+    if (!instanceId) {
+      // Optionally log the issue, but return an empty response
+      console.error("No active quiz found.");
+      return createEphemeralResponse(`No active quiz could be found`);
     }
 
-    /**
-     * @inheritdoc
-     */
-    public async answerInteraction(guildId: string, channelId: string, userId: string, selectedAnswerId: string): Promise<APIInteractionResponse> {
-        const instanceId = generateInstanceId(guildId, channelId);
-        if (!instanceId) {
-            // Optionally log the issue, but return an empty response
-            console.error('No active quiz found.');
-            return createEphemeralResponse(`No active quiz could be found`);
-        }
-
-        try {
-            const answerEventData: AnswerEvent = { userId, selectedAnswerId };
-            await this.durableClient.raiseEvent(instanceId, 'answerQuestion', answerEventData, {});
-        } catch (error) {
-            // Optionally log the error, but return an empty response
-            console.error(`Error submitting answer: ${error}`);
-            return createEphemeralResponse(`There was a error submitting your answer.`);
-        }
-
-        return {
-            type: InteractionResponseType.DeferredChannelMessageWithSource
-        }
+    try {
+      const answerEventData: AnswerEvent = { userId, selectedAnswerId };
+      await this.durableClient.raiseEvent(
+        instanceId,
+        "answerQuestion",
+        answerEventData,
+        {},
+      );
+    } catch (error) {
+      // Optionally log the error, but return an empty response
+      console.error(`Error submitting answer: ${error}`);
+      return createEphemeralResponse(
+        `There was a error submitting your answer.`,
+      );
     }
 
-    /**
-     * @inheritdoc
-     */
-    public async stopQuiz(guildId: string, channelId: string): Promise<void> {
-        const instanceId = generateInstanceId(guildId, channelId);
+    return {
+      type: InteractionResponseType.DeferredChannelMessageWithSource,
+    };
+  }
 
-        if (!instanceId) {
-            console.error('could not find a valid guild or channel id');
-            return;
-        }
+  /**
+   * @inheritdoc
+   */
+  public async stopQuiz(guildId: string, channelId: string): Promise<void> {
+    const instanceId = generateInstanceId(guildId, channelId);
 
-        try {
-            await this.durableClient.raiseEvent(instanceId, 'cancelQuiz', {});
-        } catch (error) {
-            await this.durableClient.terminate(instanceId, "Quiz stopped");
-            // Log the error or handle it as necessary
-            console.error(`Failed to send cancelQuiz event to instance ${instanceId}: ${error}`);
-        }
+    if (!instanceId) {
+      console.error("could not find a valid guild or channel id");
+      return;
     }
 
-    /**
-     * @inheritdoc
-     */
-    public async runQuiz(quiz: QuizState): Promise<void> {
-        const instanceId = generateInstanceId(quiz.guildId, quiz.channelId);
-        if (!instanceId) {
-            console.error('could not find a valid guild or channel id');
-            return;
-        }
+    try {
+      await this.durableClient.raiseEvent(instanceId, "cancelQuiz", {});
+    } catch (error) {
+      await this.durableClient.terminate(instanceId, "Quiz stopped");
+      // Log the error or handle it as necessary
+      console.error(
+        `Failed to send cancelQuiz event to instance ${instanceId}: ${error}`,
+      );
+    }
+  }
 
-        await this.durableClient.startNew("QuizOrchestrator", {
-            input: quiz,
-            instanceId: instanceId
-        });
+  /**
+   * @inheritdoc
+   */
+  public async runQuiz(quiz: QuizState): Promise<void> {
+    const instanceId = generateInstanceId(quiz.guildId, quiz.channelId);
+    if (!instanceId) {
+      console.error("could not find a valid guild or channel id");
+      return;
     }
 
-    /**
-     * @inheritdoc
-     */
-    public async nextQuizQuestion(guildId: string, channelId: string): Promise<void> {
-        const instanceId = generateInstanceId(guildId, channelId);
-        if (!instanceId) {
-            console.error('could not find a valid guild or channel id');
-            return;
-        }
-        await this.durableClient.raiseEvent(instanceId, 'answerQuestion', {}, {});
+    await this.durableClient.startNew("QuizOrchestrator", {
+      input: quiz,
+      instanceId: instanceId,
+    });
+  }
+
+  /**
+   * @inheritdoc
+   */
+  public async nextQuizQuestion(
+    guildId: string,
+    channelId: string,
+  ): Promise<void> {
+    const instanceId = generateInstanceId(guildId, channelId);
+    if (!instanceId) {
+      console.error("could not find a valid guild or channel id");
+      return;
     }
+    await this.durableClient.raiseEvent(instanceId, "answerQuestion", {}, {});
+  }
 }

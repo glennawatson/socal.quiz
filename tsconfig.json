@@ -10,7 +10,12 @@
     "moduleResolution": "NodeNext",
     "removeComments": true,
     "forceConsistentCasingInFileNames": true,  
-    "esModuleInterop": true,     
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "baseUrl": ".",
+    "paths": {
+      "@src/*": ["src/*"]
+    },
 
     // Strict Checks
     "alwaysStrict": true, // Ensures that your files are parsed in the ECMAScript strict mode, and emit “use strict” for each source file.
