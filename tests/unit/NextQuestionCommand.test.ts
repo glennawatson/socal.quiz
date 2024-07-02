@@ -11,7 +11,7 @@ import {
   generateErrorResponse,
   generateOptionMissingErrorResponse,
 } from "../../src/util/interactionHelpers.js";
-import {QuizManagerFactoryManager} from "../../src/handlers/quizManagerFactoryManager.js";
+import { QuizManagerFactoryManager } from "../../src/handlers/quizManagerFactoryManager.js";
 
 describe("NextQuestionCommand", () => {
   let quizManagerFactoryManagerMock: QuizManagerFactoryManager;
@@ -22,7 +22,9 @@ describe("NextQuestionCommand", () => {
       getQuizManager: vi.fn(),
     } as unknown as QuizManagerFactoryManager;
 
-    nextQuestionCommand = new NextQuestionCommand(quizManagerFactoryManagerMock);
+    nextQuestionCommand = new NextQuestionCommand(
+      quizManagerFactoryManagerMock,
+    );
   });
 
   describe("data", () => {
@@ -39,8 +41,8 @@ describe("NextQuestionCommand", () => {
       };
 
       quizManagerFactoryManagerMock.getQuizManager = vi
-          .fn()
-          .mockResolvedValue(quizManagerMock);
+        .fn()
+        .mockResolvedValue(quizManagerMock);
 
       const interaction: APIChatInputApplicationCommandInteraction = {
         guild_id: "guild-id",
@@ -61,11 +63,11 @@ describe("NextQuestionCommand", () => {
       const response = await nextQuestionCommand.execute(interaction);
 
       expect(quizManagerMock.nextQuizQuestion).toHaveBeenCalledWith(
-          "guild-id",
-          "channel-id"
+        "guild-id",
+        "channel-id",
       );
       expect(response).toEqual(
-          createEphemeralResponse("Showing next question."),
+        createEphemeralResponse("Showing next question."),
       );
     });
 
@@ -80,7 +82,9 @@ describe("NextQuestionCommand", () => {
     });
 
     it("should return an error if the quiz manager is not found", async () => {
-      quizManagerFactoryManagerMock.getQuizManager = vi.fn().mockResolvedValue(null);
+      quizManagerFactoryManagerMock.getQuizManager = vi
+        .fn()
+        .mockResolvedValue(null);
 
       const interaction: APIChatInputApplicationCommandInteraction = {
         guild_id: "guild-id",
@@ -101,14 +105,14 @@ describe("NextQuestionCommand", () => {
       const response = await nextQuestionCommand.execute(interaction);
 
       expect(response).toEqual(
-          generateOptionMissingErrorResponse("invalid quiz manager"),
+        generateOptionMissingErrorResponse("invalid quiz manager"),
       );
     });
 
     it("should return a generic error response if an exception occurs", async () => {
       quizManagerFactoryManagerMock.getQuizManager = vi
-          .fn()
-          .mockRejectedValue(new Error("Some error"));
+        .fn()
+        .mockRejectedValue(new Error("Some error"));
 
       const interaction: APIChatInputApplicationCommandInteraction = {
         guild_id: "guild-id",

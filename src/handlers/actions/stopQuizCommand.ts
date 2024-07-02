@@ -12,7 +12,7 @@ import {
   generateErrorResponse,
   generateOptionMissingErrorResponse,
 } from "../../util/interactionHelpers.js";
-import {QuizManagerFactoryManager} from "../quizManagerFactoryManager.js";
+import { QuizManagerFactoryManager } from "../quizManagerFactoryManager.js";
 
 export class StopQuizCommand implements IDiscordCommand {
   constructor(private readonly quizStateManager: QuizManagerFactoryManager) {}

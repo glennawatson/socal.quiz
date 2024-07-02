@@ -12,8 +12,8 @@ import {
   ChannelType,
   GuildMemberFlags,
 } from "discord-api-types/v10";
-import {QuizManagerFactoryManager} from "../../src/handlers/quizManagerFactoryManager.js";
-import {MockQuizManager} from "./mocks/mockQuizManager.js";
+import { QuizManagerFactoryManager } from "../../src/handlers/quizManagerFactoryManager.js";
+import { MockQuizManager } from "./mocks/mockQuizManager.js";
 
 describe("StartQuizCommand", () => {
   let startQuizCommand: StartQuizCommand;
@@ -42,7 +42,9 @@ describe("StartQuizCommand", () => {
           .mockResolvedValue(createEphemeralResponse("Quiz started")),
       };
 
-      quizFactoryManager.getQuizManager = vi.fn().mockResolvedValue(quizManagerMock);
+      quizFactoryManager.getQuizManager = vi
+        .fn()
+        .mockResolvedValue(quizManagerMock);
 
       const interaction: APIChatInputApplicationCommandInteraction =
         generateBankOptions("123", "sampleBank");
@@ -76,7 +78,9 @@ describe("StartQuizCommand", () => {
         startQuiz: vi.fn().mockRejectedValue(new Error("Some error")),
       };
 
-      quizFactoryManager.getQuizManager = vi.fn().mockResolvedValue(quizManagerMock);
+      quizFactoryManager.getQuizManager = vi
+        .fn()
+        .mockResolvedValue(quizManagerMock);
 
       const interaction: APIChatInputApplicationCommandInteraction =
         generateBankOptions("123", "sampleBank");

@@ -16,6 +16,11 @@ export default defineConfig({
             ],
         },
     },
+    resolve: {
+        alias: {
+            '@src': '/src'
+        }
+    }
 //   // ... other configurations ...
 //   test: {
 //     root: "./src", // Set the root directory for resolving imports in tests

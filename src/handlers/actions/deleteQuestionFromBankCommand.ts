@@ -43,6 +43,12 @@ export class DeleteQuestionFromBankCommand implements IDiscordCommand {
     interaction: APIChatInputApplicationCommandInteraction,
   ): Promise<APIInteractionResponse> {
     try {
+      const guildId = interaction.guild_id;
+
+      if (!guildId) {
+        return createEphemeralResponse("Must have a valid guild id.");
+      }
+
       const bankName = getOptionValue(interaction.data.options, "bankname");
       const questionId = getOptionValue(interaction.data.options, "questionid");
 
@@ -55,7 +61,7 @@ export class DeleteQuestionFromBankCommand implements IDiscordCommand {
         return generateOptionMissingErrorResponse("questionid");
       }
 
-      await this.questionStorage.deleteQuestion(bankName, questionId);
+      await this.questionStorage.deleteQuestion(guildId, bankName, questionId);
 
       return createEphemeralResponse(
         `Deleted question: ${questionId} from ${bankName}`,

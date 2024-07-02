@@ -1,6 +1,7 @@
 import { Answer } from "./answer.interfaces.js";
 
 export interface Question {
+  guildId: string;
   bankName: string;
   questionId: string;
   question: string;

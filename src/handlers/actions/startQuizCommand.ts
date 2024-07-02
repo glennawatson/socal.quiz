@@ -12,7 +12,7 @@ import {
   SlashCommandBuilder,
   SlashCommandOptionsOnlyBuilder,
 } from "@discordjs/builders";
-import {QuizManagerFactoryManager} from "../quizManagerFactoryManager.js";
+import { QuizManagerFactoryManager } from "../quizManagerFactoryManager.js";
 
 export class StartQuizCommand implements IDiscordCommand {
   constructor(private readonly quizStateManager: QuizManagerFactoryManager) {}

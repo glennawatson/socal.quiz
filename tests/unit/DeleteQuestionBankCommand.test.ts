@@ -46,6 +46,7 @@ describe("DeleteQuestionBankCommand", () => {
         createEphemeralResponse("Deleted question bank: sampleBank"),
       );
       expect(questionStorageMock.deleteQuestionBank).toHaveBeenCalledWith(
+        "guild-id",
         "sampleBank",
       );
     });
