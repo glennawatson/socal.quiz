@@ -24,7 +24,7 @@ describe("DeleteQuestionFromBankCommand", () => {
     } as unknown as QuestionStorage;
 
     deleteQuestionFromBankCommand = new DeleteQuestionFromBankCommand(
-      questionStorageMock,
+        questionStorageMock,
     );
   });
 
@@ -36,6 +36,18 @@ describe("DeleteQuestionFromBankCommand", () => {
   });
 
   describe("execute", () => {
+    it("should return a error if guild id is null", async () => {
+      const interaction = generateBankOptions("123", "sampleBank");
+      interaction.guild_id = undefined;
+
+      const response = await deleteQuestionFromBankCommand.execute(interaction);
+
+      expect(response).toEqual(
+          createEphemeralResponse(
+              "Must have a valid guild id.",
+          ),
+      );
+    });
     it("should delete a question and return a confirmation message", async () => {
       const interaction = generateBankOptions("123", "sampleBank");
       interaction.data.options?.push({
@@ -47,14 +59,14 @@ describe("DeleteQuestionFromBankCommand", () => {
       const response = await deleteQuestionFromBankCommand.execute(interaction);
 
       expect(questionStorageMock.deleteQuestion).toHaveBeenCalledWith(
-        "guild-id",
-        "sampleBank",
-        "sampleQuestion",
+          "guild-id",
+          "sampleBank",
+          "sampleQuestion",
       );
       expect(response).toEqual(
-        createEphemeralResponse(
-          "Deleted question: sampleQuestion from sampleBank",
-        ),
+          createEphemeralResponse(
+              "Deleted question: sampleQuestion from sampleBank",
+          ),
       );
     });
 
@@ -77,7 +89,7 @@ describe("DeleteQuestionFromBankCommand", () => {
       const response = await deleteQuestionFromBankCommand.execute(interaction);
 
       expect(response).toEqual(
-        generateOptionMissingErrorResponse("questionid"),
+          generateOptionMissingErrorResponse("questionid"),
       );
     });
 
@@ -91,8 +103,8 @@ describe("DeleteQuestionFromBankCommand", () => {
 
       // Simulate an error during the deleteQuestion method call
       questionStorageMock.deleteQuestion = vi
-        .fn()
-        .mockRejectedValue(new Error("Some error"));
+          .fn()
+          .mockRejectedValue(new Error("Some error"));
 
       const response = await deleteQuestionFromBankCommand.execute(interaction);
 
@@ -103,8 +115,8 @@ describe("DeleteQuestionFromBankCommand", () => {
 
 // Helper function to generate interaction options
 function generateBankOptions(
-  userId: string,
-  bankName: string,
+    userId: string,
+    bankName: string,
 ): APIChatInputApplicationCommandInteraction {
   return {
     app_permissions: "",

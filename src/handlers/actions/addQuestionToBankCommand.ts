@@ -46,8 +46,14 @@ export class AddQuestionToBankCommand implements IModalHandlerCommand {
   name = "add_question_to_bank";
 
   public async execute(
-    _: APIChatInputApplicationCommandInteraction,
+    interaction: APIChatInputApplicationCommandInteraction,
   ): Promise<APIInteractionResponse> {
+    const guildId = interaction.guild_id;
+
+    if (!guildId) {
+      return createEphemeralResponse("Must have a valid guild id.");
+    }
+
     const modal = new ModalBuilder()
       .setCustomId(this.name)
       .setTitle("Add Question to Bank");

@@ -38,6 +38,26 @@ describe("AddQuestionToBankCommand", () => {
   });
 
   describe("execute", () => {
+    it("should return a error if guild id is null", async () => {
+      const interaction = InteractionGenerator.generateAddQuestionOptions(
+          "123",
+          "sampleBank",
+          "My life is",
+          ["1", "2", "3", "4"],
+          0,
+      );
+
+      interaction.guild_id = undefined;
+
+      const response = await addQuestionToBankCommand.execute(interaction);
+
+      expect(response).toEqual(
+          createEphemeralResponse(
+              "Must have a valid guild id.",
+          ),
+      );
+    });
+
     it("should generate a modal response", async () => {
       const interaction: APIChatInputApplicationCommandInteraction =
         InteractionGenerator.generateAddQuestionOptions(
@@ -59,6 +79,27 @@ describe("AddQuestionToBankCommand", () => {
   });
 
   describe("handleModalSubmit", () => {
+    it("should return a error if guild id is null", async () => {
+      const interaction: APIModalSubmitInteraction =
+          InteractionGenerator.generateModalSubmit(
+              "123",
+              "sampleBank",
+              "What is 2+2?",
+              ["2", "3", "4"],
+              2,
+          );
+
+      interaction.guild_id = undefined;
+
+      const response = await addQuestionToBankCommand.handleModalSubmit(interaction);
+
+      expect(response).toEqual(
+          createEphemeralResponse(
+              "Must have a valid guild id.",
+          ),
+      );
+    });
+
     it("should add a question to the bank and return a confirmation message", async () => {
       const interaction: APIModalSubmitInteraction =
         InteractionGenerator.generateModalSubmit(

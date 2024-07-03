@@ -13,10 +13,11 @@ import {
   MessageFlags,
   ModalSubmitActionRowComponent,
 } from "discord-api-types/v10";
-import { Question } from "../../src/question.interfaces.js";
-import { EditQuestionCommand } from "../../src/handlers/actions/editQuestionCommand.js";
-import { IQuestionStorage } from "../../src/util/IQuestionStorage.interfaces.js";
-import { Answer } from "../../src/answer.interfaces.js";
+import { Question } from "@src/question.interfaces.js";
+import { EditQuestionCommand } from "@src/handlers/actions/editQuestionCommand.js";
+import { IQuestionStorage } from "@src/util/IQuestionStorage.interfaces.js";
+import { Answer } from "@src/answer.interfaces.js";
+import {createEphemeralResponse} from "@src/util/interactionHelpers.js";
 
 function createComponents(
   fields: { custom_id: string; value: string }[],
@@ -266,6 +267,22 @@ describe("EditQuestionCommand", () => {
   });
 
   describe("execute", () => {
+    it("should return a error if guild id is null", async () => {
+      const interaction = createInteraction({
+        bankname: "test-bank",
+        questionid: "test-question-id",
+      });
+      interaction.guild_id = undefined;
+
+      const response = await command.execute(interaction);
+
+      expect(response).toEqual(
+          createEphemeralResponse(
+              "Must have a valid guild id.",
+          ),
+      );
+    });
+
     it("should generate the modal correctly", async () => {
       mockQuestionStorage.getQuestions = vi.fn().mockResolvedValue([question]);
 
@@ -362,6 +379,55 @@ describe("EditQuestionCommand", () => {
   });
 
   describe("handleModalSubmit", () => {
+    it("should update the question correctly when imageUrl and explanationImageUrl are undefined", async () => {
+      const interactionDataWithoutUrls = {
+        ...interactionData,
+        data: {
+          ...interactionData.data,
+          components: createComponents([
+            { custom_id: "bankname", value: "test-bank" },
+            { custom_id: "questionText", value: "What is 3 + 3?" },
+            { custom_id: "timeoutTimeSeconds", value: "30" },
+            { custom_id: "imageUrl", value: "" },
+            { custom_id: "explanation", value: "A simple math question" },
+            { custom_id: "explanationImageUrl", value: "" },
+            { custom_id: "answer_answer1", value: "5" },
+            { custom_id: "answer_answer2", value: "6" },
+            { custom_id: "answer_answer3", value: "7" },
+            { custom_id: "correctAnswerIndex", value: "1" },
+          ]),
+        },
+      };
+
+      mockQuestionStorage.getQuestions = vi.fn().mockResolvedValue([question]);
+
+      const response = (await command.handleModalSubmit(
+          interactionDataWithoutUrls,
+      )) as APIInteractionResponseChannelMessageWithSource;
+
+      expect(response.type).toBe(
+          InteractionResponseType.ChannelMessageWithSource,
+      );
+      expect(response.data.content).toBe("Updated question in bank test-bank.");
+      expect(mockQuestionStorage.updateQuestion).toHaveBeenCalledWith(
+          "guild-id",
+          {
+            ...question,
+            question: "What is 3 + 3?",
+            answers: [
+              { answerId: "answer1", answer: "5" },
+              { answerId: "answer2", answer: "6" },
+              { answerId: "answer3", answer: "7" },
+            ],
+            correctAnswerId: "answer2",
+            questionShowTimeMs: 30000,
+            imagePartitionKey: question.imagePartitionKey,
+            explanation: "A simple math question",
+            explanationImagePartitionKey: question.explanationImagePartitionKey,
+          },
+      );
+    });
+
     it("should update the question correctly", async () => {
       mockQuestionStorage.getQuestions = vi.fn().mockResolvedValue([question]);
 
@@ -511,7 +577,7 @@ describe("EditQuestionCommand", () => {
         InteractionResponseType.ChannelMessageWithSource,
       );
       expect(response.data.content).toBe(
-        "Failed to update question: Failed to update question",
+        "Failed to update question",
       );
       expect(response.data.flags).toBe(MessageFlags.Ephemeral);
     });
