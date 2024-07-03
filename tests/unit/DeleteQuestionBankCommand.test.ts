@@ -36,6 +36,19 @@ describe("DeleteQuestionBankCommand", () => {
   });
 
   describe("execute", () => {
+    it("should return a error if guild id is null", async () => {
+      const interaction = generateBankOptions("123", "sampleBank");
+      interaction.guild_id = undefined;
+
+      const response = await deleteQuestionBankCommand.execute(interaction);
+
+      expect(response).toEqual(
+          createEphemeralResponse(
+              "Must have a valid guild id.",
+          ),
+      );
+    });
+
     it("should delete a question bank and return a confirmation message", async () => {
       const interaction: APIChatInputApplicationCommandInteraction =
         generateBankOptions("123", "sampleBank");
