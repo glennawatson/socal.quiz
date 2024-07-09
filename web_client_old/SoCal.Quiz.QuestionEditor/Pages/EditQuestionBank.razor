@@ -1,0 +1,114 @@
+﻿@page "/editquestionbank/{guildId}/{bankName}"
+@using SoCal.Quiz.QuestionEditor.Service.DTOs
+
+
+<PageTitle>Edit Question Bank</PageTitle>
+
+<Breadcrumb>
+    <BreadcrumbItem Active="false">
+        <Link To="/">Question Banks</Link>
+    </BreadcrumbItem>
+    <BreadcrumbItem Active="true">
+        Editing: @BankName
+    </BreadcrumbItem>
+</Breadcrumb>
+
+<blazorise:ValidationSummary />
+
+<Validations @ref="_validations" Model="@_questions">
+    <DataGrid TItem="QuestionRequestDto" Data="@_questions" Striped="true" Bordered="true" Responsive="true"
+              @bind-SelectedRow="@_selectedQuestion" EditMode="DataGridEditMode.Form"
+              Filterable="true" Sortable="true">
+        <DataGridColumns>
+            <DataGridColumn Field="@nameof(QuestionRequestDto.QuestionId)" Caption="ID" />
+            <DataGridColumn Field="@nameof(QuestionRequestDto.Question)" Caption="Question" />
+            <DataGridColumn Field="@nameof(QuestionRequestDto.CorrectAnswerId)" Caption="Correct Answer" />
+        </DataGridColumns>
+        <ButtonRowTemplate>
+            <Button Color="Color.Success" Clicked="@AddNewQuestion">New</Button>
+            <Button Color="Color.Danger" Disabled="(_selectedQuestion is null)" Clicked="@DeleteQuestion">Delete</Button>
+        </ButtonRowTemplate>
+    </DataGrid>
+
+    @if (_selectedQuestion != null)
+    {
+        <Field Horizontal>
+            <FieldLabel ColumnSize="ColumnSize.Is2">Question Text</FieldLabel>
+            <FieldBody ColumnSize="ColumnSize.Is10">
+                <TextEdit @bind-Text="@_selectedQuestion.Question">
+                    <Feedback>
+                        <ValidationError />
+                    </Feedback>
+                </TextEdit>
+            </FieldBody>
+        </Field>
+        <Field Horizontal>
+            <FieldLabel ColumnSize="ColumnSize.Is2">Answers</FieldLabel>
+            <FieldBody ColumnSize="ColumnSize.Is10">
+                @foreach (var answer in _selectedQuestion.Answers)
+                {
+                    <TextEdit @bind-Text="answer.Answer">
+                        <Feedback>
+                            <ValidationError />
+                        </Feedback>
+                    </TextEdit>
+                }
+            </FieldBody>
+        </Field>
+        <Field Horizontal>
+            <FieldLabel ColumnSize="ColumnSize.Is2">Correct Answer ID</FieldLabel>
+            <FieldBody ColumnSize="ColumnSize.Is10">
+                <TextEdit @bind-Text="_selectedQuestion.CorrectAnswerId">
+                    <Feedback>
+                        <ValidationError />
+                    </Feedback>
+                </TextEdit>
+            </FieldBody>
+        </Field>
+        <Field Horizontal>
+            <FieldLabel ColumnSize="ColumnSize.Is2">Image URL</FieldLabel>
+            <FieldBody ColumnSize="ColumnSize.Is10">
+                <TextEdit @bind-Text="_selectedQuestion.ImageUrl">
+                    <Feedback>
+                        <ValidationError />
+                    </Feedback>
+                </TextEdit>
+                @if (!string.IsNullOrWhiteSpace(_selectedQuestion.ImageUrl))
+                {
+                    <Image Src="@_selectedQuestion.ImageUrl" Thumbnail="true" Class="mt-2" />
+                }
+            </FieldBody>
+        </Field>
+        <Field Horizontal>
+            <FieldLabel ColumnSize="ColumnSize.Is2">Explanation</FieldLabel>
+            <FieldBody ColumnSize="ColumnSize.Is10">
+                <RichTextEdit @bind-Value="_selectedQuestion.Explanation" />
+            </FieldBody>
+        </Field>
+        <Field Horizontal>
+            <FieldLabel ColumnSize="ColumnSize.Is2">Explanation Image URL</FieldLabel>
+            <FieldBody ColumnSize="ColumnSize.Is10">
+                <TextEdit @bind-Text="_selectedQuestion.ExplanationImageUrl">
+                    <Feedback>
+                        <ValidationError />
+                    </Feedback>
+                </TextEdit>
+                @if (!string.IsNullOrWhiteSpace(_selectedQuestion.ExplanationImageUrl))
+                {
+                    <Image Src="@_selectedQuestion.ExplanationImageUrl" Thumbnail="true" Class="mt-2" />
+                }
+            </FieldBody>
+        </Field>
+        <Field Horizontal>
+            <FieldLabel ColumnSize="ColumnSize.Is2">Show Time (ms)</FieldLabel>
+            <FieldBody ColumnSize="ColumnSize.Is10">
+                <NumericEdit @bind-Value="_selectedQuestion.QuestionShowTimeMs">
+                    <Feedback>
+                        <ValidationError />
+                    </Feedback>
+                </NumericEdit>
+            </FieldBody>
+        </Field>
+        <Button Color="Color.Primary" Clicked="@HandleValidSubmit">Submit</Button>
+    }
+</Validations>

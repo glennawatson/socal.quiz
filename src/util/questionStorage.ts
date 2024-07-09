@@ -4,6 +4,7 @@ import {
   TableDeleteEntityHeaders,
   TableEntity,
   TableQueryOptions,
+  TableTransaction,
 } from "@azure/data-tables";
 import { v4 as uuid } from "uuid";
 import { Question } from "../question.interfaces.js";
@@ -34,6 +35,16 @@ export class QuestionStorage implements IQuestionStorage {
     } else {
       this.quizQuestionsClient = quizQuestionsClient;
     }
+  }
+
+  async upsertQuestions(guildId: string, questions: Question[]): Promise<void> {
+    const transaction = new TableTransaction();
+    for await (const question of questions) {
+      const entity = toTableEntity(guildId, question);
+      transaction.upsertEntity<Question>(entity);
+    }
+
+    await this.quizQuestionsClient.submitTransaction(transaction.actions);
   }
 
   async getQuestion(
@@ -227,7 +238,7 @@ function toTableEntity(
   guildId: string,
   question: Question,
 ): TableEntity<Question> {
-  const rowKey = question.questionId;
+  const rowKey = question.questionId ?? uuid();
   return {
     guildId: guildId,
     partitionKey: `${guildId}-${question.bankName}`,

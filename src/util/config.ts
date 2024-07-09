@@ -9,7 +9,7 @@ import { CommandManager } from "../handlers/actions/commandManager.js";
 import { QuizImageStorage } from "./quizImageStorage.js";
 import { DurableQuizManager } from "../handlers/durableQuizManager.js";
 import { QuizManagerFactoryManager } from "../handlers/quizManagerFactoryManager.js";
-import { OAuth2 } from "./OAuth2.js";
+import { OAuth2Relay } from "./oauth2Relay.js";
 
 export class Config {
   public static token: string;
@@ -22,7 +22,7 @@ export class Config {
   public static stateManager: StateManager;
   public static quizManagerFactory: QuizManagerFactoryManager;
   public static rest: REST;
-  public static oauth2: OAuth2;
+  public static oauth2Relay: OAuth2Relay;
 
   private static _initialized = false;
   private static _initializePromise: Promise<Config> | null = null;
@@ -42,7 +42,7 @@ export class Config {
     stateManager?: StateManager,
     quizManagerFactory?: QuizManagerFactoryManager,
     discordBotService?: DiscordBotService,
-    oauth2?: OAuth2,
+    oauth2Relay?: OAuth2Relay,
     defaultQuizMethodFactory = () =>
       new DurableQuizManager(
         Config.rest,
@@ -67,19 +67,19 @@ export class Config {
         Config.publicKey =
           publicKey ?? getEnvVarOrDefault("DISCORD_PUBLIC_KEY");
 
-        Config.oauth2 =
-          oauth2 ??
-          new OAuth2(
-            getEnvVarOrDefault("DISCORD_CLIENT_ID"),
-            "DISCORD_CLIENT_SECRET",
-            "",
-          );
+        Config.oauth2Relay =
+          oauth2Relay ??
+            new OAuth2Relay(
+              getEnvVarOrDefault("DISCORD_CLIENT_ID"),
+              getEnvVarOrDefault("DISCORD_CLIENT_SECRET"),
+              getEnvVarOrDefaultValue("OAUTH_REDIRECT", "https://localhost:5001/authentication/login-callback"),
+            );
 
-        Config.imageStorage = imageStorage ?? new QuizImageStorage();
+        Config.imageStorage = imageStorage ?? new QuizImageStorage(getEnvVarOrDefault("AZURE_STORAGE_CONNECTION_STRING"));
 
         Config.questionStorage =
           questionStorage ?? new QuestionStorage(Config.imageStorage);
-        Config.guildStorage = guildStorage ?? new GuildStorage();
+        Config.guildStorage = guildStorage ?? new GuildStorage(getEnvVarOrDefault("AZURE_STORAGE_CONNECTION_STRING"));
         Config.stateManager = stateManager ?? new StateManager();
         Config.quizManagerFactory =
           quizManagerFactory ??
@@ -114,5 +114,14 @@ function getEnvVarOrDefault(varName: string): string {
   if (!value) {
     throwError(`Environment variable ${varName} is missing.`);
   }
+  return value;
+}
+
+function getEnvVarOrDefaultValue(varName: string, defaultValue: string): string {
+  const value = process.env[varName];
+  if (!value) {
+    return defaultValue;
+  }
+
   return value;
 }

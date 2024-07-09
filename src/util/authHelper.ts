@@ -3,14 +3,11 @@ import {
   HttpResponseInit,
   InvocationContext,
 } from "@azure/functions";
-import { OAuth2 } from "./OAuth2.js";
-import { throwError } from "./errorHelpers.js";
+import { Config } from "./config.js";
+import { REST } from "@discordjs/rest";
+import { APIGuild, APIUser, Routes } from "discord-api-types/v10";
 
-export const oauth2 = new OAuth2(
-  process.env.CLIENT_ID ?? throwError("no valid client id"),
-  process.env.CLIENT_SECRET ?? throwError("no valid client secret"),
-  process.env.REDIRECT_URI ?? throwError("no valid redirect uri"),
-);
+await Config.initialize();
 
 export type AuthResult = { userId: string; guildId: string } | HttpResponseInit;
 
@@ -44,8 +41,6 @@ export async function validateAuthAndGuildOwnership(
   }
 
   try {
-    const userAuth = await oauth2.validateToken(token);
-    const userGuilds = await oauth2.getUserGuilds(token);
     const guildId = req.query.get("guildId");
 
     if (!guildId) {
@@ -53,6 +48,28 @@ export async function validateAuthAndGuildOwnership(
         status: 400,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify("Required field: guildId"),
+      };
+    }
+
+    const rest = new REST().setToken(token);
+
+    const userGuilds = await rest.get(Routes.userGuilds()) as APIGuild[] | undefined;
+
+    if (!userGuilds) {
+      return {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify("Could not get the user guilds"),
+      };
+    }
+
+    const userId = await rest.get(Routes.user()) as APIUser | undefined;
+
+    if (!userId) {
+      return {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify("Could not get the user details"),
       };
     }
 
@@ -66,7 +83,7 @@ export async function validateAuthAndGuildOwnership(
       };
     }
 
-    return { userId: userAuth.user.id, guildId };
+    return { userId: userId.id, guildId };
   } catch (error) {
     context.error(`Authorization error: ${error}`);
     return {
@@ -77,10 +94,21 @@ export async function validateAuthAndGuildOwnership(
   }
 }
 
+export interface ValidationSuccess
+{
+  token: string
+}
+
+export type ValidationResult = ValidationSuccess | HttpResponseInit;
+
+export function isValidationSuccess(successInfo: ValidationResult) : successInfo is ValidationSuccess {
+  return "token" in successInfo;
+}
+
 export async function validateAuth(
   req: HttpRequest,
   context: InvocationContext,
-): Promise<HttpResponseInit | undefined> {
+): Promise<ValidationResult> {
   const authHeader = req.headers.get("Authorization");
   if (!authHeader) {
     return {
@@ -102,8 +130,19 @@ export async function validateAuth(
   }
 
   try {
-    await oauth2.validateToken(token);
-    return undefined;
+    const rest = new REST().setToken(token);
+
+    const userId = await rest.get(Routes.user()) as APIUser | undefined;
+
+    if (!userId) {
+      return {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify("Invalid Token"),
+      };
+    }
+
+    return { token: token };
   } catch (error) {
     context.error(`Invalid token: ${error}`);
     return {

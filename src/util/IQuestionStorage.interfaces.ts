@@ -114,6 +114,14 @@ export interface IQuestionStorage {
    * @returns A promise that resolves when the question is updated.
    */
   updateQuestion(guildId: string, question: Question): Promise<void>;
+
+  /**
+   * Upserts questions into the storage.
+   * @param guildId - The ID of the guild.
+   * @param questions - The questions to upsert.
+   * @returns A promise that resolves when the questions are upserted.
+   */
+  upsertQuestions(guildId:string, questions: Question[]) : Promise<void>;
 }
 
 export enum ImageType {
