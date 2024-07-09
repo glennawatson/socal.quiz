@@ -81,10 +81,37 @@ export class EditQuestionCommand implements IModalHandlerCommand {
     }
 
     try {
+      const customIdParts = interaction.data.custom_id.split('_');
+      const questionId = customIdParts[1];
+      const bankName = customIdParts[customIdParts.length - 1];
+
+      if (questionId === undefined) {
+        return createEphemeralResponse("No valid question id defined.");
+      }
+
+      if (bankName === undefined) {
+        return createEphemeralResponse("No valid bank name defined.");
+      }
+
       const updatedQuestion = await this.getUpdatedQuestion(
-          interaction, guildId, inputs, answersText, correctAnswerIndex
+        questionId, guildId, inputs, answersText, correctAnswerIndex
       );
-      await this.questionStorage.updateQuestion(guildId, updatedQuestion);
+
+      const questionBank = await this.questionStorage.getQuestionBank(guildId, bankName);
+
+      // Find the index of the question to be updated
+      const questionIndex = questionBank.questions.findIndex(q => q.questionId === questionId);
+
+      if (questionIndex === -1) {
+        return createEphemeralResponse(`Question with ID ${questionId} not found.`);
+      }
+
+      // Replace the old question with the updated question
+      questionBank.questions[questionIndex] = updatedQuestion;
+
+      // Upsert the updated question bank
+      await this.questionStorage.upsertQuestionBank(questionBank);
+
       return createEphemeralResponse(`Updated question in bank ${inputs.bankName}.`);
     } catch (error) {
       return generateErrorResponse(error as Error);
@@ -142,20 +169,19 @@ export class EditQuestionCommand implements IModalHandlerCommand {
   }
 
   private async getUpdatedQuestion(
-      interaction: APIModalSubmitInteraction,
+      questionId: string,
       guildId: string,
       inputs: Inputs,
       answersText: string[],
       correctAnswerIndex: number
   ): Promise<Question> {
-    const questionId = interaction.data.custom_id.replace(
-        this.name + "_",
-        ""
-    );
-    const questions = await this.questionStorage.getQuestions(
+    const questionBank = await this.questionStorage.getQuestionBank(
         guildId,
         inputs.bankName!
     );
+
+    const questions = questionBank.questions;
+
     const existingQuestion = questions.find(
         (q) => q.questionId === questionId
     );
@@ -241,10 +267,10 @@ export class EditQuestionCommand implements IModalHandlerCommand {
         );
       }
 
-      const questions = await this.questionStorage.getQuestions(
-          guildId,
-          bankName,
-      );
+      const questionBank = await this.questionStorage.getQuestionBank(guildId, bankName);
+
+      const questions = questionBank.questions;
+
       const question = questions.find(
           (quest) => quest.questionId === questionId,
       );
@@ -255,7 +281,7 @@ export class EditQuestionCommand implements IModalHandlerCommand {
         );
       }
 
-      const modal = this.buildModal(questionId, question);
+      const modal = this.buildModal(questionId, bankName, question);
 
       return {
         type: InteractionResponseType.Modal,
@@ -266,21 +292,12 @@ export class EditQuestionCommand implements IModalHandlerCommand {
     }
   }
 
-  private buildModal(questionId: string, question: Question): ModalBuilder {
+  private buildModal(questionId: string, bankName: string, question: Question): ModalBuilder {
     const modal = new ModalBuilder()
-        .setCustomId(this.name + "_" + questionId)
+        .setCustomId(this.name + "_" + questionId + "_" + bankName)
         .setTitle("Edit Question");
 
     modal.addComponents(
-        new ActionRowBuilder<TextInputBuilder>().addComponents(
-            createTextInput(
-                EditQuestionCommand.componentIds.bankName,
-                "Question Bank Name",
-                TextInputStyle.Short,
-                question.bankName,
-                true,
-            ),
-        ),
         new ActionRowBuilder<TextInputBuilder>().addComponents(
             createTextInput(
                 EditQuestionCommand.componentIds.questionText,

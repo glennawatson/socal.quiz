@@ -5,9 +5,10 @@ import {
   StorageSharedKeyCredential,
 } from "@azure/storage-blob";
 import { throwError } from "./errorHelpers.js";
-import { ImageType, IQuizImageStorage } from "./IQuestionStorage.interfaces.js";
+import { ImageType } from "./IQuestionStorage.interfaces.js";
 import { fileTypeFromBuffer } from "file-type";
 import gm from "gm";
+import { IQuizImageStorage } from "./IQuizImageStorage.interfaces.js";
 
 const MAX_FILE_SIZE_BYTES = 8 * 1024 * 1024; // 8MB for Discord
 const VALID_IMAGE_TYPES = [
@@ -18,45 +19,40 @@ const VALID_IMAGE_TYPES = [
 ];
 
 function getImageKey(
-  guildId: string,
-  bankName: string,
   questionId: string,
   imageType: ImageType,
 ) {
-  return `${guildId}-${bankName}-${questionId}-${imageType}`;
+  return `${questionId}-${imageType}`;
 }
 
 export class QuizImageStorage implements IQuizImageStorage {
-  private quizImageClient: BlobServiceClient;
+  private static readonly containerName = "QuizImages";
+  private blobImageClient: BlobServiceClient;
   constructor(
     connectionString?: string | undefined,
     private readonly storageAccountKey: string = process.env
       .AZURE_STORAGE_ACCOUNT_KEY ?? throwError("invalid storage account key"),
     private readonly storageAccountName: string = process.env
       .AZURE_STORAGE_ACCOUNT_NAME ?? throwError("invalid storage account name"),
-    quizImageClient?: BlobServiceClient,
+    blobServiceClient?: BlobServiceClient,
   ) {
-    if (!quizImageClient) {
+    if (!blobServiceClient) {
       if (!connectionString) {
         throw new Error("invalid connection string");
       }
 
-      this.quizImageClient =
+      this.blobImageClient =
         BlobServiceClient.fromConnectionString(connectionString);
     } else {
-      this.quizImageClient = quizImageClient;
+      this.blobImageClient = blobServiceClient;
     }
   }
 
   public async downloadAndValidateImageForDiscord(
-    guildId: string,
     imageUrl: string,
-    bankName: string,
     questionId: string,
     imageType: ImageType,
   ): Promise<string> {
-    console.log("Args Received:", imageUrl, bankName, questionId);
-
     const response = await fetch(imageUrl);
     if (!response.ok) {
       throw new Error(
@@ -118,32 +114,29 @@ export class QuizImageStorage implements IQuizImageStorage {
     );
 
     const imagePartitionKey = getImageKey(
-      guildId,
-      bankName,
       questionId,
       imageType,
     );
 
     const filename = `${imagePartitionKey}.jpg`;
 
-    const containerClient = this.quizImageClient.getContainerClient(imageType);
+    const containerClient = this.blobImageClient.getContainerClient(imageType);
     const blockBlobClient = containerClient.getBlockBlobClient(filename);
     await blockBlobClient.uploadData(optimizedImageBuffer);
     return blockBlobClient.url;
   }
 
   async getPresignedUrl(
-    containerName: string,
     partitionKey: string,
   ): Promise<string> {
     const containerClient =
-      this.quizImageClient.getContainerClient(containerName);
+      this.blobImageClient.getContainerClient(QuizImageStorage.containerName);
     const blockBlobClient = containerClient.getBlockBlobClient(
       `${partitionKey}.jpg`,
     );
 
     const sasOptions = {
-      containerName,
+      containerName: QuizImageStorage.containerName,
       blobName: `${partitionKey}.jpg`,
       permissions: BlobSASPermissions.parse("r"), // Read permission
       startsOn: new Date(),
@@ -163,30 +156,22 @@ export class QuizImageStorage implements IQuizImageStorage {
   }
 
   async getQuestionImagePresignedUrl(
-    guildId: string,
-    bankName: string,
     questionId: string,
   ): Promise<string> {
     const imagePartitionKey = getImageKey(
-      guildId,
-      bankName,
       questionId,
       ImageType.Question,
     );
-    return this.getPresignedUrl(bankName, imagePartitionKey);
+    return this.getPresignedUrl(imagePartitionKey);
   }
 
   async getExplanationImagePresignedUrl(
-    guildId: string,
-    bankName: string,
     questionId: string,
   ): Promise<string> {
     const imagePartitionKey = getImageKey(
-      guildId,
-      bankName,
       questionId,
       ImageType.Explanation,
     );
-    return this.getPresignedUrl(bankName, imagePartitionKey);
+    return this.getPresignedUrl(imagePartitionKey);
   }
 }

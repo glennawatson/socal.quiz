@@ -68,10 +68,8 @@ export abstract class QuizManagerBase {
       return createEphemeralResponse(`There is no valid question bank name`);
     }
 
-    const questions = await this.quizStateStorage.getQuestions(
-      guildId,
-      questionBankName,
-    );
+    const questionBank = await this.quizStateStorage.getQuestionBank(guildId, questionBankName);
+    const questions = questionBank.questions;
 
     if (!questions || questions.length === 0) {
       return createEphemeralResponse(

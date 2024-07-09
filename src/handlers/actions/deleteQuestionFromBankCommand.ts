@@ -52,7 +52,6 @@ export class DeleteQuestionFromBankCommand implements IDiscordCommand {
       const bankName = getOptionValue(interaction.data.options, "bankname");
       const questionId = getOptionValue(interaction.data.options, "questionid");
 
-      // ... inside your execute method ...
       if (!bankName) {
         return generateOptionMissingErrorResponse("bankname");
       }
@@ -61,7 +60,13 @@ export class DeleteQuestionFromBankCommand implements IDiscordCommand {
         return generateOptionMissingErrorResponse("questionid");
       }
 
-      await this.questionStorage.deleteQuestion(guildId, bankName, questionId);
+      const questionBank = await this.questionStorage.getQuestionBank(guildId, bankName);
+
+      // Deletes the matching question from the array
+      questionBank.questions = questionBank.questions.filter(q => q.questionId !== questionId);
+
+      // Upsert the updated question bank
+      await this.questionStorage.upsertQuestionBank(questionBank);
 
       return createEphemeralResponse(
         `Deleted question: ${questionId} from ${bankName}`,

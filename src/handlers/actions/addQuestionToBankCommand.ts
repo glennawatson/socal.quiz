@@ -235,17 +235,20 @@ export class AddQuestionToBankCommand implements IModalHandlerCommand {
     }
 
     try {
-      await this.questionStorage.generateAndAddQuestion(
-        guildId,
-        bankName,
+      const newQuestion = await this.questionStorage.generateQuestion(
         questionText,
         answers,
         correctAnswer.answerId,
         questionShowTimeMs,
         imageUrl,
         explanation,
-        explanationImageUrl,
-      );
+        explanationImageUrl);
+
+      const questionBank = await this.questionStorage.getQuestionBank(guildId, bankName);
+
+      questionBank.questions = questionBank.questions.concat([newQuestion]);
+
+      await this.questionStorage.upsertQuestionBank(questionBank);
 
       return createEphemeralResponse(`Added question to bank ${bankName}.`);
     } catch (error) {
