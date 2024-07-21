@@ -5,18 +5,23 @@ import {
   InvocationContext,
 } from "@azure/functions";
 import { Config } from "../util/config.js";
-import {ImageType, IQuizImageStorage} from "../util/IQuestionStorage.interfaces.js";
+import {ImageType} from "../util/IQuestionStorage.interfaces.js";
 import {
   isErrorResponse, isValidationSuccess, validateAuth,
   validateAuthAndGuildOwnership,
 } from "../util/authHelper.js";
 import { APIGuild, Routes } from "discord-api-types/v10";
 import { Question } from "../question.interfaces.js";
-import { REST } from "@discordjs/rest";
+import { IQuizImageStorage } from "../util/IQuizImageStorage.interfaces.js";
+import { QuestionBank } from "../questionBank.interfaces.js";
 
 interface QuestionRequestBody extends Question {
   imageUrl?: string;
   explanationImageUrl?: string;
+}
+
+interface QuestionBankRequestBody extends QuestionBank {
+  questions: QuestionRequestBody[];
 }
 
 interface UpsertResult {
@@ -25,15 +30,7 @@ interface UpsertResult {
   errorMessage?: string;
 }
 
-async function processQuestion(requestBody: QuestionRequestBody, guildId: string, imageStorage: IQuizImageStorage): Promise<UpsertResult> {
-  if (!requestBody.bankName) {
-    return {
-      questionId: requestBody.questionId,
-      success: false,
-      errorMessage: "Required fields: bankName",
-    };
-  }
-
+async function processQuestion(requestBody: QuestionRequestBody, imageStorage: IQuizImageStorage): Promise<UpsertResult> {
   if (!requestBody.questionId) {
     return {
       questionId: requestBody.questionId,
@@ -53,9 +50,7 @@ async function processQuestion(requestBody: QuestionRequestBody, guildId: string
   try {
     if (requestBody.imageUrl) {
       requestBody.imagePartitionKey = await imageStorage.downloadAndValidateImageForDiscord(
-          guildId,
           requestBody.imageUrl,
-          requestBody.bankName,
           requestBody.questionId,
           ImageType.Question,
       );
@@ -67,9 +62,7 @@ async function processQuestion(requestBody: QuestionRequestBody, guildId: string
   try {
     if (requestBody.explanationImageUrl) {
       requestBody.imagePartitionKey = await imageStorage.downloadAndValidateImageForDiscord(
-          guildId,
           requestBody.explanationImageUrl,
-          requestBody.bankName,
           requestBody.questionId,
           ImageType.Explanation,
       );
@@ -85,7 +78,6 @@ async function processQuestion(requestBody: QuestionRequestBody, guildId: string
 interface ValidationResult {
   guildId: string;
   bankName: string;
-  questionId: string;
 }
 
 function isErrorValidationResult(validationResult: ValidationResult | HttpResponseInit): validationResult is HttpResponseInit {
@@ -100,9 +92,8 @@ async function validate(req: HttpRequest,
   const { guildId } = authResult;
 
   const bankName = req.query.get("bankname");
-  const questionId = req.query.get("questionId");
 
-  if (!bankName || !questionId) {
+  if (!bankName) {
     return {
       status: 400,
       headers: { "Content-Type": "application/json" },
@@ -110,10 +101,10 @@ async function validate(req: HttpRequest,
     };
   }
 
-  return { guildId, bankName, questionId };
+  return { guildId, bankName };
 }
 
-export async function deleteQuestionHandler(
+export async function deleteQuestionBankHandler(
   req: HttpRequest,
   context: InvocationContext,
 ): Promise<HttpResponseInit> {
@@ -125,7 +116,7 @@ export async function deleteQuestionHandler(
   if (isErrorValidationResult(validationResult)) return validationResult;
 
   try {
-    await questionStorage.deleteQuestion(validationResult.guildId, validationResult.bankName, validationResult.questionId);
+    await questionStorage.deleteQuestionBank(validationResult.guildId, validationResult.bankName);
 
     return {
       status: 200,
@@ -142,7 +133,7 @@ export async function deleteQuestionHandler(
   }
 }
 
-export async function getQuestionHandler(
+export async function getQuestionBankHandler(
   req: HttpRequest,
   context: InvocationContext,
 ): Promise<HttpResponseInit> {
@@ -165,11 +156,9 @@ export async function getQuestionHandler(
   }
 
   try {
-    const question = await questionStorage.getQuestion(
+    const question = await questionStorage.getQuestionBank(
       guildId,
-      bankName,
-      questionId,
-    );
+      bankName);
 
     return {
       status: 200,
@@ -186,22 +175,23 @@ export async function getQuestionHandler(
   }
 }
 
-export async function updateQuestionHandler(
+export async function upsertQuestionBankHandler(
     req: HttpRequest,
     context: InvocationContext,
 ): Promise<HttpResponseInit> {
   const authResult = await validateAuthAndGuildOwnership(req, context);
   if (isErrorResponse(authResult)) return authResult;
-  const { guildId } = authResult;
+
+  const guildId = authResult.guildId;
 
   try {
     await Config.initialize();
     const questionStorage = Config.questionStorage;
     const imageStorage = Config.imageStorage;
-    let requestBody: QuestionRequestBody;
+    let requestBody: QuestionBankRequestBody;
 
     try {
-      requestBody = JSON.parse(await req.text()) as QuestionRequestBody;
+      requestBody = JSON.parse(await req.text()) as QuestionBankRequestBody;
     } catch {
       return {
         status: 500,
@@ -210,16 +200,25 @@ export async function updateQuestionHandler(
       };
     }
 
-    const result = await processQuestion(requestBody, guildId, imageStorage);
-    if (!result.success) {
+    if (guildId !== requestBody.guildId) {
       return {
         status: 400,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(result),
+        body: JSON.stringify({error: "Guild ID's do not match with logged in guild id"}),
       };
     }
 
-    await questionStorage.updateQuestion(guildId, requestBody);
+      const processedQuestions = await Promise.all(requestBody.questions.map(question => processQuestion(question, imageStorage)));
+
+    if (processedQuestions.some(x => !x.success)) {
+      return {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(processedQuestions),
+      };
+    }
+
+    await questionStorage.upsertQuestionBank(requestBody);
 
     return {
       status: 200,
@@ -232,93 +231,6 @@ export async function updateQuestionHandler(
       status: 500,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(`Error updating question`),
-    };
-  }
-}
-
-export async function upsertQuestionsHandlers(
-    req: HttpRequest,
-    context: InvocationContext,
-): Promise<HttpResponseInit> {
-  const authResult = await validateAuthAndGuildOwnership(req, context);
-  if (isErrorResponse(authResult)) return authResult;
-  const { guildId } = authResult;
-
-  try {
-    await Config.initialize();
-    const questionStorage = Config.questionStorage;
-    const imageStorage = Config.imageStorage;
-    let requestBody: QuestionRequestBody[];
-
-    try {
-      requestBody = JSON.parse(await req.text()) as QuestionRequestBody[];
-    } catch {
-      return {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify("Invalid JSON body"),
-      };
-    }
-
-    const results: UpsertResult[] = await Promise.all(
-        requestBody.map(async x => await processQuestion(x, guildId, imageStorage))
-    );
-
-    const successfulQuestions = requestBody.filter((_, index) => results[index]?.success);
-
-    if (successfulQuestions.length > 0) {
-      await questionStorage.upsertQuestions(guildId, successfulQuestions);
-    }
-
-    return {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(results),
-    };
-  } catch (error) {
-    context.error(`Could not update the question ${error}`);
-    return {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(`Error updating question`),
-    };
-  }
-}
-
-export async function getQuestionsHandler(
-  req: HttpRequest,
-  context: InvocationContext,
-): Promise<HttpResponseInit> {
-  const authResult = await validateAuthAndGuildOwnership(req, context);
-  if (isErrorResponse(authResult)) return authResult;
-  const { guildId } = authResult;
-
-  await Config.initialize();
-  const questionStorage = Config.questionStorage;
-  const bankName = req.query.get("bankname");
-
-  if (!bankName) {
-    return {
-      status: 400,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify("Required field: bankname"),
-    };
-  }
-
-  try {
-    const questions = await questionStorage.getQuestions(guildId, bankName);
-
-    return {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(questions),
-    };
-  } catch (error) {
-    context.error(`Could not retrieve questions: ${error}`);
-    return {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify("Error retrieving questions"),
     };
   }
 }
@@ -353,8 +265,8 @@ export async function getQuestionBankNamesHandler(
 }
 
 export async function getGuildsHandler(
-    req: HttpRequest,
-    context: InvocationContext,
+  req: HttpRequest,
+  context: InvocationContext
 ): Promise<HttpResponseInit> {
   await Config.initialize(); // Ensure configuration is loaded
 
@@ -365,16 +277,30 @@ export async function getGuildsHandler(
 
   const token = authResult.token;
 
-  const userRest = new REST().setToken(token);
+  const userGuildsResponse = await fetch('https://discord.com/api/v10/users/@me/guilds', {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    }
+  });
+
+  if (!userGuildsResponse.ok) {
+    context.error(`Could not retrieve user guilds: ${userGuildsResponse.statusText}`);
+    return {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify("Error retrieving user guilds"),
+    };
+  }
+
+  const userGuilds = await userGuildsResponse.json() as APIGuild[];
 
   try {
-    const userGuilds = await userRest.get(Routes.userGuilds()) as APIGuild[];
-
     const botGuilds = await botRest.get(Routes.userGuilds()) as APIGuild[];
 
     // Filter user guilds to find where the bot is also a member
     const accessibleGuilds = userGuilds.filter(userGuild =>
-        botGuilds.some(botGuild => botGuild.id === userGuild.id)
+      botGuilds.some(botGuild => botGuild.id === userGuild.id)
     );
 
     return {
@@ -383,7 +309,7 @@ export async function getGuildsHandler(
       body: JSON.stringify(accessibleGuilds),
     };
   } catch (error) {
-    context.error(`Could not retrieve guilds: ${error}`);
+    context.error(`Could not retrieve bot guilds: ${error}`);
     return {
       status: 500,
       headers: { "Content-Type": "application/json" },
@@ -392,45 +318,32 @@ export async function getGuildsHandler(
   }
 }
 
-app.http("getQuestionBankNames", {
-  methods: ["GET"],
-  authLevel: "anonymous",
-  handler: getQuestionBankNamesHandler,
-});
-
 app.http("getGuilds", {
   methods: ["GET"],
   authLevel: "anonymous",
   handler: getGuildsHandler,
 });
 
-app.http("upsertQuestions", {
-  methods: ["PUT"],
-  authLevel: "anonymous",
-  handler: upsertQuestionsHandlers,
-});
-
-
-app.http("getQuestions", {
+app.http("getQuestionBankNames", {
   methods: ["GET"],
   authLevel: "anonymous",
-  handler: getQuestionsHandler,
+  handler: getQuestionBankNamesHandler,
 });
 
-app.http("updateQuestion", {
-  methods: ["PUT"],
-  authLevel: "anonymous",
-  handler: updateQuestionHandler,
-});
-
-app.http("getQuestion", {
+app.http("getQuestionBank", {
   methods: ["GET"],
   authLevel: "anonymous",
-  handler: getQuestionHandler,
+  handler: getQuestionBankHandler,
 });
 
-app.http("deleteQuestion", {
+app.http("deleteQuestionBank", {
   methods: ["DELETE"],
   authLevel: "anonymous",
-  handler: deleteQuestionHandler,
+  handler: deleteQuestionBankHandler,
+});
+
+app.http("upsertQuestionBank", {
+  methods: ["PUT"],
+  authLevel: "anonymous",
+  handler: upsertQuestionBankHandler,
 });

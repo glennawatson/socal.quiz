@@ -9,7 +9,7 @@
     "strict": true,
     "moduleResolution": "NodeNext",
     "removeComments": true,
-    "forceConsistentCasingInFileNames": true,  
+    "forceConsistentCasingInFileNames": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "baseUrl": ".",

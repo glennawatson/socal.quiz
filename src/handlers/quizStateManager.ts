@@ -38,8 +38,6 @@ export async function sendQuestionSummary(
 
   if (question.explanationImagePartitionKey) {
     const imageUrl = await imageStorage.getExplanationImagePresignedUrl(
-      question.guildId,
-      question.bankName,
       question.questionId,
     );
     summaryEmbed.setImage(imageUrl);
@@ -76,8 +74,6 @@ export async function postQuestion(
 
   if (question.imagePartitionKey) {
     const imageUrl = await imageStorage.getQuestionImagePresignedUrl(
-      question.guildId,
-      question.bankName,
       question.questionId,
     );
     embed.setImage(imageUrl);

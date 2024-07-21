@@ -54,15 +54,15 @@ export class Config {
       return Config._initializePromise;
     }
 
-    Config._initializePromise = new Promise<Config>((resolve, reject) => {
+    Config._initializePromise = new Promise<Config>(async (resolve, reject) => {
       try {
         if (Config._initialized) {
           resolve(new Config()); // Return existing instance if already initialized
           return;
         }
 
-        Config.rest = new REST({ version: "10" }).setToken(this.token);
         Config.token = token ?? getEnvVarOrDefault("DISCORD_BOT_TOKEN");
+        Config.rest = new REST({ version: "10" }).setToken(this.token);
         Config.clientId = clientId ?? getEnvVarOrDefault("DISCORD_CLIENT_ID");
         Config.publicKey =
           publicKey ?? getEnvVarOrDefault("DISCORD_PUBLIC_KEY");
@@ -72,7 +72,6 @@ export class Config {
             new OAuth2Relay(
               getEnvVarOrDefault("DISCORD_CLIENT_ID"),
               getEnvVarOrDefault("DISCORD_CLIENT_SECRET"),
-              getEnvVarOrDefaultValue("OAUTH_REDIRECT", "https://localhost:5001/authentication/login-callback"),
             );
 
         Config.imageStorage = imageStorage ?? new QuizImageStorage(getEnvVarOrDefault("AZURE_STORAGE_CONNECTION_STRING"));
@@ -97,6 +96,9 @@ export class Config {
             ),
           );
 
+        await Config.questionStorage.initialize();
+        await Config.guildStorage.initialize();
+
         Config._initialized = true;
         resolve(new Config()); // Resolve with the Config instance
       } catch (error) {
@@ -114,14 +116,5 @@ function getEnvVarOrDefault(varName: string): string {
   if (!value) {
     throwError(`Environment variable ${varName} is missing.`);
   }
-  return value;
-}
-
-function getEnvVarOrDefaultValue(varName: string, defaultValue: string): string {
-  const value = process.env[varName];
-  if (!value) {
-    return defaultValue;
-  }
-
   return value;
 }

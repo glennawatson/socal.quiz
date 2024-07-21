@@ -1,0 +1,24 @@
+﻿@page "/questionBanks/{guildId}"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+
+@if (_questionBanks == null)
+{
+    <p>Loading...</p>
+}
+else if (!_questionBanks.Any())
+{
+    <p>No question banks available.</p>
+}
+else
+{
+    <RadzenDataGrid TItem="string" Data="@_questionBanks" EditMode="DataGridEditMode.Single" >
+        <RadzenDataGridColumn TItem="string" Property="." Title="Bank Name">
+            <Template>
+                <RadzenButton ButtonStyle="ButtonStyle.Primary" Click="@(() => NavigateToEditQuestionBank(context))" />
+            </Template>
+        </RadzenDataGridColumn>
+    </RadzenDataGrid>
+}
+
+<RadzenButton ButtonStyle="ButtonStyle.Primary" Click="NavigateToAddQuestionBank">Add Question Bank</RadzenButton>
