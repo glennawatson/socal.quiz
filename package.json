@@ -27,7 +27,7 @@
     "durable-functions": "^3.1.0",
     "file-type": "^19.4.0",
     "gm": "^1.25.0",
-    "luxon": "^3.4.4",
+    "luxon": "^3.5.0",
     "openid-client": "^5.6.5",
     "rimraf": "^6.0.1",
     "rxjs": "^7.8.1",
