@@ -16,6 +16,7 @@ export async function validateAuthAndGuildOwnership(
 ): Promise<AuthResult> {
   const authHeader = req.headers.get('Authorization');
   if (!authHeader) {
+    console.error("no authorization token");
     return {
       status: 401,
       headers: { 'Content-Type': 'application/json' },
@@ -25,6 +26,7 @@ export async function validateAuthAndGuildOwnership(
 
   const token = authHeader.split(' ')[1];
   if (!token) {
+    console.error("invalid authorization token");
     return {
       status: 401,
       headers: { 'Content-Type': 'application/json' },
@@ -35,6 +37,7 @@ export async function validateAuthAndGuildOwnership(
   try {
     const guildId = req.query.get('guildId');
     if (!guildId) {
+      console.error("no guild id");
       return {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
@@ -49,6 +52,7 @@ export async function validateAuthAndGuildOwnership(
 
     const userGuildsResponse = await fetch('https://discord.com/api/v10/users/@me/guilds', { headers });
     if (!userGuildsResponse.ok) {
+      console.error("no user guilds found");
       return {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
@@ -60,6 +64,7 @@ export async function validateAuthAndGuildOwnership(
 
     const userResponse = await fetch('https://discord.com/api/v10/users/@me', { headers });
     if (!userResponse.ok) {
+      console.error("no user details found");
       return {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
@@ -72,6 +77,8 @@ export async function validateAuthAndGuildOwnership(
     const userGuild = userGuilds.find(guild => guild.id === guildId);
 
     if (!userGuild || !userGuild.owner) {
+      console.error("not a user guild owner");
+
       return {
         status: 403,
         headers: { 'Content-Type': 'application/json' },

@@ -48,4 +48,9 @@ public partial class QuestionBanks
     {
         Navigation.NavigateTo($"/editquestionbank/{GuildId}/{bankName}");
     }
+
+    private void DeleteQuestionBank(string bankName)
+    {
+        _questionBanks.Remove(bankName);
+    }
 }

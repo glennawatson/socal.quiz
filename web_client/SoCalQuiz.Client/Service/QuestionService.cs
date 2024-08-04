@@ -18,7 +18,7 @@ public class QuestionService(HttpClient httpClient)
     /// <returns>A task that represents the asynchronous operation. The task result contains the retrieved <see cref="QuestionBankDto"/> object, or null if the question bank was not found.</returns>
     public async Task<QuestionBankDto?> GetQuestionBankAsync(string guildId, string bankName)
     {
-        var response = await httpClient.GetAsync($"api/questionBank?guildId={guildId}&bankname={bankName}").ConfigureAwait(false);
+        var response = await httpClient.GetAsync($"api/getQuestionBank?guildId={guildId}&bankname={bankName}").ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
         var values = await response.Content.ReadFromJsonAsync(QuestionBankDtoJsonContext.Default.QuestionBankDto).ConfigureAwait(false);
         return values;
@@ -48,7 +48,7 @@ public class QuestionService(HttpClient httpClient)
     /// <returns>A task representing the asynchronous operation.</returns>
     public async Task DeleteQuestionBankAsync(string guildId, string bankName)
     {
-        var response = await httpClient.DeleteAsync($"api/questionBank?guildId={guildId}&bankname={bankName}").ConfigureAwait(false);
+        var response = await httpClient.DeleteAsync($"api/deleteQuestionBank?guildId={guildId}&bankname={bankName}").ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
     }
 
@@ -60,7 +60,7 @@ public class QuestionService(HttpClient httpClient)
     /// <returns>A task representing the asynchronous operation.</returns>
     public async Task<List<UpsertResultDto>?> UpsertQuestionBankAsync(string guildId, QuestionBankRequestDto questionBank)
     {
-        var response = await httpClient.PutAsJsonAsync($"api/questionBank?guildId={guildId}", questionBank, QuestionBankRequestDtoJsonContext.Default.QuestionBankRequestDto).ConfigureAwait(false);
+        var response = await httpClient.PutAsJsonAsync($"api/upsertQuestionBank?guildId={guildId}", questionBank, QuestionBankRequestDtoJsonContext.Default.QuestionBankRequestDto).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync(ListUpsertResultDtoJsonContext.Default.ListUpsertResultDto).ConfigureAwait(false);
     }

@@ -2,23 +2,23 @@
 @attribute [Authorize]
 @using Microsoft.AspNetCore.Authorization
 
-@if (_questionBanks == null)
-{
-    <p>Loading...</p>
-}
-else if (!_questionBanks.Any())
-{
-    <p>No question banks available.</p>
-}
-else
-{
-    <RadzenDataGrid TItem="string" Data="@_questionBanks" EditMode="DataGridEditMode.Single" >
+<RadzenDataGrid TItem="string" Data="@_questionBanks" EditMode="DataGridEditMode.Single">
+    <Columns>
         <RadzenDataGridColumn TItem="string" Property="." Title="Bank Name">
+        </RadzenDataGridColumn>
+        <RadzenDataGridColumn TItem="string" Property="." Title="">
             <Template>
-                <RadzenButton ButtonStyle="ButtonStyle.Primary" Click="@(() => NavigateToEditQuestionBank(context))" />
+                <RadzenButton Icon="info" ButtonStyle="ButtonStyle.Info" Click="@(() => NavigateToEditQuestionBank(context))" />
             </Template>
         </RadzenDataGridColumn>
-    </RadzenDataGrid>
-}
+        <RadzenDataGridColumn TItem="string" Property="." Title="">
+            <Template Context="question">
+                <RadzenButton ButtonStyle="ButtonStyle.Danger" Icon="delete" Variant="Variant.Flat" Shade="Shade.Lighter" Size="ButtonSize.Medium" class="rz-my-1 rz-ms-1" Click="@(args => DeleteQuestionBank(question))" @onclick:stopPropagation="true">
+                </RadzenButton>
+            </Template>
+        </RadzenDataGridColumn>
+
+    </Columns>
+</RadzenDataGrid>
 
 <RadzenButton ButtonStyle="ButtonStyle.Primary" Click="NavigateToAddQuestionBank">Add Question Bank</RadzenButton>

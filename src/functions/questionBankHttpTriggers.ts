@@ -192,7 +192,8 @@ export async function upsertQuestionBankHandler(
 
     try {
       requestBody = JSON.parse(await req.text()) as QuestionBankRequestBody;
-    } catch {
+    } catch (error) {
+      context.error(`Could not upsert the question bank, since we are unable to read the request body ${error}`);
       return {
         status: 500,
         headers: { "Content-Type": "application/json" },
@@ -201,6 +202,7 @@ export async function upsertQuestionBankHandler(
     }
 
     if (guildId !== requestBody.guildId) {
+      console.error(`Guild mismatch ${guildId} ${requestBody.guildId}`);
       return {
         status: 400,
         headers: { "Content-Type": "application/json" },
@@ -211,6 +213,7 @@ export async function upsertQuestionBankHandler(
       const processedQuestions = await Promise.all(requestBody.questions.map(question => processQuestion(question, imageStorage)));
 
     if (processedQuestions.some(x => !x.success)) {
+      console.error("Could not process the questions.");
       return {
         status: 400,
         headers: { "Content-Type": "application/json" },

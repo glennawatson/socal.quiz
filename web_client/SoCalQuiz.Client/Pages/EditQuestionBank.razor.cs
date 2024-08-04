@@ -11,7 +11,6 @@ public partial class EditQuestionBank
 {
     private QuestionBankRequestDto _questionBankRequestDto = new();
     private QuestionRequestDto? _selectedQuestion;
-    private AnswerDto? _selectedAnswer;
 
     /// <summary>
     /// Gets or sets the question service.
@@ -40,27 +39,29 @@ public partial class EditQuestionBank
     /// <inheritdoc/>
     protected override async Task OnInitializedAsync()
     {
-        if (BankName is null)
-        {
-            return;
-        }
-
         if (GuildId is null)
         {
             return;
         }
 
-        _questionBankRequestDto = (await QuestionService.GetQuestionBankAsync(GuildId, BankName).ConfigureAwait(false)) ?? new();
+        if (BankName is null)
+        {
+            _questionBankRequestDto = new() { GuildId = GuildId };
+            return;
+        }
+
+        _questionBankRequestDto = (await QuestionService.GetQuestionBankAsync(GuildId, BankName).ConfigureAwait(false)) ?? new() { GuildId = GuildId };
     }
 
     private void AddNewQuestion()
     {
-        _selectedQuestion = new QuestionRequestDto
+        var newQuestion = new QuestionRequestDto
         {
-            Answers = [new AnswerDto()]
         };
 
-        _questionBankRequestDto.Questions.Add(_selectedQuestion);
+        _questionBankRequestDto.Questions.Add(newQuestion);
+
+        StateHasChanged();
     }
 
     private void DeleteQuestion(QuestionRequestDto? question)
@@ -69,22 +70,8 @@ public partial class EditQuestionBank
         {
             _questionBankRequestDto.Questions.Remove(question);
         }
-    }
 
-    private void AddNewAnswer()
-    {
-        if (_selectedQuestion != null)
-        {
-            _selectedQuestion.Answers.Add(new AnswerDto());
-        }
-    }
-
-    private void DeleteAnswer(AnswerDto answer)
-    {
-        if (answer != null)
-        {
-            _selectedQuestion?.Answers.Remove(answer);
-        }
+        StateHasChanged();
     }
 
     private void Cancel()
