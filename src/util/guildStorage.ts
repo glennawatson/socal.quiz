@@ -18,6 +18,10 @@ export class GuildStorage {
     }
   }
 
+  public async initialize() {
+    return this.guildClient.createTable();
+  }
+
   public async isGuildRegistered(guildId: string): Promise<boolean> {
     try {
       const entity = await this.guildClient.getEntity(

@@ -1,0 +1,94 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <Sdk Name="Yarn.MSBuild" Version="1.22.17" />
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Description>Build client-side authentication for single-page applications (SPAs).</Description>
+    <IsShippingPackage>true</IsShippingPackage>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <Nullable>enable</Nullable>
+    <Nowarn>$(NoWarn);SA1101;SA1413;SA1636;SA1600;SA1309;SA1642;SA1625;SA1134;RCS1194</Nowarn>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="Microsoft.AspNetCore.Components.Authorization" />
+    <Reference Include="Microsoft.AspNetCore.Components.Web" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Microsoft.AspNetCore.Components.WebAssembly.Authentication.Tests" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <YarnWorkingDir>$(MSBuildThisFileDirectory)Interop\</YarnWorkingDir>
+    <ResolveStaticWebAssetsInputsDependsOn>
+      CompileInterop;
+      IncludeCompileInteropOutput;
+      $(ResolveStaticWebAssetsInputsDependsOn)
+    </ResolveStaticWebAssetsInputsDependsOn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components" Version="8.0.7" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" Version="8.0.7" />
+    <PackageReference Include="Microsoft.JSInterop" Version="8.0.7" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <YarnInputs Include="$(YarnWorkingDir)**" Exclude="$(YarnWorkingDir)node_modules\**;$(YarnWorkingDir)*.d.ts;$(YarnWorkingDir)dist\**" />
+    <YarnOutputs Include="$(YarnWorkingDir)dist\$(Configuration)\AuthenticationService.js" />
+    <YarnOutputs Include="$(YarnWorkingDir)dist\$(Configuration)\AuthenticationService.js.map" Condition="'$(Configuration)' == 'Debug'" />
+
+    <Content Remove="$(YarnWorkingDir)**" />
+    <None Include="$(YarnWorkingDir)*" Exclude="$(YarnWorkingDir)node_modules\**" />
+
+    <UpToDateCheckInput Include="@(YarnInputs)" Set="StaticWebassets" />
+    <UpToDateCheckOutput Include="@(YarnOutputs)" Set="StaticWebassets" />
+  </ItemGroup>
+
+  <Target Name="_CreateInteropHash" BeforeTargets="CompileInterop" Inputs="@(YarnInputs)" Outputs="@(YarnOutputs)" Condition="'$(BuildNodeJS)' != 'false' AND '$(DesignTimeBuild)' != 'true'">
+
+    <PropertyGroup>
+      <InteropCompilationCacheFile>$(IntermediateOutputPath)interop.cache</InteropCompilationCacheFile>
+    </PropertyGroup>
+
+    <Hash ItemsToHash="@(YarnInputs)">
+      <Output TaskParameter="HashResult" PropertyName="_YarnInputsHash" />
+    </Hash>
+
+    <WriteLinesToFile Lines="$(_YarnInputsHash)" File="$(InteropCompilationCacheFile)" Overwrite="True" WriteOnlyWhenDifferent="True" />
+
+    <ItemGroup>
+      <FileWrites Include="$(InteropCompilationCacheFile)" />
+    </ItemGroup>
+
+  </Target>
+
+  <Target Name="CompileInterop" Condition="'$(BuildNodeJS)' != 'false' AND '$(DesignTimeBuild)' != 'true'" Inputs="@(YarnInputs)" Outputs="@(YarnOutputs)">
+    <Yarn Command="install --mutex network --frozen-lockfile" WorkingDirectory="$(YarnWorkingDir)" IgnoreStandardErrorWarningFormat="$(IgnoreYarnWarnings)" />
+    <Yarn Command="run build:production" WorkingDirectory="$(YarnWorkingDir)" Condition="'$(Configuration)' == 'Release'" IgnoreStandardErrorWarningFormat="$(IgnoreYarnWarnings)" />
+    <Yarn Command="run build:debug" WorkingDirectory="$(YarnWorkingDir)" Condition="'$(Configuration)' == 'Debug'" IgnoreStandardErrorWarningFormat="$(IgnoreYarnWarnings)" />
+
+    <Message Importance="high" Text="@(_InteropBuildOutput->'Emitted %(FullPath)')" />
+
+  </Target>
+
+
+  <Target Name="IncludeCompileInteropOutput">
+    <ItemGroup>
+      <_InteropBuildOutput Include="$(YarnWorkingDir)dist\$(Configuration)\**" Exclude="$(YarnWorkingDir)dist\.gitignore" />
+    </ItemGroup>
+
+    <DefineStaticWebAssets Condition="@(_InteropBuildOutput) != ''" SourceType="Computed" SourceId="$(PackageId)" ContentRoot="$(YarnWorkingDir)dist\$(Configuration)\" BasePath="_content/$(PackageId)" CandidateAssets="@(_InteropBuildOutput)" RelativePathFilter="*.*">
+      <Output TaskParameter="Assets" ItemName="StaticWebAsset" />
+    </DefineStaticWebAssets>
+
+    <ItemGroup>
+      <_InteropBuildOutput Include="$(YarnWorkingDir)dist\$(Configuration)\**" Exclude="$(YarnWorkingDir)dist\.gitignore" />
+      <FileWrites Include="$(_InteropBuildOutput)" />
+    </ItemGroup>
+  </Target>
+
+</Project>

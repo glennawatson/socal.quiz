@@ -1,0 +1,24 @@
+﻿@page "/questionBanks/{guildId}"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+
+<RadzenDataGrid TItem="string" Data="@_questionBanks" EditMode="DataGridEditMode.Single">
+    <Columns>
+        <RadzenDataGridColumn TItem="string" Property="." Title="Bank Name">
+        </RadzenDataGridColumn>
+        <RadzenDataGridColumn TItem="string" Property="." Title="">
+            <Template>
+                <RadzenButton Icon="info" ButtonStyle="ButtonStyle.Info" Click="@(() => NavigateToEditQuestionBank(context))" />
+            </Template>
+        </RadzenDataGridColumn>
+        <RadzenDataGridColumn TItem="string" Property="." Title="">
+            <Template Context="question">
+                <RadzenButton ButtonStyle="ButtonStyle.Danger" Icon="delete" Variant="Variant.Flat" Shade="Shade.Lighter" Size="ButtonSize.Medium" class="rz-my-1 rz-ms-1" Click="@(args => DeleteQuestionBank(question))" @onclick:stopPropagation="true">
+                </RadzenButton>
+            </Template>
+        </RadzenDataGridColumn>
+
+    </Columns>
+</RadzenDataGrid>
+
+<RadzenButton ButtonStyle="ButtonStyle.Primary" Click="NavigateToAddQuestionBank">Add Question Bank</RadzenButton>

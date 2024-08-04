@@ -1,0 +1,3916 @@
+import {
+  app,
+  HttpRequest,
+  HttpResponseInit,
+  InvocationContext,
+} from "@azure/functions";
+import { verify } from "discord-verify";
+import {
+  APIInteraction,
+  InteractionResponseType,
+  InteractionType,
+} from "discord-api-types/v10";
+
+import { Config } from "../util/config.js";
+import { getClient } from "durable-functions";
+import * as df from "durable-functions";
+
+export async function interactions(
+  request: HttpRequest,
+  context: InvocationContext,
+): Promise<HttpResponseInit> {
+  const durableClient = getClient(context);
+  context.log(`Http function processed request for url "${request.url}"`);
+
+  await Config.initialize(durableClient);
+  // 1. Verify Request (using discord-verify)
+  const signature = request.headers.get("x-signature-ed25519");
+  const timestamp = request.headers.get("x-signature-timestamp");
+  const rawBody = await request.text();
+
+  // 2. Parse Interaction
+  const interaction = JSON.parse(rawBody) as APIInteraction;
+
+  const isValid = await verify(
+    rawBody,
+    signature,
+    timestamp,
+    Config.publicKey,
+    crypto.subtle,
+  );
+
+  if (!isValid) {
+    return { status: 401, body: "Invalid request signature" };
+  }
+
+  // 3. Handle PING Interactions
+  if (interaction.type === InteractionType.Ping) {
+    return {
+      status: 200,
+      body: JSON.stringify({ type: InteractionResponseType.Pong }),
+    };
+  }
+
+  // 4. Delegate to DiscordBotService
+  const response =
+    await Config.discordBotService.handleInteraction(interaction); // Updated to use interaction directly
+  return {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(response),
+  };
+}
+
+app.http("interactions", {
+  methods: ["POST"],
+  extraInputs: [df.input.durableClient()],
+  authLevel: "anonymous",
+  handler: interactions,
+});
+import { InvocationContext, HttpRequest, HttpResponseInit, app } from "@azure/functions";
+import { Config } from "../util/config.js";
+
+// Initiate the authorization request
+export async function initiateOAuth(req: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
+  context.log('starting initiate oauth');
+
+  await Config.initialize();
+
+  const oauth2Relay = Config.oauth2Relay;
+
+  const resourceUri = req.query.get('resource_uri');
+
+  if (!resourceUri) {
+    return {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error: 'resource_uri query parameter is required' }),
+    };
+  }
+
+  const authorizationUrl = await oauth2Relay.getAuthorizationUrl(resourceUri);
+
+  return {
+    status: 302,
+    headers: { 'Location': authorizationUrl },
+  };
+}
+
+// Handle the OAuth2 callback
+export async function oauthCallbackHandler(req: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
+  context.log('starting callback oauth');
+
+  const code = req.query.get("code");
+  const state = req.query.get("state");
+
+  if (!code || !state) {
+    return {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error: 'code and state query parameters are required' }),
+    };
+  }
+
+  await Config.initialize();
+
+  const oauth2Relay = Config.oauth2Relay;
+
+  const authState = await oauth2Relay.getOAuthState(state);
+
+  if (!authState) {
+    return {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error: 'Invalid state parameter' }),
+    };
+  }
+
+  try {
+    const tokenResponse = await oauth2Relay.getToken(code, authState.codeVerifier);
+    return {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(tokenResponse),
+    };
+  } catch (error) {
+    context.error(`Token exchange failed: ${error}`);
+    return {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error: 'Failed to exchange token' }),
+    };
+  }
+}
+
+// Well-known configuration endpoint
+export async function wellKnownConfig(req: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
+  context.log("returning the well known data");
+  const proto = req.headers.get('x-forwarded-proto') || 'https';
+  const host = req.headers.get('x-forwarded-host') || req.headers.get('host');
+  const baseUrl = `${proto}://${host}`;
+
+  const config = {
+    authorization_endpoint: `${baseUrl}/api/initiateOAuth`,
+    token_endpoint: `${baseUrl}/api/oauthCallback`,
+    revocation_endpoint: `${baseUrl}/api/revokeToken`,
+    issuer: baseUrl,
+    jwks_uri: `${baseUrl}/.well-known/jwks.json`
+  };
+
+  return {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config),
+  };
+}
+
+// Revoke tokens
+export async function revokeToken(req: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
+  context.log('starting revoke token');
+
+  const token = req.query.get("token");
+
+  if (!token) {
+    return {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error: 'token query parameter is required' }),
+    };
+  }
+
+  await Config.initialize();
+
+  const oauth2Relay = Config.oauth2Relay;
+
+  try {
+    await oauth2Relay.revokeToken(token);
+    return {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: 'Token revoked successfully' }),
+    };
+  } catch (error) {
+    context.error(`Token revocation failed: ${error}`);
+    return {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error: 'Failed to revoke token' }),
+    };
+  }
+}
+
+app.http("initiateOAuth", {
+  methods: ["GET"],
+  authLevel: "anonymous",
+  handler: initiateOAuth,
+});
+
+app.http("oauthCallback", {
+  methods: ["GET"],
+  authLevel: "anonymous",
+  handler: oauthCallbackHandler,
+});
+
+app.http("wellKnownConfig", {
+  methods: ["GET"],
+  authLevel: "anonymous",
+  handler: wellKnownConfig,
+});
+
+app.http("revokeToken", {
+  methods: ["POST"],
+  authLevel: "anonymous",
+  handler: revokeToken,
+});
+import {
+  app,
+  HttpRequest,
+  HttpResponseInit,
+  InvocationContext,
+} from "@azure/functions";
+import { Config } from "../util/config.js";
+import {ImageType, IQuizImageStorage} from "../util/IQuestionStorage.interfaces.js";
+import {
+  isErrorResponse, isValidationSuccess, validateAuth,
+  validateAuthAndGuildOwnership,
+} from "../util/authHelper.js";
+import { APIGuild, Routes } from "discord-api-types/v10";
+import { Question } from "../question.interfaces.js";
+
+interface QuestionRequestBody extends Question {
+  imageUrl?: string;
+  explanationImageUrl?: string;
+}
+
+interface UpsertResult {
+  questionId: string;
+  success: boolean;
+  errorMessage?: string;
+}
+
+async function processQuestion(requestBody: QuestionRequestBody, guildId: string, imageStorage: IQuizImageStorage): Promise<UpsertResult> {
+  if (!requestBody.bankName) {
+    return {
+      questionId: requestBody.questionId,
+      success: false,
+      errorMessage: "Required fields: bankName",
+    };
+  }
+
+  if (!requestBody.questionId) {
+    return {
+      questionId: requestBody.questionId,
+      success: false,
+      errorMessage: "Required fields: questionId",
+    };
+  }
+
+  if (requestBody.answers && requestBody.correctAnswerId === undefined) {
+    return {
+      questionId: requestBody.questionId,
+      success: false,
+      errorMessage: `Must have correct answer ID with answers for question with id ${requestBody.questionId} and question text ${requestBody.question}`,
+    };
+  }
+
+  try {
+    if (requestBody.imageUrl) {
+      requestBody.imagePartitionKey = await imageStorage.downloadAndValidateImageForDiscord(
+          guildId,
+          requestBody.imageUrl,
+          requestBody.bankName,
+          requestBody.questionId,
+          ImageType.Question,
+      );
+    }
+  } catch (error) {
+    return { questionId: requestBody.questionId, success: false, errorMessage: 'failed to download question image ' + requestBody.imageUrl };
+  }
+
+  try {
+    if (requestBody.explanationImageUrl) {
+      requestBody.imagePartitionKey = await imageStorage.downloadAndValidateImageForDiscord(
+          guildId,
+          requestBody.explanationImageUrl,
+          requestBody.bankName,
+          requestBody.questionId,
+          ImageType.Explanation,
+      );
+    }
+
+  } catch (error) {
+    return { questionId: requestBody.questionId, success: false, errorMessage: 'failed to download explanation image ' + requestBody.explanationImageUrl };
+  }
+
+  return { questionId: requestBody.questionId, success: true };
+}
+
+interface ValidationResult {
+  guildId: string;
+  bankName: string;
+  questionId: string;
+}
+
+async function validate(req: HttpRequest,
+                  context: InvocationContext) : Promise<ValidationResult | HttpResponseInit>
+{
+  const authResult = await validateAuthAndGuildOwnership(req, context);
+  if (isErrorResponse(authResult)) return authResult;
+  const { guildId } = authResult;
+
+  const bankName = req.query.get("bankname");
+  const questionId = req.query.get("questionId");
+
+  if (!bankName || !questionId) {
+    return {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify("Required fields: bankName, questionId"),
+    };
+  }
+
+  return { guildId, bankName, questionId };
+}
+
+export async function deleteQuestionHandler(
+  req: HttpRequest,
+  context: InvocationContext,
+): Promise<HttpResponseInit> {
+
+  await Config.initialize();
+  const questionStorage = Config.questionStorage;
+
+  const validationResult = await validate(req, context);
+  try {
+    await questionStorage.deleteQuestion(guildId, bankName, questionId);
+
+    return {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify("Question deleted successfully"),
+    };
+  } catch (error) {
+    context.error(`Could not delete the question ${error}`);
+    return {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(`Error deleting question`),
+    };
+  }
+}
+
+export async function getQuestionHandler(
+  req: HttpRequest,
+  context: InvocationContext,
+): Promise<HttpResponseInit> {
+  const authResult = await validateAuthAndGuildOwnership(req, context);
+  if (isErrorResponse(authResult)) return authResult;
+  const { guildId } = authResult;
+
+  await Config.initialize();
+  const questionStorage = Config.questionStorage;
+
+  const bankName = req.query.get("bankname");
+  const questionId = req.query.get("questionId");
+
+  if (!bankName || !questionId) {
+    return {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify("Required fields: bankName, questionId"),
+    };
+  }
+
+  try {
+    const question = await questionStorage.getQuestion(
+      guildId,
+      bankName,
+      questionId,
+    );
+
+    return {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(question),
+    };
+  } catch (error) {
+    context.error(`Could not get the question ${error}`);
+    return {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(`Error fetching question`),
+    };
+  }
+}
+
+export async function updateQuestionHandler(
+    req: HttpRequest,
+    context: InvocationContext,
+): Promise<HttpResponseInit> {
+  const authResult = await validateAuthAndGuildOwnership(req, context);
+  if (isErrorResponse(authResult)) return authResult;
+  const { guildId } = authResult;
+
+  try {
+    await Config.initialize();
+    const questionStorage = Config.questionStorage;
+    const imageStorage = Config.imageStorage;
+    let requestBody: QuestionRequestBody;
+
+    try {
+      requestBody = JSON.parse(await req.text()) as QuestionRequestBody;
+    } catch {
+      return {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify("Invalid JSON body"),
+      };
+    }
+
+    const result = await processQuestion(requestBody, guildId, imageStorage);
+    if (!result.success) {
+      return {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(result),
+      };
+    }
+
+    await questionStorage.updateQuestion(guildId, requestBody);
+
+    return {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify("Question updated successfully"),
+    };
+  } catch (error) {
+    context.error(`Could not update the question ${error}`);
+    return {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(`Error updating question`),
+    };
+  }
+}
+
+export async function upsertQuestionsHandlers(
+    req: HttpRequest,
+    context: InvocationContext,
+): Promise<HttpResponseInit> {
+  const authResult = await validateAuthAndGuildOwnership(req, context);
+  if (isErrorResponse(authResult)) return authResult;
+  const { guildId } = authResult;
+
+  try {
+    await Config.initialize();
+    const questionStorage = Config.questionStorage;
+    const imageStorage = Config.imageStorage;
+    let requestBody: QuestionRequestBody[];
+
+    try {
+      requestBody = JSON.parse(await req.text()) as QuestionRequestBody[];
+    } catch {
+      return {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify("Invalid JSON body"),
+      };
+    }
+
+    const results: UpsertResult[] = await Promise.all(
+        requestBody.map(async x => await processQuestion(x, guildId, imageStorage))
+    );
+
+    const successfulQuestions = requestBody.filter((_, index) => results[index]?.success);
+
+    if (successfulQuestions.length > 0) {
+      await questionStorage.upsertQuestions(guildId, successfulQuestions);
+    }
+
+    return {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(results),
+    };
+  } catch (error) {
+    context.error(`Could not update the question ${error}`);
+    return {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(`Error updating question`),
+    };
+  }
+}
+
+export async function getQuestionsHandler(
+  req: HttpRequest,
+  context: InvocationContext,
+): Promise<HttpResponseInit> {
+  const authResult = await validateAuthAndGuildOwnership(req, context);
+  if (isErrorResponse(authResult)) return authResult;
+  const { guildId } = authResult;
+
+  await Config.initialize();
+  const questionStorage = Config.questionStorage;
+  const bankName = req.query.get("bankname");
+
+  if (!bankName) {
+    return {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify("Required field: bankname"),
+    };
+  }
+
+  try {
+    const questions = await questionStorage.getQuestions(guildId, bankName);
+
+    return {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(questions),
+    };
+  } catch (error) {
+    context.error(`Could not retrieve questions: ${error}`);
+    return {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify("Error retrieving questions"),
+    };
+  }
+}
+
+export async function getQuestionBankNamesHandler(
+  req: HttpRequest,
+  context: InvocationContext,
+): Promise<HttpResponseInit> {
+  const authResult = await validateAuthAndGuildOwnership(req, context);
+  if (isErrorResponse(authResult)) return authResult;
+  const { guildId } = authResult;
+
+  await Config.initialize();
+  const questionStorage = Config.questionStorage;
+
+  try {
+    const bankNames = await questionStorage.getQuestionBankNames(guildId);
+
+    return {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bankNames),
+    };
+  } catch (error) {
+    context.error(`Could not retrieve question bank names: ${error}`);
+    return {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify("Error retrieving question bank names"),
+    };
+  }
+}
+
+export async function getGuildsHandler(
+    req: HttpRequest,
+    context: InvocationContext,
+): Promise<HttpResponseInit> {
+  await Config.initialize(); // Ensure configuration is loaded
+
+  const oauth2 = Config.oauth2;
+  const botRest = Config.rest;
+
+  const authResult = await validateAuth(req, context);
+  if (!isValidationSuccess(authResult)) return authResult;
+
+  const token = authResult.token;
+
+  try {
+    const userGuilds = await oauth2.getUserGuilds(token);
+
+    const botGuilds = await botRest.get(Routes.userGuilds()) as APIGuild[];
+
+    // Filter user guilds to find where the bot is also a member
+    const accessibleGuilds = userGuilds.filter(userGuild =>
+        botGuilds.some(botGuild => botGuild.id === userGuild.id)
+    );
+
+    return {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(accessibleGuilds),
+    };
+  } catch (error) {
+    context.error(`Could not retrieve guilds: ${error}`);
+    return {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify("Error retrieving guilds"),
+    };
+  }
+}
+
+app.http("getQuestionBankNames", {
+  methods: ["GET"],
+  authLevel: "anonymous",
+  handler: getQuestionBankNamesHandler,
+});
+
+app.http("getGuilds", {
+  methods: ["GET"],
+  authLevel: "anonymous",
+  handler: getGuildsHandler,
+});
+
+app.http("upsertQuestions", {
+  methods: ["PUT"],
+  authLevel: "anonymous",
+  handler: upsertQuestionsHandlers,
+});
+
+
+app.http("getQuestions", {
+  methods: ["GET"],
+  authLevel: "anonymous",
+  handler: getQuestionsHandler,
+});
+
+app.http("updateQuestion", {
+  methods: ["PUT"],
+  authLevel: "anonymous",
+  handler: updateQuestionHandler,
+});
+
+app.http("getQuestion", {
+  methods: ["GET"],
+  authLevel: "anonymous",
+  handler: getQuestionHandler,
+});
+
+app.http("deleteQuestion", {
+  methods: ["DELETE"],
+  authLevel: "anonymous",
+  handler: deleteQuestionHandler,
+});
+import { InvocationContext } from "@azure/functions";
+import * as df from "durable-functions";
+import {
+  ActivityHandler,
+  OrchestrationContext,
+  OrchestrationHandler,
+} from "durable-functions";
+import { QuizState } from "../handlers/quizState.interfaces.js";
+import { DateTime } from "luxon";
+import { Config } from "../util/config.js";
+import {
+  postQuestion,
+  sendQuestionSummary,
+  showScores,
+} from "../handlers/quizStateManager.js";
+import { Question } from "../question.interfaces.js";
+import { isAnswerEvent } from "../handlers/answerEvent.interfaces.js";
+
+const summaryDurationMs = 5000;
+
+export const QuizOrchestrator: OrchestrationHandler = function* (
+  context: OrchestrationContext,
+) {
+  const quiz: QuizState = context.df.getInput();
+
+  for (let index = 0; index < quiz.questionBank.length; index++) {
+    const question = quiz.questionBank[index];
+    if (!question || !question.question) {
+      continue;
+    }
+
+    quiz.currentQuestionId = question.questionId;
+    yield context.df.callActivity("PostQuestion", quiz);
+
+    const questionTime = DateTime.fromJSDate(context.df.currentUtcDateTime, {
+      zone: "utc",
+    }).plus({ milliseconds: question.questionShowTimeMs });
+
+    // Wait for the timer, the skip signal, or the cancel signal
+    const skipQuestionEvent = context.df.waitForExternalEvent("skipQuestion");
+    const cancelEvent = context.df.waitForExternalEvent("cancelQuiz");
+    const answerEvent = context.df.waitForExternalEvent("answerQuestion");
+
+    let shouldSkip = false;
+
+    while (true) {
+      const timer = context.df.createTimer(questionTime.toJSDate());
+      const winner = yield context.df.Task.any([
+        timer,
+        skipQuestionEvent,
+        cancelEvent,
+        answerEvent,
+      ]);
+
+      if (winner === timer) {
+        shouldSkip = false;
+        break;
+      }
+
+      // If the cancelQuiz signal is received, terminate the orchestrator
+      if (winner === cancelEvent) {
+        return;
+      }
+
+      // If the skipQuestion signal is received, continue to the next question
+      if (winner === skipQuestionEvent) {
+        shouldSkip = true;
+        break;
+      }
+
+      if (winner == answerEvent) {
+        if (!isAnswerEvent(answerEvent.result)) {
+          continue;
+        }
+
+        const answerEventData = answerEvent.result;
+        const isCorrect =
+          question.correctAnswerId === answerEventData.selectedAnswerId;
+
+        if (isCorrect) {
+          quiz.correctUsersForQuestion.add(answerEventData.userId);
+          quiz.activeUsers.set(
+            answerEventData.userId,
+            (quiz.activeUsers.get(answerEventData.userId) || 0) + 1,
+          );
+        } else {
+          quiz.activeUsers.set(
+            answerEventData.userId,
+            quiz.activeUsers.get(answerEventData.userId) || 0,
+          );
+        }
+      }
+
+      yield context.df.callActivity("SendQuestionSummary", {
+        quiz,
+        questionNumber: index + 1,
+      });
+
+      quiz.correctUsersForQuestion.clear();
+      quiz.answeredUsersForQuestion.clear();
+    }
+
+    if (shouldSkip) {
+      continue;
+    }
+
+    const summaryTime = DateTime.fromJSDate(context.df.currentUtcDateTime, {
+      zone: "utc",
+    }).plus({ milliseconds: summaryDurationMs });
+
+    // Wait for the timer or the cancel signal during summary
+    const summaryEvent = context.df.waitForExternalEvent("cancelQuiz");
+
+    const summaryWinner = yield context.df.Task.any([
+      context.df.createTimer(summaryTime.toJSDate()),
+      summaryEvent,
+    ]);
+
+    if (summaryWinner === summaryEvent) {
+      return;
+    }
+  }
+
+  yield context.df.callActivity("ShowScores", quiz);
+};
+
+df.app.orchestration("QuizOrchestrator", QuizOrchestrator);
+
+interface QuestionServerData {
+  currentQuestionId: number;
+  currentQuestion: Question | undefined;
+  durableClient: df.DurableClient;
+}
+
+async function getQuestionServerDetails(
+  input: QuizState,
+  context: InvocationContext,
+): Promise<QuestionServerData> {
+  const durableClient = df.getClient(context);
+
+  await Config.initialize(durableClient);
+
+  const questionNumber =
+    input.questionBank.findIndex(
+      (q) => q.questionId === input.currentQuestionId,
+    ) + 1;
+  const currentQuestion = input.questionBank[questionNumber - 1];
+
+  return {
+    currentQuestion: currentQuestion,
+    currentQuestionId: questionNumber,
+    durableClient: durableClient,
+  };
+}
+
+export const PostQuestion: ActivityHandler = async (
+  input: QuizState,
+  context: InvocationContext,
+) => {
+  const questionData = await getQuestionServerDetails(input, context);
+
+  if (!questionData.currentQuestion) {
+    console.error(
+      `Question not found for question number ${input.currentQuestionId}`,
+    );
+    return;
+  }
+
+  await postQuestion(
+    Config.rest,
+    Config.imageStorage,
+    input.channelId,
+    context.invocationId,
+    questionData.currentQuestion,
+  );
+};
+
+export const SendQuestionSummary: ActivityHandler = async (
+  input: QuizState,
+  context: InvocationContext,
+) => {
+  const questionData = await getQuestionServerDetails(input, context);
+
+  if (!questionData.currentQuestion) {
+    console.error(
+      `Question not found for question number ${input.currentQuestionId}`,
+    );
+    return;
+  }
+
+  await sendQuestionSummary(
+    Config.rest,
+    Config.imageStorage,
+    questionData.currentQuestion,
+    input,
+    questionData.currentQuestionId,
+  );
+};
+
+export const ShowScores: ActivityHandler = async (
+  input: QuizState,
+  context: InvocationContext,
+) => {
+  const durableClient = df.getClient(context);
+
+  await Config.initialize(durableClient);
+
+  await showScores(Config.rest, input);
+};
+
+df.app.activity("PostQuestion", { handler: PostQuestion });
+df.app.activity("SendQuestionSummary", { handler: SendQuestionSummary });
+df.app.activity("ShowScores", { handler: ShowScores });
+import { IModalHandlerCommand } from "./discordCommand.interfaces.js";
+import {
+  APIChatInputApplicationCommandInteraction,
+  APIInteractionResponse,
+  APIModalSubmitInteraction,
+  InteractionResponseType,
+  TextInputStyle,
+} from "discord-api-types/v10";
+import {
+  ActionRowBuilder,
+  ModalBuilder,
+  SlashCommandBuilder,
+  SlashCommandOptionsOnlyBuilder,
+  TextInputBuilder,
+} from "@discordjs/builders";
+import {
+  createEphemeralResponse,
+  generateErrorResponse,
+  getComponentValue,
+  getComponentValueNumber,
+} from "../../util/interactionHelpers.js";
+import { createTextInput } from "../../util/commandHelpers.js";
+import { IQuestionStorage } from "../../util/IQuestionStorage.interfaces.js";
+import { Answer } from "../../answer.interfaces.js";
+
+export class AddQuestionToBankCommand implements IModalHandlerCommand {
+  public static readonly componentIds = {
+    bankName: "bankname",
+    questionText: "questionText",
+    imageUrl: "imageUrl",
+    explanation: "explanation",
+    explanationImageUrl: "explanationImageUrl",
+    timeoutTimeSeconds: "timeoutTimeSeconds",
+    answers: Array.from({ length: 4 }, (_, i) => `answer${i + 1}`),
+    correctAnswerIndex: "correctAnswerIndex",
+  };
+
+  constructor(private readonly questionStorage: IQuestionStorage) {}
+
+  data(): SlashCommandOptionsOnlyBuilder {
+    return new SlashCommandBuilder()
+      .setName(this.name)
+      .setDescription("Add a question to a question bank");
+  }
+
+  name = "add_question_to_bank";
+
+  public async execute(
+    interaction: APIChatInputApplicationCommandInteraction,
+  ): Promise<APIInteractionResponse> {
+    const guildId = interaction.guild_id;
+
+    if (!guildId) {
+      return createEphemeralResponse("Must have a valid guild id.");
+    }
+
+    const modal = new ModalBuilder()
+      .setCustomId(this.name)
+      .setTitle("Add Question to Bank");
+
+    modal.addComponents(
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        createTextInput(
+          AddQuestionToBankCommand.componentIds.bankName,
+          "Question Bank Name",
+          TextInputStyle.Short,
+        ),
+      ),
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        createTextInput(
+          AddQuestionToBankCommand.componentIds.questionText,
+          "Question Text",
+          TextInputStyle.Paragraph,
+        ),
+      ),
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        createTextInput(
+          AddQuestionToBankCommand.componentIds.timeoutTimeSeconds,
+          "Question timeout time",
+          TextInputStyle.Short,
+          undefined,
+          false,
+        ),
+      ),
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        createTextInput(
+          AddQuestionToBankCommand.componentIds.imageUrl,
+          "Image URL (optional)",
+          TextInputStyle.Short,
+          undefined,
+          false,
+        ),
+      ),
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        createTextInput(
+          AddQuestionToBankCommand.componentIds.explanation,
+          "Explanation (Optional)",
+          TextInputStyle.Paragraph,
+          undefined,
+          false,
+        ),
+      ),
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        createTextInput(
+          AddQuestionToBankCommand.componentIds.explanationImageUrl,
+          "Explanation Image URL (Optional)",
+          TextInputStyle.Short,
+          undefined,
+          false,
+        ),
+      ),
+    );
+
+    // Add answer input components (defaulting to 4 answers)
+    for (const answerId of AddQuestionToBankCommand.componentIds.answers) {
+      modal.addComponents(
+        new ActionRowBuilder<TextInputBuilder>().addComponents(
+          createTextInput(
+            answerId,
+            `Answer ${answerId.replace("answer", "")}`,
+            TextInputStyle.Short,
+          ),
+        ),
+      );
+    }
+
+    // Correct answer index (last row)
+    modal.addComponents(
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        createTextInput(
+          AddQuestionToBankCommand.componentIds.correctAnswerIndex,
+          "Correct Answer Index (0-based)",
+          TextInputStyle.Short,
+        ),
+      ),
+    );
+
+    return {
+      type: InteractionResponseType.Modal,
+      data: modal.toJSON(),
+    };
+  }
+
+  public async handleModalSubmit(
+    interaction: APIModalSubmitInteraction,
+  ): Promise<APIInteractionResponse> {
+    const guildId = interaction.guild_id;
+
+    if (!guildId) {
+      return createEphemeralResponse("Must have a valid guild id.");
+    }
+
+    const components = interaction.data.components;
+
+    // Extract values using the componentIds map
+    const bankName = getComponentValue(
+      components,
+      AddQuestionToBankCommand.componentIds.bankName,
+    );
+
+    if (!bankName) {
+      return createEphemeralResponse("Must specify a valid bank name");
+    }
+
+    const questionText = getComponentValue(
+      components,
+      AddQuestionToBankCommand.componentIds.questionText,
+    );
+
+    if (!questionText) {
+      return createEphemeralResponse(
+        `There is no valid question text for ${bankName}`,
+      );
+    }
+
+    const imageUrl = getComponentValue(
+      components,
+      AddQuestionToBankCommand.componentIds.imageUrl,
+    );
+    const explanation = getComponentValue(
+      components,
+      AddQuestionToBankCommand.componentIds.explanation,
+    );
+    const explanationImageUrl = getComponentValue(
+      components,
+      AddQuestionToBankCommand.componentIds.explanationImageUrl,
+    );
+    const questionShowTimeMs =
+      (getComponentValueNumber(
+        components,
+        AddQuestionToBankCommand.componentIds.timeoutTimeSeconds,
+      ) ?? 20) * 1000;
+
+    // Extract answers
+    const answers: Answer[] = await Promise.all(
+      AddQuestionToBankCommand.componentIds.answers
+        .map((answerId) => ({
+          answerId,
+          value: getComponentValue(components, answerId),
+        }))
+        .filter(({ value }) => value !== undefined)
+        .map(({ value }) =>
+          this.questionStorage.generateAnswer(value as string),
+        ),
+    );
+
+    const correctAnswerIndexStr = getComponentValue(
+      components,
+      AddQuestionToBankCommand.componentIds.correctAnswerIndex,
+    );
+
+    if (!correctAnswerIndexStr) {
+      return createEphemeralResponse(
+        "Invalid correct answer index. No answer is specified.",
+      );
+    }
+
+    const correctAnswerIndex = parseInt(correctAnswerIndexStr, 10);
+    if (
+      isNaN(correctAnswerIndex) ||
+      correctAnswerIndex < 0 ||
+      correctAnswerIndex >= answers.length
+    ) {
+      return createEphemeralResponse(
+        `Invalid correct answer index. Please enter a number between 0 and ${answers.length - 1}`,
+      );
+    }
+
+    const correctAnswer = answers[correctAnswerIndex];
+
+    if (!correctAnswer) {
+      return createEphemeralResponse(
+        `Invalid correct answer index. Could not find a valid answer.`,
+      );
+    }
+
+    try {
+      await this.questionStorage.generateAndAddQuestion(
+        guildId,
+        bankName,
+        questionText,
+        answers,
+        correctAnswer.answerId,
+        questionShowTimeMs,
+        imageUrl,
+        explanation,
+        explanationImageUrl,
+      );
+
+      return createEphemeralResponse(`Added question to bank ${bankName}.`);
+    } catch (error) {
+      if (error instanceof Error) {
+        return generateErrorResponse(error);
+      } else {
+        return createEphemeralResponse(
+          `Failed to add question to bank ${bankName}: An unknown error occurred.`,
+        );
+      }
+    }
+  }
+}
+import { NextQuestionCommand } from "./nextQuestionCommand.js";
+import { AddQuestionToBankCommand } from "./addQuestionToBankCommand.js";
+import { DeleteQuestionFromBankCommand } from "./deleteQuestionFromBankCommand.js";
+import { StopQuizCommand } from "./stopQuizCommand.js";
+import { StartQuizCommand } from "./startQuizCommand.js";
+import { DeleteQuestionBankCommand } from "./deleteQuestionBankCommand.js";
+import {
+  IDiscordCommand,
+  IModalHandlerCommand,
+} from "./discordCommand.interfaces.js";
+import {
+  APIInteraction,
+  APIInteractionResponse,
+  APIModalSubmitInteraction,
+  InteractionResponseType,
+  InteractionType,
+  MessageFlags,
+  Routes,
+} from "discord-api-types/v10";
+import { isChatInputApplicationCommandInteraction } from "discord-api-types/utils";
+import { REST } from "@discordjs/rest";
+import { createEphemeralResponse } from "../../util/interactionHelpers.js";
+import { EditQuestionCommand } from "./editQuestionCommand.js";
+import { IQuestionStorage } from "../../util/IQuestionStorage.interfaces.js";
+import { QuizManagerFactoryManager } from "../quizManagerFactoryManager.js";
+
+export class CommandManager {
+  private readonly commands: Map<string, IDiscordCommand>;
+
+  constructor(
+    private readonly quizStateManager: QuizManagerFactoryManager,
+    private readonly questionStorage: IQuestionStorage,
+    private readonly clientId: string,
+    private readonly rest: REST,
+  ) {
+    this.commands = new Map();
+  }
+
+  public async handleInteraction(
+    interaction: APIInteraction,
+  ): Promise<APIInteractionResponse | null> {
+    if (interaction.type == InteractionType.ModalSubmit) {
+      const command = this.commands.get(interaction.data.custom_id);
+
+      if (!command) {
+        return createEphemeralResponse(
+          "could not find modal: " + interaction.data.custom_id,
+        );
+      }
+
+      return await (command as IModalHandlerCommand).handleModalSubmit(
+        interaction as APIModalSubmitInteraction,
+      );
+    } else if (
+      interaction.type == InteractionType.ApplicationCommand &&
+      isChatInputApplicationCommandInteraction(interaction)
+    ) {
+      const command = this.commands.get(interaction.data.name);
+
+      if (!command) {
+        return createEphemeralResponse(
+          "could not find command: " + interaction.data.name,
+        );
+      }
+
+      return await command.execute(interaction);
+    } else {
+      return {
+        type: InteractionResponseType.ChannelMessageWithSource,
+        data: {
+          content: "Unknown command!",
+          flags: MessageFlags.Ephemeral,
+        },
+      };
+    }
+  }
+
+  public async registerDefaultCommands(guildId: string): Promise<void> {
+    this.registerCommand(new StartQuizCommand(this.quizStateManager));
+    this.registerCommand(new StopQuizCommand(this.quizStateManager));
+    this.registerCommand(new NextQuestionCommand(this.quizStateManager));
+    this.registerCommand(new AddQuestionToBankCommand(this.questionStorage));
+    this.registerCommand(
+      new DeleteQuestionFromBankCommand(this.questionStorage),
+    );
+    this.registerCommand(new DeleteQuestionBankCommand(this.questionStorage));
+    this.registerCommand(new EditQuestionCommand(this.questionStorage));
+    await this.registerCommandsForGuild(guildId);
+  }
+
+  public async registerCommandsForGuild(guildId: string) {
+    console.debug(
+      `Sending registrations to the server for ${this.commands.size} commands.`,
+    );
+    const commandData = Array.from(this.commands.values())
+      .map((command) => {
+        if (command && typeof command.data === "function") {
+          return command.data().toJSON();
+        } else {
+          console.error("Invalid command:", command);
+          return null;
+        }
+      })
+      .filter((data) => data !== null);
+
+    try {
+      console.log("Started refreshing application (/) commands.");
+      await this.rest.post(
+        Routes.applicationGuildCommands(this.clientId, guildId),
+        { body: commandData },
+      );
+      console.log("Successfully reloaded application (/) commands.");
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  public registerCommand(command: IDiscordCommand) {
+    this.commands.set(command.name, command);
+  }
+}
+import { IDiscordCommand } from "./discordCommand.interfaces.js";
+import {
+  SlashCommandBuilder,
+  SlashCommandOptionsOnlyBuilder,
+} from "@discordjs/builders";
+import {
+  APIChatInputApplicationCommandInteraction,
+  APIInteractionResponse,
+} from "discord-api-types/v10";
+import {
+  createEphemeralResponse,
+  generateErrorResponse,
+  generateOptionMissingErrorResponse,
+  getOptionValue,
+} from "../../util/interactionHelpers.js";
+
+import { IQuestionStorage } from "../../util/IQuestionStorage.interfaces.js";
+
+export class DeleteQuestionBankCommand implements IDiscordCommand {
+  constructor(private readonly questionStorage: IQuestionStorage) {}
+
+  public data(): SlashCommandOptionsOnlyBuilder {
+    return new SlashCommandBuilder()
+      .setName(this.name)
+      .setDescription("Delete a question bank")
+      .addStringOption((option) =>
+        option
+          .setName("bankname")
+          .setDescription("The name of the question bank")
+          .setRequired(true),
+      );
+  }
+
+  public name = "delete_question_bank";
+
+  public async execute(
+    interaction: APIChatInputApplicationCommandInteraction,
+  ): Promise<APIInteractionResponse> {
+    try {
+      const guildId = interaction.guild_id;
+
+      if (!guildId) {
+        return createEphemeralResponse("Must have a valid guild id.");
+      }
+
+      const bankName = getOptionValue(interaction.data.options, "bankname");
+
+      if (!bankName) {
+        return generateOptionMissingErrorResponse("bankname");
+      }
+
+      await this.questionStorage.deleteQuestionBank(guildId, bankName);
+
+      return createEphemeralResponse(`Deleted question bank: ${bankName}`);
+    } catch (error) {
+      return generateErrorResponse(error as Error);
+    }
+  }
+}
+import { IDiscordCommand } from "./discordCommand.interfaces.js";
+import {
+  SlashCommandBuilder,
+  SlashCommandOptionsOnlyBuilder,
+} from "@discordjs/builders";
+import {
+  APIChatInputApplicationCommandInteraction,
+  APIInteractionResponse,
+} from "discord-api-types/v10";
+import {
+  createEphemeralResponse,
+  generateErrorResponse,
+  generateOptionMissingErrorResponse,
+  getOptionValue,
+} from "../../util/interactionHelpers.js";
+
+import { IQuestionStorage } from "../../util/IQuestionStorage.interfaces.js";
+
+export class DeleteQuestionFromBankCommand implements IDiscordCommand {
+  constructor(private readonly questionStorage: IQuestionStorage) {}
+
+  data(): SlashCommandOptionsOnlyBuilder {
+    return new SlashCommandBuilder()
+      .setName(this.name)
+      .setDescription("Delete a question from a question bank")
+      .addStringOption((option) =>
+        option
+          .setName("bankname")
+          .setDescription("The name of the question bank")
+          .setRequired(true),
+      )
+      .addStringOption((option) =>
+        option
+          .setName("questionid")
+          .setDescription("The ID of the question")
+          .setRequired(true),
+      );
+  }
+
+  name = "delete_question_from_bank";
+
+  async execute(
+    interaction: APIChatInputApplicationCommandInteraction,
+  ): Promise<APIInteractionResponse> {
+    try {
+      const guildId = interaction.guild_id;
+
+      if (!guildId) {
+        return createEphemeralResponse("Must have a valid guild id.");
+      }
+
+      const bankName = getOptionValue(interaction.data.options, "bankname");
+      const questionId = getOptionValue(interaction.data.options, "questionid");
+
+      // ... inside your execute method ...
+      if (!bankName) {
+        return generateOptionMissingErrorResponse("bankname");
+      }
+
+      if (!questionId) {
+        return generateOptionMissingErrorResponse("questionid");
+      }
+
+      await this.questionStorage.deleteQuestion(guildId, bankName, questionId);
+
+      return createEphemeralResponse(
+        `Deleted question: ${questionId} from ${bankName}`,
+      );
+    } catch (error) {
+      return generateErrorResponse(error as Error);
+    }
+  }
+}
+import {
+  APIChatInputApplicationCommandInteraction,
+  APIInteractionResponse,
+  APIModalSubmitInteraction,
+} from "discord-api-types/v10";
+import { SlashCommandOptionsOnlyBuilder } from "@discordjs/builders";
+
+export interface IDiscordCommand {
+  data(): SlashCommandOptionsOnlyBuilder;
+
+  execute(
+    interaction: APIChatInputApplicationCommandInteraction,
+  ): Promise<APIInteractionResponse>;
+
+  readonly name: string; // Symbol property (optional)
+}
+
+export interface IModalHandlerCommand extends IDiscordCommand {
+  handleModalSubmit(
+    interaction: APIModalSubmitInteraction,
+  ): Promise<APIInteractionResponse>; // Handles modal submission
+}
+import { IModalHandlerCommand } from "./discordCommand.interfaces.js";
+import {
+  ActionRowBuilder,
+  ModalBuilder,
+  SlashCommandBuilder,
+  SlashCommandOptionsOnlyBuilder,
+  TextInputBuilder,
+} from "@discordjs/builders";
+import {
+  APIChatInputApplicationCommandInteraction,
+  APIInteractionResponse,
+  APIModalSubmitInteraction,
+  InteractionResponseType,
+  ModalSubmitActionRowComponent,
+  TextInputStyle,
+} from "discord-api-types/v10";
+import {
+  createEphemeralResponse,
+  generateErrorResponse,
+  generateOptionMissingErrorResponse,
+  getComponentValue,
+  getComponentValueNumber,
+  getOptionValue,
+} from "../../util/interactionHelpers.js";
+import { createTextInput } from "../../util/commandHelpers.js";
+import { Question } from "../../question.interfaces.js";
+import { IQuestionStorage } from "../../util/IQuestionStorage.interfaces.js";
+import { throwError } from "../../util/errorHelpers.js";
+
+interface Inputs {
+  bankName: string | undefined;
+  questionText: string | undefined;
+  timeoutTimeSeconds: number | undefined;
+  imageUrl: string | undefined;
+  explanation: string | undefined;
+  explanationImageUrl: string | undefined;
+  correctAnswerIndex: string | undefined;
+}
+
+export class EditQuestionCommand implements IModalHandlerCommand {
+  public static readonly componentIds = {
+    bankName: "bankname",
+    questionText: "questionText",
+    imageUrl: "imageUrl",
+    explanation: "explanation",
+    explanationImageUrl: "explanationImageUrl",
+    timeoutTimeSeconds: "timeoutTimeSeconds",
+    correctAnswerIndex: "correctAnswerIndex",
+  };
+
+  public static readonly optionIds = {
+    bankName: "bankname",
+    questionId: "questionid",
+  };
+
+  constructor(private readonly questionStorage: IQuestionStorage) {}
+
+  public async handleModalSubmit(
+      interaction: APIModalSubmitInteraction,
+  ): Promise<APIInteractionResponse> {
+    const guildId = interaction.guild_id;
+    if (!guildId) {
+      return createEphemeralResponse("Must have a valid guild id.");
+    }
+
+    const components = interaction.data.components;
+    const inputs = this.extractInputs(components);
+
+    const missingFieldMessage = this.getMissingFieldsMessage(inputs);
+    if (missingFieldMessage) {
+      return createEphemeralResponse(missingFieldMessage);
+    }
+
+    const correctAnswerIndex = parseInt(inputs.correctAnswerIndex!, 10);
+    const answersText = this.extractAnswersText(components);
+
+    if (this.isInvalidCorrectAnswerIndex(correctAnswerIndex, answersText.length)) {
+      return createEphemeralResponse(
+          `Invalid correct answer index. Please enter a number between 0 and ${answersText.length - 1}`,
+      );
+    }
+
+    try {
+      const updatedQuestion = await this.getUpdatedQuestion(
+          interaction, guildId, inputs, answersText, correctAnswerIndex
+      );
+      await this.questionStorage.updateQuestion(guildId, updatedQuestion);
+      return createEphemeralResponse(`Updated question in bank ${inputs.bankName}.`);
+    } catch (error) {
+      return generateErrorResponse(error as Error);
+    }
+  }
+
+  private extractInputs(
+      components: ModalSubmitActionRowComponent[]
+  ): Inputs {
+    return {
+      bankName: getComponentValue(components, EditQuestionCommand.componentIds.bankName),
+      questionText: getComponentValue(components, EditQuestionCommand.componentIds.questionText),
+      timeoutTimeSeconds: getComponentValueNumber(components, EditQuestionCommand.componentIds.timeoutTimeSeconds),
+      imageUrl: getComponentValue(components, EditQuestionCommand.componentIds.imageUrl),
+      explanation: getComponentValue(components, EditQuestionCommand.componentIds.explanation),
+      explanationImageUrl: getComponentValue(components, EditQuestionCommand.componentIds.explanationImageUrl),
+      correctAnswerIndex: getComponentValue(components, EditQuestionCommand.componentIds.correctAnswerIndex),
+    };
+  }
+
+  private getMissingFieldsMessage(inputs: Inputs): string | undefined {
+    if (!inputs.bankName) {
+      return "Bank name is missing.";
+    }
+    if (!inputs.questionText) {
+      return "Question text is missing.";
+    }
+    if (!inputs.correctAnswerIndex) {
+      return "Correct answer index is missing.";
+    }
+    return undefined;
+  }
+
+  private extractAnswersText(
+      components: ModalSubmitActionRowComponent[]
+  ): string[] {
+    const answersText: string[] = [];
+    components.forEach((component) => {
+      if (component.components[0]?.custom_id.startsWith("answer")) {
+        answersText.push(component.components[0].value);
+      }
+    });
+    return answersText;
+  }
+
+  private isInvalidCorrectAnswerIndex(
+      correctAnswerIndex: number,
+      answersCount: number
+  ): boolean {
+    return (
+        isNaN(correctAnswerIndex) ||
+        correctAnswerIndex < 0 ||
+        correctAnswerIndex >= answersCount
+    );
+  }
+
+  private async getUpdatedQuestion(
+      interaction: APIModalSubmitInteraction,
+      guildId: string,
+      inputs: Inputs,
+      answersText: string[],
+      correctAnswerIndex: number
+  ): Promise<Question> {
+    const questionId = interaction.data.custom_id.replace(
+        this.name + "_",
+        ""
+    );
+    const questions = await this.questionStorage.getQuestions(
+        guildId,
+        inputs.bankName!
+    );
+    const existingQuestion = questions.find(
+        (q) => q.questionId === questionId
+    );
+
+    if (!existingQuestion) {
+      throw new Error(`Question with ID ${questionId} not found.`);
+    }
+
+    const answers = existingQuestion.answers.map((answer, index) => {
+      const answerText =
+          answersText[index] ?? throwError("invalid answer text");
+      return {
+        answerId: answer.answerId,
+        answer: answerText,
+      };
+    });
+
+    const correctAnswer = answers[correctAnswerIndex];
+
+    return {
+      ...existingQuestion,
+      question: inputs.questionText!,
+      answers: answers,
+      correctAnswerId: correctAnswer!.answerId,
+      questionShowTimeMs: (inputs.timeoutTimeSeconds ?? 20) * 1000,
+      imagePartitionKey: inputs.imageUrl
+          ? `${inputs.bankName}-${questionId}-question`
+          : existingQuestion.imagePartitionKey ?? undefined,
+      explanation: inputs.explanation,
+      explanationImagePartitionKey: inputs.explanationImageUrl
+          ? `${inputs.bankName}-${questionId}-explanation`
+          : existingQuestion.explanationImagePartitionKey ?? undefined,
+    };
+  }
+
+  public data(): SlashCommandOptionsOnlyBuilder {
+    return new SlashCommandBuilder()
+        .setName(this.name)
+        .setDescription("Edit a question")
+        .addStringOption((option) =>
+            option
+                .setName(EditQuestionCommand.optionIds.bankName)
+                .setDescription("The name of the question bank")
+                .setRequired(true),
+        )
+        .addStringOption((option) =>
+            option
+                .setName(EditQuestionCommand.optionIds.questionId)
+                .setDescription("The ID of the question")
+                .setRequired(true),
+        );
+  }
+
+  public name = "edit_question";
+
+  public async execute(
+      interaction: APIChatInputApplicationCommandInteraction): Promise<APIInteractionResponse> {
+    try {
+      const guildId = interaction.guild_id;
+
+      if (!guildId) {
+        return createEphemeralResponse("Must have a valid guild id.");
+      }
+
+      const bankName = getOptionValue(
+          interaction.data.options,
+          EditQuestionCommand.optionIds.bankName,
+      );
+      const questionId = getOptionValue(
+          interaction.data.options,
+          EditQuestionCommand.optionIds.questionId,
+      );
+
+      if (!bankName) {
+        return generateOptionMissingErrorResponse(
+            EditQuestionCommand.optionIds.bankName,
+        );
+      }
+
+      if (!questionId) {
+        return generateOptionMissingErrorResponse(
+            EditQuestionCommand.optionIds.questionId,
+        );
+      }
+
+      const questions = await this.questionStorage.getQuestions(
+          guildId,
+          bankName,
+      );
+      const question = questions.find(
+          (quest) => quest.questionId === questionId,
+      );
+
+      if (!question) {
+        return createEphemeralResponse(
+            `No valid question found for bank name ${bankName} and question id ${questionId}.`,
+        );
+      }
+
+      const modal = this.buildModal(questionId, question);
+
+      return {
+        type: InteractionResponseType.Modal,
+        data: modal.toJSON(),
+      };
+    } catch (error) {
+      return generateErrorResponse(error as Error);
+    }
+  }
+
+  private buildModal(questionId: string, question: Question): ModalBuilder {
+    const modal = new ModalBuilder()
+        .setCustomId(this.name + "_" + questionId)
+        .setTitle("Edit Question");
+
+    modal.addComponents(
+        new ActionRowBuilder<TextInputBuilder>().addComponents(
+            createTextInput(
+                EditQuestionCommand.componentIds.bankName,
+                "Question Bank Name",
+                TextInputStyle.Short,
+                question.bankName,
+                true,
+            ),
+        ),
+        new ActionRowBuilder<TextInputBuilder>().addComponents(
+            createTextInput(
+                EditQuestionCommand.componentIds.questionText,
+                "Question Text",
+                TextInputStyle.Paragraph,
+                question.question,
+                true,
+            ),
+        ),
+        new ActionRowBuilder<TextInputBuilder>().addComponents(
+            createTextInput(
+                EditQuestionCommand.componentIds.timeoutTimeSeconds,
+                "Question timeout time",
+                TextInputStyle.Short,
+                question.questionShowTimeMs.toString(),
+                false,
+            ),
+        ),
+        new ActionRowBuilder<TextInputBuilder>().addComponents(
+            createTextInput(
+                EditQuestionCommand.componentIds.imageUrl,
+                "Image URL (optional)",
+                TextInputStyle.Short,
+                question.imagePartitionKey ? undefined : "",
+                false,
+            ),
+        ),
+        new ActionRowBuilder<TextInputBuilder>().addComponents(
+            createTextInput(
+                EditQuestionCommand.componentIds.explanation,
+                "Explanation (Optional)",
+                TextInputStyle.Paragraph,
+                question.explanation ?? "",
+                false,
+            ),
+        ),
+        new ActionRowBuilder<TextInputBuilder>().addComponents(
+            createTextInput(
+                EditQuestionCommand.componentIds.explanationImageUrl,
+                "Explanation Image URL (optional)",
+                TextInputStyle.Short,
+                question.explanationImagePartitionKey ? undefined : "",
+                false,
+            ),
+        ),
+    );
+
+    // Add answer input components dynamically
+    question.answers.forEach((answer, index) => {
+      modal.addComponents(
+          new ActionRowBuilder<TextInputBuilder>().addComponents(
+              createTextInput(
+                  `answer_${answer.answerId}`,
+                  `Answer ${index + 1}`,
+                  TextInputStyle.Short,
+                  answer.answer,
+                  true,
+              ),
+          ),
+      );
+    });
+
+    const answerIndex = question.answers.findIndex(
+        (x) => x.answerId == question.correctAnswerId,
+    );
+
+    // Correct answer index (last row)
+    modal.addComponents(
+        new ActionRowBuilder<TextInputBuilder>().addComponents(
+            createTextInput(
+                EditQuestionCommand.componentIds.correctAnswerIndex,
+                "Correct Answer Index (0-based)",
+                TextInputStyle.Short,
+                answerIndex.toString(),
+                true,
+            ),
+        ),
+    );
+
+    return modal;
+  }
+}
+import { IDiscordCommand } from "./discordCommand.interfaces.js";
+import {
+  SlashCommandBuilder,
+  SlashCommandOptionsOnlyBuilder,
+} from "@discordjs/builders";
+import {
+  APIChatInputApplicationCommandInteraction,
+  APIInteractionResponse,
+} from "discord-api-types/v10";
+import {
+  createEphemeralResponse,
+  generateErrorResponse,
+  generateOptionMissingErrorResponse,
+} from "../../util/interactionHelpers.js";
+import { QuizManagerFactoryManager } from "../quizManagerFactoryManager.js";
+
+export class NextQuestionCommand implements IDiscordCommand {
+  constructor(private readonly quizStateManager: QuizManagerFactoryManager) {}
+
+  data(): SlashCommandOptionsOnlyBuilder {
+    return new SlashCommandBuilder()
+      .setName(this.name)
+      .setDescription("Show the next quiz question");
+  }
+
+  name = "next_question";
+
+  async execute(
+    interaction: APIChatInputApplicationCommandInteraction,
+  ): Promise<APIInteractionResponse> {
+    try {
+      const guildId = interaction.guild_id;
+
+      if (!guildId) {
+        return generateOptionMissingErrorResponse("guild id");
+      }
+
+      const quizManager = await this.quizStateManager.getQuizManager(guildId);
+
+      if (!quizManager) {
+        return generateOptionMissingErrorResponse("invalid quiz manager");
+      }
+
+      await quizManager.nextQuizQuestion(guildId, interaction.channel.id);
+
+      return createEphemeralResponse("Showing next question.");
+    } catch (error) {
+      return generateErrorResponse(error as Error);
+    }
+  }
+}
+import { IDiscordCommand } from "./discordCommand.interfaces.js";
+import {
+  APIChatInputApplicationCommandInteraction,
+  APIInteractionResponse,
+} from "discord-api-types/v10";
+import {
+  generateErrorResponse,
+  generateOptionMissingErrorResponse,
+  getOptionValue,
+} from "../../util/interactionHelpers.js";
+import {
+  SlashCommandBuilder,
+  SlashCommandOptionsOnlyBuilder,
+} from "@discordjs/builders";
+import { QuizManagerFactoryManager } from "../quizManagerFactoryManager.js";
+
+export class StartQuizCommand implements IDiscordCommand {
+  constructor(private readonly quizStateManager: QuizManagerFactoryManager) {}
+
+  public data(): SlashCommandOptionsOnlyBuilder {
+    return new SlashCommandBuilder()
+      .setName(this.name)
+      .setDescription("Start a quiz")
+      .addStringOption((option) =>
+        option
+          .setName("bankname")
+          .setDescription("The name of the question bank")
+          .setRequired(true),
+      );
+  }
+
+  public name = "start_quiz";
+
+  public async execute(
+    interaction: APIChatInputApplicationCommandInteraction,
+  ): Promise<APIInteractionResponse> {
+    try {
+      const guildId = interaction.guild_id;
+
+      if (!guildId) {
+        return generateOptionMissingErrorResponse("guild_id");
+      }
+
+      const bankName = getOptionValue(interaction.data.options, "bankname");
+
+      if (!bankName) {
+        return generateOptionMissingErrorResponse("bankname");
+      }
+
+      const quizManager = await this.quizStateManager.getQuizManager(guildId);
+      return await quizManager.startQuiz(
+        guildId,
+        interaction.channel.id,
+        bankName,
+      );
+    } catch (error) {
+      return generateErrorResponse(error as Error);
+    }
+  }
+}
+import { IDiscordCommand } from "./discordCommand.interfaces.js";
+import {
+  SlashCommandBuilder,
+  SlashCommandOptionsOnlyBuilder,
+} from "@discordjs/builders";
+import {
+  APIChatInputApplicationCommandInteraction,
+  APIInteractionResponse,
+} from "discord-api-types/v10";
+import {
+  createEphemeralResponse,
+  generateErrorResponse,
+  generateOptionMissingErrorResponse,
+} from "../../util/interactionHelpers.js";
+import { QuizManagerFactoryManager } from "../quizManagerFactoryManager.js";
+
+export class StopQuizCommand implements IDiscordCommand {
+  constructor(private readonly quizStateManager: QuizManagerFactoryManager) {}
+
+  data(): SlashCommandOptionsOnlyBuilder {
+    return new SlashCommandBuilder()
+      .setName(this.name)
+      .setDescription("Stop the current quiz");
+  }
+
+  name = "stop_quiz";
+
+  async execute(
+    interaction: APIChatInputApplicationCommandInteraction,
+  ): Promise<APIInteractionResponse> {
+    try {
+      const guildId = interaction.guild_id;
+
+      if (!guildId) {
+        return generateOptionMissingErrorResponse("guild id");
+      }
+
+      const quizManager = await this.quizStateManager.getQuizManager(guildId);
+
+      await quizManager.stopQuiz(guildId, interaction.channel.id);
+
+      return createEphemeralResponse(`Stopped quiz`);
+    } catch (error) {
+      return generateErrorResponse(error as Error);
+    }
+  }
+}
+export interface AnswerEvent {
+  userId: string;
+  selectedAnswerId: string;
+}
+
+export function isAnswerEvent(event: any): event is AnswerEvent {
+  return (
+    event &&
+    typeof event.userId === "string" &&
+    typeof event.selectedAnswerId === "string"
+  );
+}
+import { CommandManager } from "./actions/commandManager.js";
+import { APIInteraction, InteractionType } from "discord-api-types/v10";
+import {
+  createEphemeralResponse,
+  generateErrorResponse,
+} from "../util/interactionHelpers.js";
+import { GuildStorage } from "../util/guildStorage.js";
+import "../util/mapExtensions.js";
+import { throwError } from "../util/errorHelpers.js";
+import { QuizManagerFactoryManager } from "./quizManagerFactoryManager.js";
+
+export class DiscordBotService {
+  private commandManager: CommandManager;
+
+  constructor(
+    private readonly guildStorage: GuildStorage,
+    private readonly quizManager: QuizManagerFactoryManager,
+    commandManager: CommandManager,
+  ) {
+    this.commandManager =
+      commandManager ?? throwError("could not find a valid command manager");
+  }
+
+  public async start(guildId: string) {
+    await this.commandManager.registerDefaultCommands(guildId);
+    await this.guildStorage.markGuildAsRegistered(guildId);
+  }
+
+  public async handleInteraction(interaction: APIInteraction) {
+    try {
+      if (!interaction.guild_id) {
+        return createEphemeralResponse(
+          "This interaction must be performed within a guild.",
+        );
+      }
+
+      // Register commands for the guild if not already registered
+      const isRegistered = await this.guildStorage.isGuildRegistered(
+        interaction.guild_id,
+      );
+      if (!isRegistered) {
+        await this.start(interaction.guild_id);
+      }
+
+      // Check if the interaction is an answer interaction
+      if (
+        interaction.type === InteractionType.MessageComponent &&
+        interaction.data.custom_id.startsWith("answer_")
+      ) {
+        const quizManager = await this.quizManager.getQuizManager(
+          interaction.guild_id,
+        );
+        var result = await quizManager.handleAnswerInteraction(interaction);
+        return result;
+      }
+
+      // Delegate interaction handling to the CommandManager
+      const response = await this.commandManager.handleInteraction(interaction);
+
+      if (!response) {
+        // Handle cases where the CommandManager doesn't provide a response (e.g., unknown interaction type)
+        console.warn(
+          "Unknown interaction type or no response from CommandManager.",
+        );
+        return createEphemeralResponse("Unknown command or interaction type.");
+      }
+
+      return response;
+    } catch (error) {
+      return generateErrorResponse(error as Error);
+    }
+  }
+}
+import { REST } from "@discordjs/rest";
+import { IQuestionStorage } from "../util/IQuestionStorage.interfaces.js";
+import { DurableClient } from "durable-functions";
+import { QuizState } from "./quizState.interfaces.js";
+import { QuizManagerBase } from "./quizManagerBase.js";
+import {
+  APIInteractionResponse,
+  InteractionResponseType,
+} from "discord-api-types/v10";
+import { createEphemeralResponse } from "../util/interactionHelpers.js";
+import { AnswerEvent } from "./answerEvent.interfaces.js";
+
+/**
+ * Generates an instance ID based on guild and channel IDs.
+ * @param {string} guildId - The ID of the guild.
+ * @param {string} channelId - The ID of the channel.
+ * @returns {string} - The generated instance ID.
+ */
+function generateInstanceId(guildId: string, channelId: string): string | null {
+  if (!channelId || !guildId) {
+    return null;
+  }
+  return `${guildId}-${channelId}`;
+}
+
+/**
+ * Manages quiz functionality using Durable Functions.
+ * @class
+ * @extends QuizManagerBase
+ */
+export class DurableQuizManager extends QuizManagerBase {
+  /**
+   * Constructs a DurableQuizManager instance.
+   * @param {REST} rest - The REST client for Discord API.
+   * @param {IQuestionStorage} quizStateStorage - Storage interface for quiz questions.
+   * @param {DurableClient} durableClient - The durable client for managing orchestration.
+   */
+  public constructor(
+    rest: REST,
+    quizStateStorage: IQuestionStorage,
+    private readonly durableClient: DurableClient,
+  ) {
+    super(rest, quizStateStorage);
+  }
+
+  /**
+   * @inheritdoc
+   */
+  public async answerInteraction(
+    guildId: string,
+    channelId: string,
+    userId: string,
+    selectedAnswerId: string,
+  ): Promise<APIInteractionResponse> {
+    const instanceId = generateInstanceId(guildId, channelId);
+    if (!instanceId) {
+      // Optionally log the issue, but return an empty response
+      console.error("No active quiz found.");
+      return createEphemeralResponse(`No active quiz could be found`);
+    }
+
+    try {
+      const answerEventData: AnswerEvent = { userId, selectedAnswerId };
+      await this.durableClient.raiseEvent(
+        instanceId,
+        "answerQuestion",
+        answerEventData,
+        {},
+      );
+    } catch (error) {
+      // Optionally log the error, but return an empty response
+      console.error(`Error submitting answer: ${error}`);
+      return createEphemeralResponse(
+        `There was a error submitting your answer.`,
+      );
+    }
+
+    return {
+      type: InteractionResponseType.DeferredChannelMessageWithSource,
+    };
+  }
+
+  /**
+   * @inheritdoc
+   */
+  public async stopQuiz(guildId: string, channelId: string): Promise<void> {
+    const instanceId = generateInstanceId(guildId, channelId);
+
+    if (!instanceId) {
+      console.error("could not find a valid guild or channel id");
+      return;
+    }
+
+    try {
+      await this.durableClient.raiseEvent(instanceId, "cancelQuiz", {});
+    } catch (error) {
+      await this.durableClient.terminate(instanceId, "Quiz stopped");
+      // Log the error or handle it as necessary
+      console.error(
+        `Failed to send cancelQuiz event to instance ${instanceId}: ${error}`,
+      );
+    }
+  }
+
+  /**
+   * @inheritdoc
+   */
+  public async runQuiz(quiz: QuizState): Promise<void> {
+    const instanceId = generateInstanceId(quiz.guildId, quiz.channelId);
+    if (!instanceId) {
+      console.error("could not find a valid guild or channel id");
+      return;
+    }
+
+    await this.durableClient.startNew("QuizOrchestrator", {
+      input: quiz,
+      instanceId: instanceId,
+    });
+  }
+
+  /**
+   * @inheritdoc
+   */
+  public async nextQuizQuestion(
+    guildId: string,
+    channelId: string,
+  ): Promise<void> {
+    const instanceId = generateInstanceId(guildId, channelId);
+    if (!instanceId) {
+      console.error("could not find a valid guild or channel id");
+      return;
+    }
+    await this.durableClient.raiseEvent(instanceId, "answerQuestion", {}, {});
+  }
+}
+import { REST } from "@discordjs/rest";
+import { IQuestionStorage } from "../util/IQuestionStorage.interfaces.js";
+import { QuizState } from "./quizState.interfaces.js";
+import {
+  APIInteraction,
+  APIInteractionResponse,
+  InteractionType,
+} from "discord-api-types/v10";
+import {
+  createEphemeralResponse,
+  isNullOrWhitespace,
+} from "../util/interactionHelpers.js";
+import { Question } from "../question.interfaces.js";
+
+/**
+ * Abstract base class for managing quiz functionalities.
+ */
+export abstract class QuizManagerBase {
+  /**
+   * Constructs a QuizManagerBase instance.
+   * @param {REST} rest - The REST client for Discord API.
+   * @param {IQuestionStorage} quizStateStorage - Storage interface for quiz questions.
+   */
+  protected constructor(
+    protected readonly rest: REST,
+    protected readonly quizStateStorage: IQuestionStorage,
+  ) {}
+
+  /**
+   * Runs the quiz.
+   * @param {QuizState} quiz - The state of the quiz to run.
+   * @returns {Promise<void>} - A promise for the quiz to run.
+   */
+  public abstract runQuiz(quiz: QuizState): Promise<void>;
+
+  /**
+   * Stops the quiz in the specified guild and channel.
+   * @param {string} guildId - The ID of the guild.
+   * @param {string} channelId - The ID of the channel.
+   * @returns {Promise<void>} - A promise that resolves when the quiz is stopped.
+   */
+  public abstract stopQuiz(guildId: string, channelId: string): Promise<void>;
+
+  /**
+   * Moves to the next quiz question in the specified guild and channel.
+   * @param {string} guildId - The ID of the guild.
+   * @param {string} channelId - The ID of the channel.
+   * @returns {Promise<void>} - A promise that resolves when the quiz is skipped a question.
+   */
+  public abstract nextQuizQuestion(
+    guildId: string,
+    channelId: string,
+  ): Promise<void>;
+
+  /**
+   * Starts a quiz in the specified guild and channel with the provided question bank.
+   * @param {string} guildId - The ID of the guild.
+   * @param {string} channelId - The ID of the channel.
+   * @param {string} questionBankName - The name of the question bank to use.
+   * @returns {Promise<APIInteractionResponse>} - A promise that resolves to an interaction response.
+   */
+  public async startQuiz(
+    guildId: string,
+    channelId: string,
+    questionBankName: string,
+  ): Promise<APIInteractionResponse> {
+    if (isNullOrWhitespace(questionBankName)) {
+      return createEphemeralResponse(`There is no valid question bank name`);
+    }
+
+    const questions = await this.quizStateStorage.getQuestions(
+      guildId,
+      questionBankName,
+    );
+
+    if (!questions || questions.length === 0) {
+      return createEphemeralResponse(
+        `There are no valid questions in the question bank ${questionBankName}`,
+      );
+    }
+
+    return await this.startQuizInternal(questions, guildId, channelId);
+  }
+
+  /**
+   * Internal method to start a quiz with the given questions.
+   * @param {Question[]} questions - The list of questions for the quiz.
+   * @param {string} guildId - The ID of the guild.
+   * @param {string} channelId - The ID of the channel.
+   * @returns {Promise<APIInteractionResponse>} - A promise that resolves to an interaction response.
+   */
+  public async startQuizInternal(
+    questions: Question[],
+    guildId: string,
+    channelId: string,
+  ): Promise<APIInteractionResponse> {
+    if (questions.length === 0) {
+      return createEphemeralResponse("There are no valid questions");
+    }
+
+    const invalidQuestions = questions.filter(
+      (q) => !q || q.question.trim() === "",
+    );
+
+    if (invalidQuestions.length > 0) {
+      const invalidQuestionIds = invalidQuestions
+        .map((q) => q?.questionId ?? "unknown")
+        .join(", ");
+      return createEphemeralResponse(
+        `There are invalid questions with IDs: ${invalidQuestionIds}`,
+      );
+    }
+
+    const quiz: QuizState = {
+      questionBank: questions,
+      activeUsers: new Map(),
+      correctUsersForQuestion: new Set<string>(),
+      channelId: channelId,
+      currentQuestionId: questions[0]?.questionId ?? null,
+      answeredUsersForQuestion: new Set<string>(),
+      guildId: guildId,
+    };
+
+    await this.stopQuiz(quiz.guildId, channelId); // Stop any existing quiz before starting a new one
+
+    await this.runQuiz(quiz);
+
+    return createEphemeralResponse(
+      `Quiz for channel ${quiz.channelId} started successfully.`,
+    );
+  }
+
+  /**
+   * Handles an interaction for answering a quiz question.
+   * @param {APIInteraction} interaction - The interaction to handle.
+   * @returns {Promise<APIInteractionResponse>} - A promise that resolves to an interaction response.
+   */
+  public async handleAnswerInteraction(
+    interaction: APIInteraction,
+  ): Promise<APIInteractionResponse> {
+    if (interaction.type !== InteractionType.MessageComponent) {
+      return createEphemeralResponse("Invalid interaction type.");
+    }
+
+    if (!interaction.guild_id) {
+      return createEphemeralResponse("Must have a valid guild id.");
+    }
+
+    if (!interaction.channel.id) {
+      return createEphemeralResponse("Must have a valid channel");
+    }
+
+    const [_, interactionId, selectedAnswerId] =
+      interaction.data.custom_id.split("_");
+
+    if (!selectedAnswerId) {
+      return createEphemeralResponse("Could not find a valid answer response");
+    }
+
+    if (!interactionId) {
+      return createEphemeralResponse("Could not find a valid interaction id");
+    }
+
+    if (!interaction.user?.id) {
+      return createEphemeralResponse("Could not find a valid user id");
+    }
+
+    return await this.answerInteraction(
+      interaction.guild_id,
+      interaction.channel.id,
+      interaction.user.id,
+      selectedAnswerId,
+    );
+  }
+
+  /**
+   * Abstract method to handle an interaction answer.
+   * @param {string} guildId - The ID of the guild.
+   * @param {string} channelId - The ID of the channel.
+   * @param {string} userId - The ID of the user.
+   * @param {string} selectedAnswerId - The ID of the selected answer.
+   * @returns {Promise<APIInteractionResponse>} - A promise that resolves to an interaction response.
+   */
+  public abstract answerInteraction(
+    guildId: string,
+    channelId: string,
+    userId: string,
+    selectedAnswerId: string,
+  ): Promise<APIInteractionResponse>;
+}
+import { QuizManagerBase } from "./quizManagerBase.js";
+
+export type QuizManagerFactory = () => QuizManagerBase;
+export class QuizManagerFactoryManager {
+  private quizManagers: Map<string, Promise<QuizManagerBase>>;
+  constructor(private readonly quizFactory: QuizManagerFactory) {
+    this.quizManagers = new Map();
+  }
+
+  public async getQuizManager(guildId: string): Promise<QuizManagerBase> {
+    const manager = await this.quizManagers.getOrAdd(guildId, async () =>
+      this.quizFactory(),
+    );
+
+    if (!manager)
+      throw new Error(`could not find a quiz manager for guild ${guildId}`);
+    return manager;
+  }
+}
+import { Question } from "../question.interfaces.js";
+
+export interface QuizState {
+  questionBank: Question[];
+  activeUsers: Map<string, number>;
+  correctUsersForQuestion: Set<string>;
+  answeredUsersForQuestion: Set<string>;
+  channelId: string;
+  guildId: string;
+  currentQuestionId: string | undefined | null;
+}
+import { Question } from "../question.interfaces.js";
+import {
+  ActionRowBuilder,
+  ButtonBuilder,
+  EmbedBuilder,
+} from "@discordjs/builders";
+import { Routes } from "discord-api-types/v10";
+import { QuizImageStorage } from "../util/quizImageStorage.js";
+import { REST } from "@discordjs/rest";
+import { QuizState } from "./quizState.interfaces.js";
+
+export async function sendQuestionSummary(
+  rest: REST,
+  imageStorage: QuizImageStorage,
+  question: Question,
+  quiz: QuizState,
+  questionNumber: number,
+) {
+  const correctAnswer = question.answers.find(
+    (x) => x.answerId === question.correctAnswerId,
+  );
+
+  if (!correctAnswer) {
+    return;
+  }
+
+  const correctAnswerText = correctAnswer.answer;
+
+  const correctCount = quiz.correctUsersForQuestion.size;
+
+  const summaryEmbed = new EmbedBuilder()
+    .setTitle(`Summary for Question ${questionNumber}`)
+    .setDescription(
+      `${correctCount} user(s) answered correctly!\n` +
+        `The correct answer was: ${correctAnswerText}` +
+        (question.explanation ? `\nExplanation: ${question.explanation}` : ""),
+    );
+
+  if (question.explanationImagePartitionKey) {
+    const imageUrl = await imageStorage.getExplanationImagePresignedUrl(
+      question.guildId,
+      question.bankName,
+      question.questionId,
+    );
+    summaryEmbed.setImage(imageUrl);
+  }
+
+  await rest.post(Routes.channelMessages(quiz.channelId), {
+    body: {
+      embeds: [summaryEmbed.toJSON()],
+    },
+  });
+}
+
+export async function postQuestion(
+  rest: REST,
+  imageStorage: QuizImageStorage,
+  channelId: string,
+  interactionId: string,
+  question: Question,
+) {
+  const embed = new EmbedBuilder()
+    .setTitle("Quiz Question")
+    .setDescription(
+      `**Question**: ${question.question}\n` +
+        question.answers
+          .map(
+            (answer, index) =>
+              `${String.fromCharCode(65 + index)}: ${answer.answer}`,
+          )
+          .join("\n"),
+    )
+    .setFooter({
+      text: "Select the correct answer by clicking the buttons below.",
+    });
+
+  if (question.imagePartitionKey) {
+    const imageUrl = await imageStorage.getQuestionImagePresignedUrl(
+      question.guildId,
+      question.bankName,
+      question.questionId,
+    );
+    embed.setImage(imageUrl);
+  }
+
+  const buttons = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    question.answers.map((answer, index) =>
+      new ButtonBuilder()
+        .setCustomId(`answer_${interactionId}_${answer.answerId}`)
+        .setLabel(String.fromCharCode(65 + index))
+        .setStyle(1),
+    ),
+  );
+
+  console.debug(`sending quiz question/answers to channel ${channelId}`);
+  await rest.post(Routes.channelMessages(channelId), {
+    body: {
+      embeds: [embed.toJSON()],
+      components: [buttons.toJSON()],
+    },
+  });
+  console.debug(`sent quiz question/answers to channel ${channelId}`);
+}
+
+export async function showScores(rest: REST, quiz: QuizState) {
+  if (!quiz) {
+    console.log("invalid quiz");
+    return;
+  }
+
+  const channelId = quiz.channelId;
+
+  if (!channelId) {
+    console.log("no valid channel defined for the quiz to send scores to");
+    return;
+  }
+
+  console.debug(
+    `showing the scores for quiz in ${quiz?.channelId} with ${quiz.activeUsers.size} user entries.`,
+  );
+
+  const scoreEntries = Array.from(quiz.activeUsers.entries());
+  scoreEntries.sort(([, scoreA], [, scoreB]) => scoreB - scoreA); // Higher scores first
+
+  let scoreDescription = "";
+  for (const [userId, score] of scoreEntries) {
+    scoreDescription += `<@${userId}>: ${score} points\n`;
+  }
+
+  if (scoreDescription === "") {
+    scoreDescription = "No scores available.";
+  }
+
+  console.debug(`sending final scores to channel ${channelId}`);
+
+  const summaryEmbed = new EmbedBuilder()
+    .setTitle("Quiz Scores")
+    .setDescription(scoreDescription);
+
+  await rest.post(Routes.channelMessages(channelId), {
+    body: {
+      embeds: [summaryEmbed.toJSON()],
+    },
+  });
+}
+import { TableClient, TableEntity } from "@azure/data-tables";
+import { QuizState } from "./quizState.interfaces.js";
+
+export class StateManager {
+  private static tableName = "quiz_state_table";
+  private client: TableClient;
+
+  public constructor(
+    connectionString?: string | undefined,
+    client?: TableClient,
+  ) {
+    if (!client) {
+      connectionString ??= process.env.AZURE_STORAGE_CONNECTION_STRING;
+
+      if (!connectionString) {
+        throw new Error("Must have a valid connection string");
+      }
+
+      this.client = TableClient.fromConnectionString(
+        connectionString,
+        StateManager.tableName,
+      );
+    } else {
+      this.client = client;
+    }
+  }
+
+  public async getState(
+    guildId: string,
+    channelId: string,
+  ): Promise<QuizState> {
+    const entity = await this.client.getEntity<TableEntity<QuizState>>(
+      guildId,
+      channelId,
+    );
+    return fromTableEntity(entity);
+  }
+
+  public async setState(state: QuizState): Promise<void> {
+    const entity = toTableEntity(state);
+    await this.client.upsertEntity(entity, "Merge");
+  }
+
+  public async deleteState(guildId: string, channelId: string): Promise<void> {
+    await this.client.deleteEntity(guildId, channelId);
+  }
+}
+
+function fromTableEntity(tableEntity: TableEntity<QuizState>): QuizState {
+  return {
+    guildId: tableEntity.partitionKey,
+    channelId: tableEntity.rowKey,
+    activeUsers: tableEntity.activeUsers,
+    answeredUsersForQuestion: tableEntity.answeredUsersForQuestion,
+    questionBank: tableEntity.questionBank,
+    correctUsersForQuestion: tableEntity.correctUsersForQuestion,
+    currentQuestionId: tableEntity.currentQuestionId,
+  };
+}
+
+function toTableEntity(state: QuizState): TableEntity<QuizState> {
+  return {
+    partitionKey: state.guildId,
+    rowKey: state.channelId,
+    activeUsers: state.activeUsers,
+    answeredUsersForQuestion: state.answeredUsersForQuestion,
+    questionBank: state.questionBank,
+    correctUsersForQuestion: state.correctUsersForQuestion,
+    currentQuestionId: state.currentQuestionId,
+    guildId: state.guildId,
+    channelId: state.channelId,
+  };
+}
+import {
+  HttpRequest,
+  HttpResponseInit,
+  InvocationContext,
+} from "@azure/functions";
+import { OAuth2 } from "./OAuth2.js";
+import { throwError } from "./errorHelpers.js";
+
+export const oauth2 = new OAuth2(
+  process.env.CLIENT_ID ?? throwError("no valid client id"),
+  process.env.CLIENT_SECRET ?? throwError("no valid client secret"),
+  process.env.REDIRECT_URI ?? throwError("no valid redirect uri"),
+);
+
+export type AuthResult = { userId: string; guildId: string } | HttpResponseInit;
+
+export function isErrorResponse(
+  result: AuthResult,
+): result is HttpResponseInit {
+  return "status" in result;
+}
+
+export async function validateAuthAndGuildOwnership(
+  req: HttpRequest,
+  context: InvocationContext,
+): Promise<AuthResult> {
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader) {
+    return {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify("Authorization token is missing"),
+    };
+  }
+
+  const token = authHeader.split(" ")[1];
+
+  if (!token) {
+    return {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify("Invalid token"),
+    };
+  }
+
+  try {
+    const userAuth = await oauth2.validateToken(token);
+    const userGuilds = await oauth2.getUserGuilds(token);
+    const guildId = req.query.get("guildId");
+
+    if (!guildId) {
+      return {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify("Required field: guildId"),
+      };
+    }
+
+    const userGuild = userGuilds.find((guild) => guild.id === guildId);
+
+    if (!userGuild || userGuild.owner !== true) {
+      return {
+        status: 403,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify("You do not own this guild"),
+      };
+    }
+
+    return { userId: userAuth.user.id, guildId };
+  } catch (error) {
+    context.error(`Authorization error: ${error}`);
+    return {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify("Invalid token"),
+    };
+  }
+}
+
+export interface ValidationSuccess
+{
+  token: string
+}
+
+export type ValidationResult = ValidationSuccess | HttpResponseInit;
+
+export function isValidationSuccess(successInfo: ValidationResult) : successInfo is ValidationSuccess {
+  return "token" in successInfo;
+}
+
+export async function validateAuth(
+  req: HttpRequest,
+  context: InvocationContext,
+): Promise<ValidationResult> {
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader) {
+    return {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify("Authorization token is missing"),
+    };
+  }
+
+  const token = authHeader.split(" ")[1];
+
+  if (!token) {
+    context.error(`No valid auth token specified`);
+    return {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify("No auth token"),
+    };
+  }
+
+  try {
+    await oauth2.validateToken(token);
+    return { token: token };
+  } catch (error) {
+    context.error(`Invalid token: ${error}`);
+    return {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify("Invalid token"),
+    };
+  }
+}
+// Helper function to create text input components
+import { TextInputStyle } from "discord-api-types/v10";
+import { TextInputBuilder } from "@discordjs/builders";
+
+export function createTextInput(
+  customId: string,
+  label: string,
+  style: TextInputStyle,
+  value?: string,
+  required = true,
+) {
+  let textInput = new TextInputBuilder()
+    .setCustomId(customId)
+    .setLabel(label)
+    .setStyle(style)
+    .setRequired(required);
+
+  if (value) {
+    textInput = textInput.setValue(value);
+  }
+
+  return textInput;
+}
+import { DiscordBotService } from "../handlers/discordBotService.js";
+import { QuestionStorage } from "./questionStorage.js";
+import { GuildStorage } from "./guildStorage.js";
+import { throwError } from "./errorHelpers.js";
+import { StateManager } from "../handlers/stateManager.js";
+import { REST } from "@discordjs/rest";
+import { DurableClient } from "durable-functions";
+import { CommandManager } from "../handlers/actions/commandManager.js";
+import { QuizImageStorage } from "./quizImageStorage.js";
+import { DurableQuizManager } from "../handlers/durableQuizManager.js";
+import { QuizManagerFactoryManager } from "../handlers/quizManagerFactoryManager.js";
+import { OAuth2 } from "./OAuth2.js";
+import { OAuth2Relay } from "./oauth2Relay.js";
+
+export class Config {
+  public static token: string;
+  public static clientId: string;
+  public static publicKey: string;
+  public static questionStorage: QuestionStorage;
+  public static imageStorage: QuizImageStorage;
+  public static guildStorage: GuildStorage;
+  public static discordBotService: DiscordBotService;
+  public static stateManager: StateManager;
+  public static quizManagerFactory: QuizManagerFactoryManager;
+  public static rest: REST;
+  public static oauth2: OAuth2;
+  public static oauth2Relay: OAuth2Relay;
+
+  private static _initialized = false;
+  private static _initializePromise: Promise<Config> | null = null;
+
+  private constructor() {
+    /* Private constructor */
+  }
+
+  public static async initialize(
+    durableClient?: DurableClient,
+    token?: string,
+    clientId?: string,
+    publicKey?: string,
+    questionStorage?: QuestionStorage,
+    guildStorage?: GuildStorage,
+    imageStorage?: QuizImageStorage,
+    stateManager?: StateManager,
+    quizManagerFactory?: QuizManagerFactoryManager,
+    discordBotService?: DiscordBotService,
+    oauth2?: OAuth2,
+    oauth2Relay?: OAuth2Relay,
+    defaultQuizMethodFactory = () =>
+      new DurableQuizManager(
+        Config.rest,
+        Config.questionStorage,
+        durableClient ?? throwError("must have valid durable client"),
+      ),
+  ): Promise<Config> {
+    if (Config._initializePromise) {
+      return Config._initializePromise;
+    }
+
+    Config._initializePromise = new Promise<Config>((resolve, reject) => {
+      try {
+        if (Config._initialized) {
+          resolve(new Config()); // Return existing instance if already initialized
+          return;
+        }
+
+        Config.rest = new REST({ version: "10" }).setToken(this.token);
+        Config.token = token ?? getEnvVarOrDefault("DISCORD_BOT_TOKEN");
+        Config.clientId = clientId ?? getEnvVarOrDefault("DISCORD_CLIENT_ID");
+        Config.publicKey =
+          publicKey ?? getEnvVarOrDefault("DISCORD_PUBLIC_KEY");
+
+        Config.oauth2 =
+          oauth2 ??
+          new OAuth2(
+            getEnvVarOrDefault("DISCORD_CLIENT_ID"),
+            "DISCORD_CLIENT_SECRET",
+            "",
+          );
+
+        Config.oauth2Relay =
+          oauth2Relay ??
+            new OAuth2Relay(
+              getEnvVarOrDefault("DISCORD_CLIENT_ID"),
+              getEnvVarOrDefault("DISCORD_CLIENT_SECRET"),
+              getEnvVarOrDefaultValue("OAUTH_REDIRECT", "https://localhost:5001/authentication/login-callback"),
+            );
+
+        Config.imageStorage = imageStorage ?? new QuizImageStorage();
+
+        Config.questionStorage =
+          questionStorage ?? new QuestionStorage(Config.imageStorage);
+        Config.guildStorage = guildStorage ?? new GuildStorage();
+        Config.stateManager = stateManager ?? new StateManager();
+        Config.quizManagerFactory =
+          quizManagerFactory ??
+          new QuizManagerFactoryManager(defaultQuizMethodFactory);
+        Config.discordBotService =
+          discordBotService ??
+          new DiscordBotService(
+            Config.guildStorage,
+            Config.quizManagerFactory,
+            new CommandManager(
+              Config.quizManagerFactory,
+              Config.questionStorage,
+              Config.clientId,
+              Config.rest,
+            ),
+          );
+
+        Config._initialized = true;
+        resolve(new Config()); // Resolve with the Config instance
+      } catch (error) {
+        Config._initializePromise = null; // Reset the promise in case of error
+        reject(error); // Reject the promise if initialization fails
+      }
+    });
+
+    return Config._initializePromise;
+  }
+}
+
+function getEnvVarOrDefault(varName: string): string {
+  const value = process.env[varName];
+  if (!value) {
+    throwError(`Environment variable ${varName} is missing.`);
+  }
+  return value;
+}
+
+function getEnvVarOrDefaultValue(varName: string, defaultValue: string): string {
+  const value = process.env[varName];
+  if (!value) {
+    return defaultValue;
+  }
+
+  return value;
+}
+export function throwError(message: string): never {
+  throw new Error(message);
+}
+import { RestError, TableClient, TableEntity } from "@azure/data-tables";
+
+export class GuildStorage {
+  private guildClient: TableClient;
+
+  constructor(connectionString?: string, guildClient?: TableClient) {
+    if (!guildClient) {
+      connectionString =
+        connectionString ?? process.env.AZURE_STORAGE_CONNECTION_STRING;
+      if (!connectionString) throw Error("Invalid connection string");
+
+      this.guildClient = TableClient.fromConnectionString(
+        connectionString,
+        "GuildRegistrations",
+      );
+    } else {
+      this.guildClient = guildClient;
+    }
+  }
+
+  public async isGuildRegistered(guildId: string): Promise<boolean> {
+    try {
+      const entity = await this.guildClient.getEntity(
+        "RegisteredGuilds",
+        guildId,
+      );
+      return !!entity;
+    } catch (error) {
+      if (error instanceof RestError && error.statusCode === 404) {
+        return false;
+      }
+      throw error;
+    }
+  }
+
+  public async markGuildAsRegistered(guildId: string): Promise<void> {
+    const entity: TableEntity = {
+      partitionKey: "RegisteredGuilds",
+      rowKey: guildId,
+    };
+
+    await this.guildClient.upsertEntity(entity);
+  }
+}
+import {
+  APIApplicationCommandInteractionDataOption,
+  APIInteractionResponse,
+  ApplicationCommandOptionType,
+  InteractionResponseType,
+  MessageFlags,
+  ModalSubmitActionRowComponent,
+} from "discord-api-types/v10";
+
+export function generateErrorResponse(error: Error): APIInteractionResponse {
+  return {
+    type: InteractionResponseType.ChannelMessageWithSource,
+    data: {
+      content: error.message,
+      flags: MessageFlags.Ephemeral,
+    },
+  };
+}
+
+export function generateOptionMissingErrorResponse(
+  optionName: string,
+): APIInteractionResponse {
+  return {
+    type: InteractionResponseType.ChannelMessageWithSource,
+    data: {
+      content: `The ${optionName} was not specified!`,
+      flags: MessageFlags.Ephemeral,
+    },
+  };
+}
+
+export function isNullOrWhitespace(input: string | null | undefined): boolean {
+  return !input || input.trim().length === 0;
+}
+
+export function createEphemeralResponse(
+  content: string,
+): APIInteractionResponse {
+  return {
+    type: InteractionResponseType.ChannelMessageWithSource,
+    data: {
+      content,
+      flags: MessageFlags.Ephemeral,
+    },
+  };
+}
+
+export function getComponentValue(
+  components: ModalSubmitActionRowComponent[],
+  customId: string,
+) {
+  for (const row of components) {
+    for (const component of row.components) {
+      if (component.custom_id === customId) {
+        return component.value;
+      }
+    }
+  }
+  return undefined;
+}
+
+export function getComponentValueNumber(
+  components: ModalSubmitActionRowComponent[],
+  customId: string,
+): number | undefined {
+  const value = getComponentValue(components, customId);
+  return value ? parseInt(value, 10) : undefined; // Use parseFloat if you expect a float value
+}
+
+export function getOptionValue(
+  components: APIApplicationCommandInteractionDataOption[] | undefined,
+  customId: string,
+) {
+  if (!components) {
+    return undefined;
+  }
+  for (const component of components) {
+    if (
+      component.name === customId &&
+      component.type === ApplicationCommandOptionType.String
+    ) {
+      return component.value;
+    }
+  }
+  return undefined;
+}
+import { Question } from "../question.interfaces.js";
+import { Answer } from "../answer.interfaces.js";
+
+/**
+ * Interface for managing questions in a storage system.
+ */
+export interface IQuestionStorage {
+  /**
+   * Retrieves all questions from a specified question bank.
+   * @param guildId - The ID of the guild.
+   * @param bankName - The name of the question bank.
+   * @returns A promise that resolves to an array of Question objects.
+   */
+  getQuestions(guildId: string, bankName: string): Promise<Question[]>;
+
+  /**
+   * Retrieves a specific question by its ID.
+   * @param guildId - The ID of the guild.
+   * @param bankName - The name of the question bank.
+   * @param id - The ID of the question.
+   * @returns A promise that resolves to the Question object.
+   */
+  getQuestion(guildId: string, bankName: string, id: string): Promise<Question>;
+
+  /**
+   * Deletes a specified question bank and all its questions.
+   * @param guildId - The ID of the guild.
+   * @param bankName - The name of the question bank to delete.
+   * @returns A promise that resolves when the question bank is deleted.
+   */
+  deleteQuestionBank(guildId: string, bankName: string): Promise<void>;
+
+  /**
+   * Deletes a specific question by its ID from a specified question bank.
+   * @param guildId - The ID of the guild.
+   * @param bankName - The name of the question bank.
+   * @param questionId - The ID of the question to delete.
+   * @returns A promise that resolves when the question is deleted.
+   */
+  deleteQuestion(
+    guildId: string,
+    bankName: string,
+    questionId: string,
+  ): Promise<void>;
+
+  /**
+   * Retrieves all unique question bank names.
+   * @param guildId - The ID of the guild.
+   * @returns A promise that resolves to an array of unique question bank names.
+   */
+  getQuestionBankNames(guildId: string): Promise<string[]>;
+
+  /**
+   * Generates and adds a new question to a specified question bank.
+   * @param guildId - The ID of the guild.
+   * @param bankName - The name of the question bank.
+   * @param questionText - The text of the question.
+   * @param answers - An array of possible answers.
+   * @param correctAnswerId - The ID of the correct answer.
+   * @param questionShowTimeMs - The time in milliseconds for how long the question should be shown.
+   * @param imageUrl - The URL of an optional image associated with the question.
+   * @param explanation - An optional explanation for the question.
+   * @param explanationImageUrl - The URL of an optional explanation image.
+   * @returns A promise that resolves when the question is added.
+   */
+  generateAndAddQuestion(
+    guildId: string,
+    bankName: string,
+    questionText: string,
+    answers: Answer[],
+    correctAnswerId: string,
+    questionShowTimeMs: number,
+    imageUrl?: string,
+    explanation?: string,
+    explanationImageUrl?: string,
+  ): Promise<void>;
+
+  /**
+   * Generates a new question object.
+   * @param guildId - The ID of the guild.
+   * @param bankName - The name of the question bank.
+   * @param questionText - The text of the question.
+   * @param answers - An array of possible answers.
+   * @param correctAnswerId - The ID of the correct answer.
+   * @param questionShowTimeMs - The time in milliseconds for how long the question should be shown.
+   * @param imageUrl - The URL of an optional image associated with the question.
+   * @param explanation - An optional explanation for the question.
+   * @param explanationImageUrl - The URL of an optional explanation image.
+   * @returns A promise that resolves to the generated Question object.
+   */
+  generateQuestion(
+    guildId: string,
+    bankName: string,
+    questionText: string,
+    answers: Answer[],
+    correctAnswerId: string,
+    questionShowTimeMs: number,
+    imageUrl?: string,
+    explanation?: string,
+    explanationImageUrl?: string,
+  ): Promise<Question>;
+
+  /**
+   * Generates a new answer object.
+   * @param answerText - The text of the answer.
+   * @returns A promise that resolves to the generated Answer object.
+   */
+  generateAnswer(answerText: string): Promise<Answer>;
+
+  /**
+   * Updates an existing question.
+   * @param guildId - The ID of the guild.
+   * @param question - The Question object containing updated information.
+   * @returns A promise that resolves when the question is updated.
+   */
+  updateQuestion(guildId: string, question: Question): Promise<void>;
+
+  /**
+   * Upserts questions into the storage.
+   * @param guildId - The ID of the guild.
+   * @param questions - The questions to upsert.
+   * @returns A promise that resolves when the questions are upserted.
+   */
+  upsertQuestions(guildId:string, questions: Question[]) : Promise<void>;
+}
+
+export enum ImageType {
+  Question = "QuestionImage",
+  Explanation = "ExplanationImage",
+}
+
+/**
+ * Interface for managing quiz images in a storage system.
+ */
+export interface IQuizImageStorage {
+  /**
+   * Retrieves a presigned URL for accessing a question image.
+   * @param guildId - The ID of the guild.
+   * @param bankName - The name of the question bank.
+   * @param questionId - The ID of the question.
+   * @returns A promise that resolves to the presigned URL as a string.
+   */
+  getQuestionImagePresignedUrl(
+    guildId: string,
+    bankName: string,
+    questionId: string,
+  ): Promise<string>;
+
+  /**
+   * Retrieves a presigned URL for accessing an explanation image.
+   * @param guildId - The ID of the guild.
+   * @param bankName - The name of the question bank.
+   * @param questionId - The ID of the question.
+   * @returns A promise that resolves to the presigned URL as a string.
+   */
+  getExplanationImagePresignedUrl(
+    guildId: string,
+    bankName: string,
+    questionId: string,
+  ): Promise<string>;
+
+  /**
+   * Retrieves a presigned URL for accessing a file in a specified container.
+   * @param containerName - The name of the container.
+   * @param partitionKey - The partition key of the file.
+   * @returns A promise that resolves to the presigned URL as a string.
+   */
+  getPresignedUrl(containerName: string, partitionKey: string): Promise<string>;
+
+  /**
+   * Downloads and validates an image from a specified URL for use in Discord.
+   * @param guildId - The ID of the guild.
+   * @param imageUrl - The URL of the image to download.
+   * @param bankName - The name of the bank to store the image.
+   * @param questionId - The question id for the question.
+   * @param imageType  - the type of image (explanation/question etc).
+   * @returns A promise that resolves to the key of the stored image.
+   */
+  downloadAndValidateImageForDiscord(
+    guildId: string,
+    imageUrl: string,
+    bankName: string,
+    questionId: string,
+    imageType: ImageType,
+  ): Promise<string>;
+}
+declare global {
+  interface Map<K, V> {
+    getOrAdd(key: K, defaultValue: () => V): V | undefined;
+  }
+}
+
+Map.prototype.getOrAdd = function <K, V>(
+  this: Map<K, V>,
+  key: K,
+  defaultValue: () => V,
+): V | undefined {
+  if (this.has(key)) {
+    return this.get(key); // Safe non-null assertion, since we checked with 'has'
+  } else {
+    const value = defaultValue();
+    this.set(key, value);
+    return value;
+  }
+};
+import { APIGuild, Routes } from "discord-api-types/v10";
+import { REST } from "@discordjs/rest";
+
+export class OAuth2 {
+  constructor(
+    public readonly clientId: string,
+    public readonly clientSecret: string,
+    private readonly redirectUri: string,
+    private readonly tokenUrl = "https://discord.com/api/oauth2/token",
+    private readonly authorizeUrl = "https://discord.com/api/oauth2/authorize",
+  ) {}
+
+  public getAuthorizeUrl(state: string, scopes: string[]): string {
+    if (!this.redirectUri) {
+      throw new Error("Must have a valid redirect uri");
+    }
+
+    const scope = scopes.join(" ");
+    return `${this.authorizeUrl}?response_type=code&client_id=${this.clientId}&scope=${encodeURIComponent(scope)}&state=${state}&redirect_uri=${encodeURIComponent(this.redirectUri)}`;
+  }
+
+  public async exchangeCode(code: string): Promise<any> {
+    if (!this.redirectUri) {
+      throw new Error("Must have a valid redirect uri");
+    }
+
+    const data = new URLSearchParams();
+    data.append("client_id", this.clientId);
+    data.append("client_secret", this.clientSecret);
+    data.append("grant_type", "authorization_code");
+    data.append("code", code);
+    data.append("redirect_uri", this.redirectUri);
+
+    const response = await fetch(this.tokenUrl, {
+      method: "POST",
+      body: data,
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to exchange code for tokens");
+    }
+
+    return response.json();
+  }
+
+  public async validateToken(token: string): Promise<any> {
+    const response = await fetch("https://discord.com/api/oauth2/@me", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error("Invalid token");
+    }
+
+    return response.json();
+  }
+
+  public async getUserGuilds(token: string): Promise<APIGuild[]> {
+    var rest = new REST({  version: "10" }).setToken(token);
+
+    const response = await rest.get(Routes.userGuilds()) as APIGuild[];
+
+    if (!response) {
+      throw new Error("Failed to fetch user guilds");
+    }
+
+    return response;
+  }
+}
+import { BaseClient, generators, Issuer } from "openid-client";
+import { TableClient } from "@azure/data-tables";
+
+// Define the entity structure for Azure Table Storage
+interface OAuthStateEntity {
+  partitionKey: string;
+  rowKey: string;
+  state: string;
+  codeVerifier: string;
+}
+
+export class OAuth2Relay {
+  private discordIssuer: Issuer;
+  private client: BaseClient;
+  private tableClient: TableClient;
+
+  constructor(
+    private clientId: string,
+    private clientSecret: string,
+    private redirectUri: string,
+    connectionString?: string | undefined,
+    tableClient?: TableClient,
+    private readonly defaultScopes: string[] = ["guilds", "email", "openid"],
+    issuer: string = "https://discord.com",
+    private tokenUrl = "https://discord.com/api/oauth2/token",
+    authorizeUrl = "https://discord.com/api/oauth2/authorize",
+    private revokeUrl = "https://discord.com/api/oauth2/revoke"
+  ) {
+    this.discordIssuer = new Issuer({
+      issuer: issuer,
+      authorization_endpoint: authorizeUrl,
+      token_endpoint: tokenUrl,
+      revocation_endpoint: revokeUrl
+    });
+
+    this.client = new this.discordIssuer.Client({
+      client_id: clientId,
+      client_secret: clientSecret,
+      redirect_uris: [redirectUri],
+      response_types: ["code"]
+    });
+
+    if (!tableClient) {
+      if (!connectionString) {
+        connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING;
+      }
+
+      if (!connectionString) {
+        throw new Error("Invalid Azure storage connection string");
+      }
+
+      this.tableClient = TableClient.fromConnectionString(connectionString, "OAuthCodes");
+    } else {
+      this.tableClient = tableClient;
+    }
+  }
+
+  public async getAuthorizationUrl(resourceUri: string): Promise<string> {
+    const codeVerifier = generators.codeVerifier();
+    const codeChallenge = generators.codeChallenge(codeVerifier);
+    const state = generators.state();
+
+    await this.saveOAuthState(state, codeVerifier);
+
+    const scopeString = this.defaultScopes.join(" ");
+
+    return this.client.authorizationUrl({
+      scope: scopeString,
+      resource: resourceUri,
+      code_challenge: codeChallenge,
+      code_challenge_method: "S256",
+      state: state
+    });
+  }
+
+  private async saveOAuthState(state: string, codeVerifier: string): Promise<void> {
+    const entity: OAuthStateEntity = {
+      partitionKey: "OAuthState",
+      rowKey: state,
+      state: state,
+      codeVerifier: codeVerifier
+    };
+
+    await this.tableClient.createEntity(entity);
+  }
+
+  public async getOAuthState(state: string): Promise<{ state: string; codeVerifier: string } | null> {
+    try {
+      const entity = await this.tableClient.getEntity<OAuthStateEntity>("OAuthState", state);
+      return { state: entity.state, codeVerifier: entity.codeVerifier };
+    } catch (error) {
+      // Handle error or entity not found
+      console.error(`Error retrieving OAuth state: ${error}`);
+      return null;
+    }
+  }
+
+  public async getToken(code: string, state: string): Promise<any> {
+    const oauthState = await this.getOAuthState(state);
+
+    if (!oauthState) {
+      throw new Error("Invalid state parameter");
+    }
+
+    try {
+      const tokenResponse = await fetch(this.tokenUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        body: new URLSearchParams({
+          client_id: this.clientId,
+          client_secret: this.clientSecret,
+          grant_type: "authorization_code",
+          code: code,
+          redirect_uri: this.redirectUri,
+          code_verifier: oauthState.codeVerifier
+        })
+      });
+
+      if (!tokenResponse.ok) {
+        const errorText = await tokenResponse.text();
+        throw new Error(errorText);
+      }
+
+      return await tokenResponse.json();
+    } catch (error) {
+      console.error(`Token exchange failed: ${error}`);
+      throw error;
+    }
+  }
+
+  public async revokeToken(token: string): Promise<void> {
+    try {
+      const revokeResponse = await fetch(this.revokeUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        body: new URLSearchParams({
+          token: token,
+          client_id: this.clientId,
+          client_secret: this.clientSecret
+        })
+      });
+
+      if (!revokeResponse.ok) {
+        const errorText = await revokeResponse.text();
+        throw new Error(errorText);
+      }
+    } catch (error) {
+      console.error(`Token revocation failed: ${error}`);
+      throw error;
+    }
+  }
+}
+import {
+  odata,
+  TableClient,
+  TableDeleteEntityHeaders,
+  TableEntity,
+  TableQueryOptions,
+  TableTransaction,
+} from "@azure/data-tables";
+import { v4 as uuid } from "uuid";
+import { Question } from "../question.interfaces.js";
+import { Answer } from "../answer.interfaces.js";
+import { ImageType, IQuestionStorage } from "./IQuestionStorage.interfaces.js";
+import { QuizImageStorage } from "./quizImageStorage.js";
+
+export class QuestionStorage implements IQuestionStorage {
+  private quizQuestionsClient: TableClient;
+
+  constructor(
+    private readonly quizImageClient: QuizImageStorage,
+    connectionString?: string | undefined,
+    quizQuestionsClient?: TableClient,
+  ) {
+    if (!quizQuestionsClient) {
+      if (!connectionString) {
+        connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING;
+      }
+
+      if (!connectionString) {
+        throw new Error("invalid azure storage connection string");
+      }
+
+      this.quizQuestionsClient =
+        quizQuestionsClient ??
+        TableClient.fromConnectionString(connectionString, "QuizQuestions");
+    } else {
+      this.quizQuestionsClient = quizQuestionsClient;
+    }
+  }
+
+  async upsertQuestions(guildId: string, questions: Question[]): Promise<void> {
+    const transaction = new TableTransaction();
+    for await (const question of questions) {
+      const entity = toTableEntity(guildId, question);
+      transaction.upsertEntity<Question>(entity);
+    }
+
+    await this.quizQuestionsClient.submitTransaction(transaction.actions);
+  }
+
+  async getQuestion(
+    guildId: string,
+    bankName: string,
+    id: string,
+  ): Promise<Question> {
+    const entity = await this.quizQuestionsClient.getEntity<
+      TableEntity<Question>
+    >(`${guildId}-${bankName}`, id);
+    return fromTableEntity(entity);
+  }
+
+  async generateAnswer(answerText: string): Promise<Answer> {
+    return { answer: answerText, answerId: uuid() };
+  }
+
+  async getQuestions(guildId: string, bankName: string): Promise<Question[]> {
+    const entitiesIter = this.quizQuestionsClient.listEntities<
+      TableEntity<Question>
+    >({
+      queryOptions: {
+        filter: odata`PartitionKey eq ${guildId}-${bankName}`,
+      },
+    });
+
+    const entities: Question[] = [];
+    for await (const entity of entitiesIter) {
+      entities.push(fromTableEntity(entity));
+    }
+
+    return entities;
+  }
+
+  async getQuestionBankNames(guildId: string): Promise<string[]> {
+    const queryOptions: TableQueryOptions = {
+      filter: odata`PartitionKey ge '${guildId}_'`,
+    };
+
+    const entitiesIter = this.quizQuestionsClient.listEntities<
+      TableEntity<Question>
+    >({
+      queryOptions: queryOptions,
+    });
+
+    const bankNamesSet = new Set<string>();
+    for await (const entity of entitiesIter) {
+      const [, bankName] = entity.partitionKey.split("_");
+
+      if (bankName) {
+        bankNamesSet.add(bankName);
+      }
+    }
+
+    return Array.from(bankNamesSet);
+  }
+
+  async addQuestion(guildId: string, question: Question): Promise<void> {
+    const entity = toTableEntity(guildId, question);
+    await this.quizQuestionsClient.createEntity(entity);
+  }
+
+  async addQuestions(guildId: string, questions: Question[]): Promise<void> {
+    const addPromises = questions.map((question) => {
+      const entity = toTableEntity(guildId, question);
+      return this.quizQuestionsClient.createEntity(entity);
+    });
+    await Promise.all(addPromises);
+  }
+
+  async deleteQuestionBank(guildId: string, bankName: string): Promise<void> {
+    const partitionKeyEquals = odata`PartitionKey eq ${guildId}-${bankName}`;
+    const options = {
+      queryOptions: {
+        filter: partitionKeyEquals,
+      },
+    };
+    const entitiesToDelete =
+      this.quizQuestionsClient.listEntities<TableEntity<Question>>(options);
+
+    const deletePromises: Promise<TableDeleteEntityHeaders>[] = [];
+    for await (const entity of entitiesToDelete) {
+      deletePromises.push(
+        this.quizQuestionsClient.deleteEntity(
+          entity.partitionKey,
+          entity.rowKey,
+        ),
+      );
+    }
+    await Promise.all(deletePromises);
+  }
+
+  async deleteQuestion(
+    guildId: string,
+    bankName: string,
+    questionId: string,
+  ): Promise<void> {
+    await this.quizQuestionsClient.deleteEntity(
+      `${guildId}-${bankName}`,
+      questionId,
+    );
+  }
+
+  async generateAndAddQuestion(
+    guildId: string,
+    bankName: string,
+    questionText: string,
+    answers: Answer[],
+    correctAnswerId: string,
+    questionShowTimeMs = 20000,
+    imageUrl?: string,
+    explanation?: string,
+    explanationImageUrl?: string,
+  ): Promise<void> {
+    const question = await this.generateQuestion(
+      guildId,
+      bankName,
+      questionText,
+      answers,
+      correctAnswerId,
+      questionShowTimeMs,
+      imageUrl,
+      explanation,
+      explanationImageUrl,
+    );
+    await this.addQuestion(guildId, question);
+  }
+
+  async generateQuestion(
+    guildId: string,
+    bankName: string,
+    questionText: string,
+    answers: Answer[],
+    correctAnswerId: string,
+    questionShowTimeMs = 20000,
+    imageUrl?: string,
+    explanation?: string,
+    explanationImageUrl?: string,
+  ): Promise<Question> {
+    const questionId = uuid();
+
+    let imagePartitionKey: string | undefined;
+    let explanationImagePartitionKey: string | undefined;
+
+    if (imageUrl) {
+      imagePartitionKey = `${guildId}-${bankName}-${questionId}-question`;
+      await this.quizImageClient.downloadAndValidateImageForDiscord(
+        guildId,
+        imageUrl,
+        bankName,
+        questionId,
+        ImageType.Question,
+      );
+    }
+
+    if (explanationImageUrl) {
+      explanationImagePartitionKey = `${guildId}-${bankName}-${questionId}-explanation`;
+      await this.quizImageClient.downloadAndValidateImageForDiscord(
+        guildId,
+        explanationImageUrl,
+        bankName,
+        questionId,
+        ImageType.Explanation,
+      );
+    }
+
+    return {
+      guildId,
+      bankName,
+      questionId,
+      question: questionText,
+      answers,
+      correctAnswerId,
+      questionShowTimeMs,
+      imagePartitionKey,
+      explanation,
+      explanationImagePartitionKey,
+    };
+  }
+
+  public async updateQuestion(
+    guildId: string,
+    question: Question,
+  ): Promise<void> {
+    const entity = toTableEntity(guildId, question);
+    await this.quizQuestionsClient.updateEntity(entity, "Merge");
+  }
+}
+
+function toTableEntity(
+  guildId: string,
+  question: Question,
+): TableEntity<Question> {
+  const rowKey = question.questionId ?? uuid();
+  return {
+    guildId: guildId,
+    partitionKey: `${guildId}-${question.bankName}`,
+    rowKey: rowKey,
+    question: question.question,
+    questionId: rowKey,
+    bankName: question.bankName,
+    answers: question.answers,
+    correctAnswerId: question.correctAnswerId,
+    imagePartitionKey: question.imagePartitionKey,
+    explanation: question.explanation,
+    explanationImagePartitionKey: question.explanationImagePartitionKey,
+    questionShowTimeMs: question.questionShowTimeMs,
+  };
+}
+
+function fromTableEntity(entity: TableEntity<Question>): Question {
+  return {
+    guildId: entity.guildId,
+    bankName: entity.bankName,
+    questionId: entity.rowKey,
+    question: entity.question,
+    answers: entity.answers,
+    correctAnswerId: entity.correctAnswerId,
+    imagePartitionKey: entity.imagePartitionKey,
+    explanation: entity.explanation,
+    explanationImagePartitionKey: entity.explanationImagePartitionKey,
+    questionShowTimeMs: entity.questionShowTimeMs,
+  };
+}
+import {
+  BlobSASPermissions,
+  BlobServiceClient,
+  generateBlobSASQueryParameters,
+  StorageSharedKeyCredential,
+} from "@azure/storage-blob";
+import { throwError } from "./errorHelpers.js";
+import { ImageType, IQuizImageStorage } from "./IQuestionStorage.interfaces.js";
+import { fileTypeFromBuffer } from "file-type";
+import gm from "gm";
+
+const MAX_FILE_SIZE_BYTES = 8 * 1024 * 1024; // 8MB for Discord
+const VALID_IMAGE_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+];
+
+function getImageKey(
+  guildId: string,
+  bankName: string,
+  questionId: string,
+  imageType: ImageType,
+) {
+  return `${guildId}-${bankName}-${questionId}-${imageType}`;
+}
+
+export class QuizImageStorage implements IQuizImageStorage {
+  private quizImageClient: BlobServiceClient;
+  constructor(
+    connectionString?: string | undefined,
+    private readonly storageAccountKey: string = process.env
+      .AZURE_STORAGE_ACCOUNT_KEY ?? throwError("invalid storage account key"),
+    private readonly storageAccountName: string = process.env
+      .AZURE_STORAGE_ACCOUNT_NAME ?? throwError("invalid storage account name"),
+    quizImageClient?: BlobServiceClient,
+  ) {
+    if (!quizImageClient) {
+      if (!connectionString) {
+        throw new Error("invalid connection string");
+      }
+
+      this.quizImageClient =
+        BlobServiceClient.fromConnectionString(connectionString);
+    } else {
+      this.quizImageClient = quizImageClient;
+    }
+  }
+
+  public async downloadAndValidateImageForDiscord(
+    guildId: string,
+    imageUrl: string,
+    bankName: string,
+    questionId: string,
+    imageType: ImageType,
+  ): Promise<string> {
+    console.log("Args Received:", imageUrl, bankName, questionId);
+
+    const response = await fetch(imageUrl);
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch image: ${response.status} ${response.statusText}`,
+      );
+    }
+
+    const contentLengthHeader = response.headers.get("content-length");
+    if (contentLengthHeader) {
+      const contentLength = parseInt(contentLengthHeader, 10);
+      if (contentLength > MAX_FILE_SIZE_BYTES) {
+        throw new Error("Image size exceeds Discord's 8MB limit.");
+      }
+    }
+
+    const imageStream = response.body;
+    const chunks: Uint8Array[] = [];
+    let totalBytes = 0;
+
+    if (!imageStream) {
+      throw new Error(`Unable to download the file from the URL ${imageUrl}`);
+    }
+
+    const reader = imageStream.getReader();
+    let result = await reader.read();
+
+    while (!result.done) {
+      const chunk = result.value;
+      totalBytes += chunk.length;
+      if (totalBytes > MAX_FILE_SIZE_BYTES) {
+        throw new Error("Image size exceeds Discord's 8MB limit.");
+      }
+      chunks.push(chunk);
+      result = await reader.read();
+    }
+
+    const buffer = Buffer.concat(chunks);
+
+    // Validate file type
+    const fileTypeResult = await fileTypeFromBuffer(buffer);
+    if (!fileTypeResult || !VALID_IMAGE_TYPES.includes(fileTypeResult.mime)) {
+      throw new Error("Invalid image file type for Discord.");
+    }
+
+    // Optimize image using ImageMagick
+    const optimizedImageBuffer = await new Promise<Buffer>(
+      (resolve, reject) => {
+        gm(buffer)
+          .resize(1000) // Resize image while keeping aspect ratio
+          .quality(85)
+          .toBuffer("JPEG", (err, buffer) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(buffer);
+            }
+          });
+      },
+    );
+
+    const imagePartitionKey = getImageKey(
+      guildId,
+      bankName,
+      questionId,
+      imageType,
+    );
+
+    const filename = `${imagePartitionKey}.jpg`;
+
+    const containerClient = this.quizImageClient.getContainerClient(imageType);
+    const blockBlobClient = containerClient.getBlockBlobClient(filename);
+    await blockBlobClient.uploadData(optimizedImageBuffer);
+    return blockBlobClient.url;
+  }
+
+  async getPresignedUrl(
+    containerName: string,
+    partitionKey: string,
+  ): Promise<string> {
+    const containerClient =
+      this.quizImageClient.getContainerClient(containerName);
+    const blockBlobClient = containerClient.getBlockBlobClient(
+      `${partitionKey}.jpg`,
+    );
+
+    const sasOptions = {
+      containerName,
+      blobName: `${partitionKey}.jpg`,
+      permissions: BlobSASPermissions.parse("r"), // Read permission
+      startsOn: new Date(),
+      expiresOn: new Date(new Date().valueOf() + 86400 * 1000), // Expires in 24 hours
+    };
+
+    const sharedKeyCredential = new StorageSharedKeyCredential(
+      this.storageAccountName,
+      this.storageAccountKey,
+    );
+
+    const sasToken = generateBlobSASQueryParameters(
+      sasOptions,
+      sharedKeyCredential,
+    ).toString();
+    return `${blockBlobClient.url}?${sasToken}`;
+  }
+
+  async getQuestionImagePresignedUrl(
+    guildId: string,
+    bankName: string,
+    questionId: string,
+  ): Promise<string> {
+    const imagePartitionKey = getImageKey(
+      guildId,
+      bankName,
+      questionId,
+      ImageType.Question,
+    );
+    return this.getPresignedUrl(bankName, imagePartitionKey);
+  }
+
+  async getExplanationImagePresignedUrl(
+    guildId: string,
+    bankName: string,
+    questionId: string,
+  ): Promise<string> {
+    const imagePartitionKey = getImageKey(
+      guildId,
+      bankName,
+      questionId,
+      ImageType.Explanation,
+    );
+    return this.getPresignedUrl(bankName, imagePartitionKey);
+  }
+}
+export interface Answer {
+  answerId: string;
+  answer: string;
+}
+import { Answer } from "./answer.interfaces.js";
+
+export interface Question {
+  guildId: string;
+  bankName: string;
+  questionId: string;
+  question: string;
+  answers: Answer[];
+  correctAnswerId: string;
+  imagePartitionKey?: string; // Use partition keys instead of direct URLs
+  explanation?: string;
+  explanationImagePartitionKey?: string; // Use partition keys instead of direct URLs
+  questionShowTimeMs: number;
+}

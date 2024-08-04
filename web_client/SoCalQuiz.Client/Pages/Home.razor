@@ -1,0 +1,17 @@
+﻿@page "/"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+@using SoCal.Quiz.QuestionEditor.Service.DTOs
+
+<PageTitle>Home</PageTitle>
+
+<RadzenDataGrid TItem="GuildDto" Data="@_guilds">
+    <Columns>
+        <RadzenDataGridColumn Property="@nameof(GuildDto.Name)" Title="Guild Name" />
+        <RadzenDataGridColumn Property="@nameof(GuildDto.Id)" Title="">
+            <Template Context="data">
+                <RadzenButton Variant="Variant.Flat" Shade="Shade.Lighter" Icon="info" ButtonStyle="ButtonStyle.Info" Click="@(() => NavigateToQuestionBanks(data))" Text="Edit"></RadzenButton>
+            </Template>
+        </RadzenDataGridColumn>
+    </Columns>
+</RadzenDataGrid>

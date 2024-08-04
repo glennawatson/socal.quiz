@@ -1,0 +1,51 @@
+﻿@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+@using SoCal.Quiz.QuestionEditor.Service.DTOs
+
+<PageTitle>Edit Question</PageTitle>
+
+@if (Question is null)
+{
+    <p>No valid question.</p>
+    return;
+}
+
+<RadzenFieldset Text="Question">
+    <RadzenLabel Text="Question Text" />
+    <MarkdownEditor @bind-Value="Question.Question" SpellChecker="false" />
+
+    <RadzenLabel Text="Answers" />
+    <RadzenDataList Data="@Question.Answers" TItem="AnswerDto">
+        <Template Context="answer">
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" class="rz-p-2">
+                <MarkdownEditor @bind-Value="answer.Answer" />
+                <RadzenButton ButtonStyle="ButtonStyle.Danger" Icon="delete" Variant="Variant.Flat" Size="ButtonSize.Small" Click="@(args => DeleteAnswer(answer))" @onclick:stopPropagation="true">
+                </RadzenButton>
+            </RadzenStack>
+        </Template>
+    </RadzenDataList>
+    <RadzenButton ButtonStyle="ButtonStyle.Primary" Click="AddNewAnswer">Add Answer</RadzenButton>
+
+    <RadzenLabel Text="Correct Answer" />
+    <RadzenDropDown Data="Question.Answers" TextProperty="Answer" ValueProperty="AnswerId" @bind-Value="Question.CorrectAnswerId" Style="width: 100%" />
+
+    <RadzenLabel Text="Image URL" />
+    <RadzenTextBox @bind-Value="Question.ImageUrl" Style="width: 100%" />
+    @if (!string.IsNullOrWhiteSpace(Question.ImageUrl))
+    {
+        <RadzenImage Path="@Question.ImageUrl" Style="width: 100%; margin-top: 10px;" />
+    }
+
+    <RadzenLabel Text="Explanation" />
+    <MarkdownEditor @bind-Value="Question.Explanation" SpellChecker="false" />
+
+    <RadzenLabel Text="Explanation Image URL" />
+    <RadzenTextBox @bind-Value="Question.ExplanationImageUrl" Style="width: 100%" />
+    @if (!string.IsNullOrWhiteSpace(Question.ExplanationImageUrl))
+    {
+        <RadzenImage Path="@Question.ExplanationImageUrl" Style="width: 100%; margin-top: 10px;" />
+    }
+
+    <RadzenLabel Text="Show Time (ms)" />
+    <RadzenNumeric @bind-Value="Question.QuestionShowTimeMs" Style="width: 100%" />
+</RadzenFieldset>

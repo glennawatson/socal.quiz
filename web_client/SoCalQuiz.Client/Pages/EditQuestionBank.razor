@@ -1,0 +1,54 @@
+﻿@page "/addquestionbank/{guildId}"
+@page "/editquestionbank/{guildId}/{bankName}"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+@using SoCal.Quiz.QuestionEditor.Service.DTOs
+
+<PageTitle>Edit Question Bank</PageTitle>
+
+<RadzenBreadCrumb>
+    <RadzenBreadCrumbItem Text="Question Banks" Path="/" />
+    <RadzenBreadCrumbItem Text=@($"Editing: {_questionBankRequestDto?.Name}") />
+</RadzenBreadCrumb>
+
+<RadzenTemplateForm Data="@_questionBankRequestDto" TItem="QuestionBankRequestDto" Submit="HandleValidSubmit">
+    <RadzenRow>
+        <RadzenColumn>
+            <RadzenLabel Text="Bank Name" />
+            <RadzenTextBox @bind-Value="_questionBankRequestDto.Name" Style="width: 100%" Name="BankName" />
+            <RadzenRequiredValidator Component="BankName" Text="Bank Name is required" />
+
+            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.Center">
+                <RadzenButton ButtonStyle="ButtonStyle.Primary" Click="AddNewQuestion" Variant="Variant.Flat" Size="ButtonSize.Medium" Icon="add" />
+            </RadzenStack>
+
+            <RadzenDataGrid Data="@_questionBankRequestDto.Questions" TItem="QuestionRequestDto" SelectionMode="DataGridSelectionMode.Single" RowSelect="@(x => _selectedQuestion = x)">
+                <Columns>
+                    <RadzenDataGridColumn TItem="QuestionRequestDto" Property="Question" Title="Question" />
+                    <RadzenDataGridColumn TItem="QuestionRequestDto" Property="Explanation" Title="Explanation" />
+                    <RadzenDataGridColumn TItem="QuestionRequestDto" Context="question" Filterable="false" Sortable="false" TextAlign="TextAlign.Right">
+                        <Template Context="question">
+                            <RadzenButton ButtonStyle="ButtonStyle.Danger" Icon="delete" Variant="Variant.Flat" Size="ButtonSize.Medium" Click="@(args => DeleteQuestion(question))" @onclick:stopPropagation="true" />
+                        </Template>
+                    </RadzenDataGridColumn>
+                </Columns>
+            </RadzenDataGrid>
+        </RadzenColumn>
+    </RadzenRow>
+
+    @if (_selectedQuestion is not null)
+    {
+        <RadzenRow>
+            <RadzenColumn>
+                <RadzenFieldset Text="Edit Selected Question">
+                    <EditQuestion Question="@_selectedQuestion" />
+                </RadzenFieldset>
+            </RadzenColumn>
+        </RadzenRow>
+    }
+
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.Center" Gap="1rem" Class="rz-mt-8 rz-mb-4">
+        <RadzenButton ButtonType="ButtonType.Submit" Size="ButtonSize.Large" Icon="save" Text="Save" />
+        <RadzenButton ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat" Size="ButtonSize.Large" Icon="cancel" Text="Cancel" Click="@Cancel" />
+    </RadzenStack>
+</RadzenTemplateForm>

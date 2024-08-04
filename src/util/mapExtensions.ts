@@ -1,3 +1,5 @@
+export {};
+
 declare global {
   interface Map<K, V> {
     getOrAdd(key: K, defaultValue: () => V): V | undefined;

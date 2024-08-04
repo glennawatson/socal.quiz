@@ -1,4 +1,10 @@
 {
+    "compilerOptions": {
+        "paths": {
+            "@src/*": ["src/*"]
+        }
+    },
+    "esModuleInterop": true,
     "extends": "./tsconfig.json",
     "include": ["tests/**/*.test.ts", "tests/**/*.spec.ts"],
     "exclude": []
