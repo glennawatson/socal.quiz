@@ -22,7 +22,7 @@
     "@discordjs/rest": "^2.3.0",
     "@types/gm": "^1.25.4",
     "@types/luxon": "^3.4.2",
-    "discord-api-types": "^0.37.91",
+    "discord-api-types": "^0.37.93",
     "discord-verify": "^1.2.0",
     "durable-functions": "^3.1.0",
     "file-type": "^19.0.0",
