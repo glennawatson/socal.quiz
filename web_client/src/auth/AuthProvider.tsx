@@ -63,7 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } else {
       setState((prev) => ({ ...prev, isLoading: false }));
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   const login = useCallback(async () => {
     const { codeVerifier, codeChallenge } = await generatePKCE();
