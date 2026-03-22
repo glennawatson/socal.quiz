@@ -2,7 +2,6 @@ import { DiscordBotService } from "../handlers/discordBotService.js";
 import { QuestionStorage } from "./questionStorage.js";
 import { GuildStorage } from "./guildStorage.js";
 import { throwError } from "./errorHelpers.js";
-import { StateManager } from "../handlers/stateManager.js";
 import { REST } from "@discordjs/rest";
 import { DurableClient } from "durable-functions";
 import { CommandManager } from "../handlers/actions/commandManager.js";
@@ -19,7 +18,6 @@ export class Config {
   public static imageStorage: QuizImageStorage;
   public static guildStorage: GuildStorage;
   public static discordBotService: DiscordBotService;
-  public static stateManager: StateManager;
   public static quizManagerFactory: QuizManagerFactoryManager;
   public static rest: REST;
   public static oauth2Relay: OAuth2Relay;
@@ -39,7 +37,6 @@ export class Config {
     questionStorage?: QuestionStorage,
     guildStorage?: GuildStorage,
     imageStorage?: QuizImageStorage,
-    stateManager?: StateManager,
     quizManagerFactory?: QuizManagerFactoryManager,
     discordBotService?: DiscordBotService,
     oauth2Relay?: OAuth2Relay,
@@ -79,7 +76,6 @@ export class Config {
         Config.questionStorage =
           questionStorage ?? new QuestionStorage(Config.imageStorage);
         Config.guildStorage = guildStorage ?? new GuildStorage(getEnvVarOrDefault("AZURE_STORAGE_CONNECTION_STRING"));
-        Config.stateManager = stateManager ?? new StateManager();
         Config.quizManagerFactory =
           quizManagerFactory ??
           new QuizManagerFactoryManager(defaultQuizMethodFactory);
@@ -94,6 +90,7 @@ export class Config {
               Config.clientId,
               Config.rest,
             ),
+            Config.rest,
           );
 
         await Config.questionStorage.initialize();

@@ -109,7 +109,7 @@ describe("AddQuestionToBankCommand", () => {
           "sampleBank",
           "What is 2+2?",
           ["2", "3", "4"],
-          2,
+          3,
         );
 
       const response =
@@ -124,9 +124,7 @@ describe("AddQuestionToBankCommand", () => {
         ],
         "4id",
         20000,
-        undefined,
-        undefined,
-        undefined,
+        "",
       );
       expect(response).toEqual(
         createEphemeralResponse("Added question to bank sampleBank."),
@@ -188,7 +186,7 @@ describe("AddQuestionToBankCommand", () => {
 
       expect(response).toEqual(
         createEphemeralResponse(
-          "Invalid correct answer index. Please enter a number between 0 and 2",
+          "Invalid correct answer index. Please enter a number between 1 and 3",
         ),
       );
     });
@@ -200,7 +198,7 @@ describe("AddQuestionToBankCommand", () => {
           "sampleBank",
           "What is 2+2?",
           ["2", "3", "4"],
-          4,
+          5,
         );
 
       const response =
@@ -208,7 +206,7 @@ describe("AddQuestionToBankCommand", () => {
 
       expect(response).toEqual(
         createEphemeralResponse(
-          "Invalid correct answer index. Please enter a number between 0 and 2",
+          "Invalid correct answer index. Please enter a number between 1 and 3",
         ),
       );
     });
@@ -220,7 +218,7 @@ describe("AddQuestionToBankCommand", () => {
           "sampleBank",
           "What is 2+2?",
           ["2", "3", "4"],
-          2,
+          3,
         );
 
       // Simulate generateAnswer returning undefined for the correct answer

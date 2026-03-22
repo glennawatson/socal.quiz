@@ -169,11 +169,11 @@ describe("DurableQuizManager", () => {
       expect(durableClientMock.raiseEvent).not.toHaveBeenCalled();
     });
 
-    it("should raise an answerQuestion event", async () => {
+    it("should raise a skipQuestion event", async () => {
       await durableQuizManager.nextQuizQuestion("guild123", "channel123");
       expect(durableClientMock.raiseEvent).toHaveBeenCalledWith(
         "guild123-channel123",
-        "answerQuestion",
+        "skipQuestion",
         {},
         {},
       );

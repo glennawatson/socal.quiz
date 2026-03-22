@@ -450,10 +450,10 @@ describe("EditQuestionCommand", () => {
               ],
               correctAnswerId: "answer2",
               questionShowTimeMs: 30000,
-              imagePartitionKey: "test-bank-test-question-id-question",
+              imagePartitionKey: "test-question-id-QuestionImage",
               explanation: "A simple math question",
               explanationImagePartitionKey:
-                "test-bank-test-question-id-explanation",
+                "test-question-id-ExplanationImage",
             }),
           ]),
         }),

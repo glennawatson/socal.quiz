@@ -270,13 +270,13 @@ describe("QuestionStorage", () => {
   describe("getQuestionBankNames", () => {
     it("should return a list of unique question bank names", async () => {
       (odata as any).mockImplementation(() => {
-        return "PartitionKey ge 'guild1_'";
+        return "PartitionKey eq 'guild1'";
       });
 
       const mockEntities = [
-        { partitionKey: "guild1_bank1" },
-        { partitionKey: "guild1_bank2" },
-        { partitionKey: "guild1_bank1" }, // Duplicate bank name
+        { partitionKey: "guild1", rowKey: "bank1" },
+        { partitionKey: "guild1", rowKey: "bank2" },
+        { partitionKey: "guild1", rowKey: "bank1" }, // Duplicate bank name
       ];
 
       tableClientMock.listEntities.mockReturnValue({
@@ -292,7 +292,7 @@ describe("QuestionStorage", () => {
       expect(tableClientMock.listEntities).toHaveBeenCalledWith(
         expect.objectContaining({
           queryOptions: expect.objectContaining({
-            filter: "PartitionKey ge 'guild1_'",
+            filter: "PartitionKey eq 'guild1'",
           }),
         }),
       );

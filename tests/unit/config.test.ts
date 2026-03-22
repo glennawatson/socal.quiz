@@ -4,7 +4,6 @@ import { DiscordBotService } from "@src/handlers/discordBotService.js";
 import { QuestionStorage } from "@src/util/questionStorage.js";
 import { GuildStorage } from "@src/util/guildStorage.js";
 import { throwError } from "@src/util/errorHelpers.js";
-import { StateManager } from "@src/handlers/stateManager.js";
 import { CommandManager } from "@src/handlers/actions/commandManager.js";
 import { REST } from "@discordjs/rest";
 import { QuizImageStorage } from "@src/util/quizImageStorage.js";
@@ -17,7 +16,6 @@ vi.mock("@src/handlers/discordBotService");
 vi.mock("@src/util/questionStorage");
 vi.mock("@src/util/quizImageStorage");
 vi.mock("@src/util/guildStorage");
-vi.mock("@src/handlers/stateManager");
 vi.mock("@src/util/errorHelpers", () => ({
   throwError: vi.fn(),
 }));
@@ -57,7 +55,6 @@ describe("Config", () => {
       ),
       new GuildStorage(),
       new QuizImageStorage("mock-connection-string", "mock-key", "mock-name"),
-      new StateManager(),
       mockQuizManagerFactory,
       new DiscordBotService(
         new GuildStorage(),
@@ -121,7 +118,6 @@ describe("Config", () => {
       mockQuestionStorage,
       new GuildStorage(),
       mockQuizImageStorageClient,
-      new StateManager(),
       undefined,
       new DiscordBotService(
         new GuildStorage(),
@@ -164,7 +160,6 @@ describe("Config", () => {
     );
     const mockQuestionStorage = new QuestionStorage(mockQuizImageStorageClient);
     const mockGuildStorage = new GuildStorage();
-    const mockStateManager = new StateManager();
     const mockQuizManagerFactory = new QuizManagerFactoryManager(
       () =>
         new DurableQuizManager(
@@ -193,7 +188,6 @@ describe("Config", () => {
       mockQuestionStorage,
       mockGuildStorage,
       mockQuizImageStorageClient,
-      mockStateManager,
       mockQuizManagerFactory,
       mockDiscordBotService,
     );
@@ -262,7 +256,6 @@ describe("Config", () => {
     );
     const mockQuestionStorage = new QuestionStorage(mockQuizImageStorageClient);
     const mockGuildStorage = new GuildStorage();
-    const mockStateManager = new StateManager();
     const mockQuizManagerFactory = new QuizManagerFactoryManager(
       () =>
         new DurableQuizManager(
@@ -291,7 +284,6 @@ describe("Config", () => {
       mockQuestionStorage,
       mockGuildStorage,
       mockQuizImageStorageClient,
-      mockStateManager,
       mockQuizManagerFactory,
       mockDiscordBotService,
     );
@@ -305,7 +297,6 @@ describe("Config", () => {
       mockQuestionStorage,
       mockGuildStorage,
       mockQuizImageStorageClient,
-      mockStateManager,
       mockQuizManagerFactory,
       mockDiscordBotService,
     );
@@ -331,7 +322,6 @@ describe("Config", () => {
     );
     const mockQuestionStorage = new QuestionStorage(mockQuizImageStorageClient);
     const mockGuildStorage = new GuildStorage();
-    const mockStateManager = new StateManager();
     const mockQuizManagerFactory = new QuizManagerFactoryManager(
       () =>
         new DurableQuizManager(
@@ -349,15 +339,14 @@ describe("Config", () => {
       mockQuestionStorage,
       mockGuildStorage,
       mockQuizImageStorageClient,
-      mockStateManager,
       mockQuizManagerFactory,
     );
 
     expect(Config.discordBotService).toBeInstanceOf(DiscordBotService);
-    expect(DiscordBotService).toHaveBeenCalledWith(
-      mockGuildStorage,
-      mockQuizManagerFactory,
-      expect.any(CommandManager),
-    );
+    expect(DiscordBotService).toHaveBeenCalledTimes(1);
+    const callArgs = vi.mocked(DiscordBotService).mock.calls[0];
+    expect(callArgs).toHaveLength(4);
+    expect(callArgs?.[0]).toBe(mockGuildStorage);
+    expect(callArgs?.[1]).toBe(mockQuizManagerFactory);
   });
 });

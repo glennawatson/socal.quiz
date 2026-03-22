@@ -18,13 +18,8 @@ class InteractionGenerator {
     question: string,
     answersInput: string[],
     correctAnswerIndex: number | string | undefined,
+    imageUrl?: string,
   ): APIModalSubmitInteraction {
-    const answers = answersInput.map((answer, index) => ({
-      type: ComponentType.TextInput as const,
-      custom_id: `answer${index + 1}`,
-      value: answer,
-    }));
-
     return {
       guild_id: guildId,
       channel_id: "channel-id",
@@ -40,8 +35,18 @@ class InteractionGenerator {
       authorizing_integration_owners: {},
       attachment_size_limit: 8388608,
       data: {
-        custom_id: "add-question-modal",
+        custom_id: "add_question_to_bank",
         components: [
+          {
+            type: ComponentType.ActionRow,
+            components: [
+              {
+                type: ComponentType.TextInput as const,
+                custom_id: "bankname",
+                value: bankName,
+              },
+            ],
+          },
           {
             type: ComponentType.ActionRow,
             components: [
@@ -50,16 +55,35 @@ class InteractionGenerator {
                 custom_id: "questionText",
                 value: question,
               },
-              ...answers,
+            ],
+          },
+          {
+            type: ComponentType.ActionRow,
+            components: [
+              {
+                type: ComponentType.TextInput as const,
+                custom_id: "answers",
+                value: answersInput.join(", "),
+              },
+            ],
+          },
+          {
+            type: ComponentType.ActionRow,
+            components: [
               {
                 type: ComponentType.TextInput as const,
                 custom_id: "correctAnswerIndex",
                 value: correctAnswerIndex?.toString() ?? "",
               },
+            ],
+          },
+          {
+            type: ComponentType.ActionRow,
+            components: [
               {
                 type: ComponentType.TextInput as const,
-                custom_id: "bankname",
-                value: bankName,
+                custom_id: "imageUrl",
+                value: imageUrl ?? "",
               },
             ],
           },

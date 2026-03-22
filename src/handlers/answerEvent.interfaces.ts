@@ -3,10 +3,11 @@ export interface AnswerEvent {
   selectedAnswerId: string;
 }
 
-export function isAnswerEvent(event: any): event is AnswerEvent {
+export function isAnswerEvent(event: unknown): event is AnswerEvent {
   return (
-    event &&
-    typeof event.userId === "string" &&
-    typeof event.selectedAnswerId === "string"
+    typeof event === "object" &&
+    event !== null &&
+    typeof (event as AnswerEvent).userId === "string" &&
+    typeof (event as AnswerEvent).selectedAnswerId === "string"
   );
 }

@@ -26,7 +26,6 @@ function getImageKey(
 }
 
 export class QuizImageStorage implements IQuizImageStorage {
-  private static readonly containerName = "QuizImages";
   private blobImageClient: BlobServiceClient;
   private readonly storageAccountKey: string;
   private readonly storageAccountName: string;
@@ -122,16 +121,17 @@ export class QuizImageStorage implements IQuizImageStorage {
   }
 
   async getPresignedUrl(
+    containerName: string,
     partitionKey: string,
   ): Promise<string> {
     const containerClient =
-      this.blobImageClient.getContainerClient(QuizImageStorage.containerName);
+      this.blobImageClient.getContainerClient(containerName);
     const blockBlobClient = containerClient.getBlockBlobClient(
       `${partitionKey}.jpg`,
     );
 
     const sasOptions = {
-      containerName: QuizImageStorage.containerName,
+      containerName: containerName,
       blobName: `${partitionKey}.jpg`,
       permissions: BlobSASPermissions.parse("r"), // Read permission
       startsOn: new Date(),
@@ -157,7 +157,7 @@ export class QuizImageStorage implements IQuizImageStorage {
       questionId,
       ImageType.Question,
     );
-    return this.getPresignedUrl(imagePartitionKey);
+    return this.getPresignedUrl(ImageType.Question, imagePartitionKey);
   }
 
   async getExplanationImagePresignedUrl(
@@ -167,6 +167,6 @@ export class QuizImageStorage implements IQuizImageStorage {
       questionId,
       ImageType.Explanation,
     );
-    return this.getPresignedUrl(imagePartitionKey);
+    return this.getPresignedUrl(ImageType.Explanation, imagePartitionKey);
   }
 }

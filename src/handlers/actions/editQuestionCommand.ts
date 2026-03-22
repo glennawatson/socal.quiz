@@ -26,6 +26,7 @@ import {
 import { createTextInput } from "../../util/commandHelpers.js";
 import type { Question } from "../../question.interfaces.js";
 import type { IQuestionStorage } from "../../util/IQuestionStorage.interfaces.js";
+import { ImageType } from "../../util/IQuestionStorage.interfaces.js";
 import { throwError } from "../../util/errorHelpers.js";
 
 interface Inputs {
@@ -213,11 +214,11 @@ export class EditQuestionCommand implements IModalHandlerCommand {
       correctAnswerId: correctAnswer!.answerId,
       questionShowTimeMs: (inputs.timeoutTimeSeconds ?? 20) * 1000,
       imagePartitionKey: inputs.imageUrl
-          ? `${inputs.bankName}-${questionId}-question`
+          ? `${questionId}-${ImageType.Question}`
           : existingQuestion.imagePartitionKey ?? undefined,
       explanation: inputs.explanation,
       explanationImagePartitionKey: inputs.explanationImageUrl
-          ? `${inputs.bankName}-${questionId}-explanation`
+          ? `${questionId}-${ImageType.Explanation}`
           : existingQuestion.explanationImagePartitionKey ?? undefined,
     };
   }

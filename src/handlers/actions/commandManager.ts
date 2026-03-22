@@ -45,6 +45,45 @@ export class CommandManager {
     this.commands = new Map();
   }
 
+  private quizAdminRoleId: string | undefined;
+
+  private static readonly adminCommands = new Set([
+    "add_question_to_bank",
+    "edit_question",
+    "delete_question_from_bank",
+    "delete_question_bank",
+    "start_quiz",
+    "stop_quiz",
+    "next_question",
+  ]);
+
+  public setQuizAdminRoleId(roleId: string) {
+    this.quizAdminRoleId = roleId;
+  }
+
+  private checkAdminPermission(
+    interaction: APIInteraction,
+    commandName: string,
+  ): APIInteractionResponse | null {
+    if (!CommandManager.adminCommands.has(commandName)) {
+      return null;
+    }
+
+    const permissions = BigInt(interaction.member?.permissions ?? "0");
+    const MANAGE_GUILD = 1n << 5n;
+    if ((permissions & MANAGE_GUILD) !== 0n) {
+      return null;
+    }
+
+    if (this.quizAdminRoleId && interaction.member?.roles.includes(this.quizAdminRoleId)) {
+      return null;
+    }
+
+    return createEphemeralResponse(
+      "You need the Manage Server permission or the QuizAdmin role to use this command.",
+    );
+  }
+
   public async handleInteraction(
     interaction: APIInteraction,
   ): Promise<APIInteractionResponse | null> {
@@ -55,6 +94,14 @@ export class CommandManager {
         return createEphemeralResponse(
           "could not find modal: " + interaction.data.custom_id,
         );
+      }
+
+      const permissionError = this.checkAdminPermission(
+        interaction,
+        interaction.data.custom_id,
+      );
+      if (permissionError) {
+        return permissionError;
       }
 
       return await (command as IModalHandlerCommand).handleModalSubmit(
@@ -70,6 +117,14 @@ export class CommandManager {
         return createEphemeralResponse(
           "could not find command: " + interaction.data.name,
         );
+      }
+
+      const permissionError = this.checkAdminPermission(
+        interaction,
+        interaction.data.name,
+      );
+      if (permissionError) {
+        return permissionError;
       }
 
       return await command.execute(interaction);

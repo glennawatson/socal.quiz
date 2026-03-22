@@ -382,6 +382,7 @@ describe("QuizImageStorage", () => {
       );
 
       const url = await quizImageStorage.getPresignedUrl(
+        "container",
         "partition",
       );
 

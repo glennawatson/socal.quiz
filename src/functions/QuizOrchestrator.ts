@@ -39,12 +39,12 @@ export const QuizOrchestrator: OrchestrationHandler = function* (
     // Wait for the timer, the skip signal, or the cancel signal
     const skipQuestionEvent = context.df.waitForExternalEvent("skipQuestion");
     const cancelEvent = context.df.waitForExternalEvent("cancelQuiz");
-    const answerEvent = context.df.waitForExternalEvent("answerQuestion");
 
     let shouldSkip = false;
 
     while (true) {
       const timer = context.df.createTimer(questionTime.toJSDate());
+      const answerEvent = context.df.waitForExternalEvent("answerQuestion");
       const winner = yield context.df.Task.any([
         timer,
         skipQuestionEvent,
@@ -68,12 +68,21 @@ export const QuizOrchestrator: OrchestrationHandler = function* (
         break;
       }
 
-      if (winner == answerEvent) {
+      if (winner === answerEvent) {
         if (!isAnswerEvent(answerEvent.result)) {
           continue;
         }
 
         const answerEventData = answerEvent.result;
+
+        // Skip if user already answered this question
+        if (quiz.answeredUsersForQuestion.has(answerEventData.userId)) {
+          continue;
+        }
+
+        // Track that this user has answered
+        quiz.answeredUsersForQuestion.add(answerEventData.userId);
+
         const isCorrect =
           question.correctAnswerId === answerEventData.selectedAnswerId;
 
@@ -90,15 +99,16 @@ export const QuizOrchestrator: OrchestrationHandler = function* (
           );
         }
       }
-
-      yield context.df.callActivity("SendQuestionSummary", {
-        quiz,
-        questionNumber: index + 1,
-      });
-
-      quiz.correctUsersForQuestion.clear();
-      quiz.answeredUsersForQuestion.clear();
     }
+
+    // Send the question summary after the question period ends
+    yield context.df.callActivity("SendQuestionSummary", {
+      quiz,
+      questionNumber: index + 1,
+    });
+
+    quiz.correctUsersForQuestion.clear();
+    quiz.answeredUsersForQuestion.clear();
 
     if (shouldSkip) {
       continue;
@@ -129,7 +139,6 @@ df.app.orchestration("QuizOrchestrator", QuizOrchestrator);
 interface QuestionServerData {
   currentQuestionId: number;
   currentQuestion: Question | undefined;
-  durableClient: df.DurableClient;
 }
 
 async function getQuestionServerDetails(
@@ -149,7 +158,6 @@ async function getQuestionServerDetails(
   return {
     currentQuestion: currentQuestion,
     currentQuestionId: questionNumber,
-    durableClient: durableClient,
   };
 }
 

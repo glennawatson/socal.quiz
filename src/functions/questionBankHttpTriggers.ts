@@ -61,7 +61,7 @@ async function processQuestion(requestBody: QuestionRequestBody, imageStorage: I
 
   try {
     if (requestBody.explanationImageUrl) {
-      requestBody.imagePartitionKey = await imageStorage.downloadAndValidateImageForDiscord(
+      requestBody.explanationImagePartitionKey = await imageStorage.downloadAndValidateImageForDiscord(
           requestBody.explanationImageUrl,
           requestBody.questionId,
           ImageType.Explanation,

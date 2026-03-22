@@ -1,5 +1,10 @@
 import { CommandManager } from "./actions/commandManager.js";
-import { type APIInteraction, InteractionType } from "discord-api-types/v10";
+import {
+  type APIInteraction,
+  type APIRole,
+  InteractionType,
+  Routes,
+} from "discord-api-types/v10";
 import {
   createEphemeralResponse,
   generateErrorResponse,
@@ -8,27 +13,60 @@ import { GuildStorage } from "../util/guildStorage.js";
 import "../util/mapExtensions.js";
 import { throwError } from "../util/errorHelpers.js";
 import { QuizManagerFactoryManager } from "./quizManagerFactoryManager.js";
+import { REST } from "@discordjs/rest";
+
+export const QUIZ_ADMIN_ROLE_NAME = "QuizAdmin";
+const QUIZ_ADMIN_ROLE_COLOR = 0x2ecc71; // Green
 
 export class DiscordBotService {
   private commandManager: CommandManager;
 
   private readonly guildStorage: GuildStorage;
   private readonly quizManager: QuizManagerFactoryManager;
+  private readonly rest: REST;
 
   constructor(
     guildStorage: GuildStorage,
     quizManager: QuizManagerFactoryManager,
     commandManager: CommandManager,
+    rest: REST,
   ) {
     this.guildStorage = guildStorage;
     this.quizManager = quizManager;
+    this.rest = rest;
     this.commandManager =
       commandManager ?? throwError("could not find a valid command manager");
   }
 
   public async start(guildId: string) {
     await this.commandManager.registerDefaultCommands(guildId);
+    await this.ensureQuizAdminRole(guildId);
     await this.guildStorage.markGuildAsRegistered(guildId);
+  }
+
+  private async ensureQuizAdminRole(guildId: string): Promise<void> {
+    try {
+      const roles = await this.rest.get(Routes.guildRoles(guildId)) as APIRole[];
+      const existing = roles.find(r => r.name === QUIZ_ADMIN_ROLE_NAME);
+      if (existing) {
+        this.commandManager.setQuizAdminRoleId(existing.id);
+        return;
+      }
+
+      const newRole = await this.rest.post(Routes.guildRoles(guildId), {
+        body: {
+          name: QUIZ_ADMIN_ROLE_NAME,
+          color: QUIZ_ADMIN_ROLE_COLOR,
+          permissions: "0",
+          mentionable: false,
+          hoist: false,
+        },
+      }) as APIRole;
+      this.commandManager.setQuizAdminRoleId(newRole.id);
+      console.log(`Created ${QUIZ_ADMIN_ROLE_NAME} role in guild ${guildId}`);
+    } catch (error) {
+      console.error(`Failed to create ${QUIZ_ADMIN_ROLE_NAME} role: ${error}`);
+    }
   }
 
   public async handleInteraction(interaction: APIInteraction) {
@@ -55,7 +93,7 @@ export class DiscordBotService {
         const quizManager = await this.quizManager.getQuizManager(
           interaction.guild_id,
         );
-        var result = await quizManager.handleAnswerInteraction(interaction);
+        const result = await quizManager.handleAnswerInteraction(interaction);
         return result;
       }
 

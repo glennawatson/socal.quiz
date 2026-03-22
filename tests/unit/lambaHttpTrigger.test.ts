@@ -16,7 +16,6 @@ import { GuildStorage } from "../../src/util/guildStorage.js";
 import { DiscordBotService } from "../../src/handlers/discordBotService.js";
 import { TableClient } from "@azure/data-tables";
 import { verify } from "discord-verify";
-import { StateManager } from "../../src/handlers/stateManager.js";
 import { QuizImageStorage } from "../../src/util/quizImageStorage.js";
 import { QuizManagerFactoryManager } from "../../src/handlers/quizManagerFactoryManager.js";
 import { MockQuizManager } from "./mocks/mockQuizManager.js";
@@ -147,7 +146,6 @@ describe("interactions function", () => {
       new QuestionStorage(imageClient, "test1", tableClientMock),
       new GuildStorage(undefined, tableClientMock as unknown as TableClient),
       imageClient,
-      new StateManager(undefined, tableClientMock as unknown as TableClient),
       new QuizManagerFactoryManager(() => new MockQuizManager()),
       mockDiscordBotService as unknown as DiscordBotService,
     );

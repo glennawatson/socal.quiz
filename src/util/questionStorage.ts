@@ -63,21 +63,19 @@ export class QuestionStorage implements IQuestionStorage {
 
   async getQuestionBankNames(guildId: string): Promise<string[]> {
     const queryOptions: TableQueryOptions = {
-      filter: odata`PartitionKey ge '${guildId}_'`,
+      filter: odata`PartitionKey eq '${guildId}'`,
     };
 
     const entitiesIter = this.quizQuestionsClient.listEntities<
-      TableEntity<Question>
+      TableEntity<QuestionBank>
     >({
       queryOptions: queryOptions,
     });
 
     const bankNamesSet = new Set<string>();
     for await (const entity of entitiesIter) {
-      const [, bankName] = entity.partitionKey.split("_");
-
-      if (bankName) {
-        bankNamesSet.add(bankName);
+      if (entity.rowKey) {
+        bankNamesSet.add(entity.rowKey);
       }
     }
 

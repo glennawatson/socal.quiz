@@ -17,7 +17,6 @@ import {
   createEphemeralResponse,
   generateErrorResponse,
   getComponentValue,
-  getComponentValueNumber,
 } from "../../util/interactionHelpers.js";
 import { createTextInput } from "../../util/commandHelpers.js";
 import type { IQuestionStorage } from "../../util/IQuestionStorage.interfaces.js";
@@ -27,12 +26,9 @@ export class AddQuestionToBankCommand implements IModalHandlerCommand {
   public static readonly componentIds = {
     bankName: "bankname",
     questionText: "questionText",
-    imageUrl: "imageUrl",
-    explanation: "explanation",
-    explanationImageUrl: "explanationImageUrl",
-    timeoutTimeSeconds: "timeoutTimeSeconds",
-    answers: Array.from({ length: 4 }, (_, i) => `answer${i + 1}`),
+    answers: "answers",
     correctAnswerIndex: "correctAnswerIndex",
+    imageUrl: "imageUrl",
   };
 
   private readonly questionStorage: IQuestionStorage;
@@ -78,11 +74,16 @@ export class AddQuestionToBankCommand implements IModalHandlerCommand {
       ),
       new ActionRowBuilder<TextInputBuilder>().addComponents(
         createTextInput(
-          AddQuestionToBankCommand.componentIds.timeoutTimeSeconds,
-          "Question timeout time",
+          AddQuestionToBankCommand.componentIds.answers,
+          "Answers (comma-separated)",
+          TextInputStyle.Paragraph,
+        ),
+      ),
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        createTextInput(
+          AddQuestionToBankCommand.componentIds.correctAnswerIndex,
+          "Correct Answer Index (1-based)",
           TextInputStyle.Short,
-          undefined,
-          false,
         ),
       ),
       new ActionRowBuilder<TextInputBuilder>().addComponents(
@@ -92,48 +93,6 @@ export class AddQuestionToBankCommand implements IModalHandlerCommand {
           TextInputStyle.Short,
           undefined,
           false,
-        ),
-      ),
-      new ActionRowBuilder<TextInputBuilder>().addComponents(
-        createTextInput(
-          AddQuestionToBankCommand.componentIds.explanation,
-          "Explanation (Optional)",
-          TextInputStyle.Paragraph,
-          undefined,
-          false,
-        ),
-      ),
-      new ActionRowBuilder<TextInputBuilder>().addComponents(
-        createTextInput(
-          AddQuestionToBankCommand.componentIds.explanationImageUrl,
-          "Explanation Image URL (Optional)",
-          TextInputStyle.Short,
-          undefined,
-          false,
-        ),
-      ),
-    );
-
-    // Add answer input components (defaulting to 4 answers)
-    for (const answerId of AddQuestionToBankCommand.componentIds.answers) {
-      modal.addComponents(
-        new ActionRowBuilder<TextInputBuilder>().addComponents(
-          createTextInput(
-            answerId,
-            `Answer ${answerId.replace("answer", "")}`,
-            TextInputStyle.Short,
-          ),
-        ),
-      );
-    }
-
-    // Correct answer index (last row)
-    modal.addComponents(
-      new ActionRowBuilder<TextInputBuilder>().addComponents(
-        createTextInput(
-          AddQuestionToBankCommand.componentIds.correctAnswerIndex,
-          "Correct Answer Index (0-based)",
-          TextInputStyle.Short,
         ),
       ),
     );
@@ -180,31 +139,28 @@ export class AddQuestionToBankCommand implements IModalHandlerCommand {
       components,
       AddQuestionToBankCommand.componentIds.imageUrl,
     );
-    const explanation = getComponentValue(
-      components,
-      AddQuestionToBankCommand.componentIds.explanation,
-    );
-    const explanationImageUrl = getComponentValue(
-      components,
-      AddQuestionToBankCommand.componentIds.explanationImageUrl,
-    );
-    const questionShowTimeMs =
-      (getComponentValueNumber(
-        components,
-        AddQuestionToBankCommand.componentIds.timeoutTimeSeconds,
-      ) ?? 20) * 1000;
 
-    // Extract answers - TS 5.5 infers type predicate from filter, removing need for `as string`
+    // Parse comma-separated answers
+    const answersRaw = getComponentValue(
+      components,
+      AddQuestionToBankCommand.componentIds.answers,
+    );
+
+    if (!answersRaw) {
+      return createEphemeralResponse("Must specify at least one answer.");
+    }
+
+    const answerTexts = answersRaw
+      .split(",")
+      .map((a) => a.trim())
+      .filter((a) => a.length > 0);
+
+    if (answerTexts.length === 0) {
+      return createEphemeralResponse("Must specify at least one answer.");
+    }
+
     const answers: Answer[] = await Promise.all(
-      AddQuestionToBankCommand.componentIds.answers
-        .map((answerId) => ({
-          answerId,
-          value: getComponentValue(components, answerId),
-        }))
-        .filter((entry): entry is { answerId: string; value: string } => entry.value !== undefined)
-        .map(({ value }) =>
-          this.questionStorage.generateAnswer(value),
-        ),
+      answerTexts.map((text) => this.questionStorage.generateAnswer(text)),
     );
 
     const correctAnswerIndexStr = getComponentValue(
@@ -218,14 +174,14 @@ export class AddQuestionToBankCommand implements IModalHandlerCommand {
       );
     }
 
-    const correctAnswerIndex = parseInt(correctAnswerIndexStr, 10);
+    const correctAnswerIndex = parseInt(correctAnswerIndexStr, 10) - 1;
     if (
       isNaN(correctAnswerIndex) ||
       correctAnswerIndex < 0 ||
       correctAnswerIndex >= answers.length
     ) {
       return createEphemeralResponse(
-        `Invalid correct answer index. Please enter a number between 0 and ${answers.length - 1}`,
+        `Invalid correct answer index. Please enter a number between 1 and ${answers.length}`,
       );
     }
 
@@ -242,10 +198,8 @@ export class AddQuestionToBankCommand implements IModalHandlerCommand {
         questionText,
         answers,
         correctAnswer.answerId,
-        questionShowTimeMs,
-        imageUrl,
-        explanation,
-        explanationImageUrl);
+        20000,
+        imageUrl);
 
       const questionBank = await this.questionStorage.getQuestionBank(guildId, bankName);
 

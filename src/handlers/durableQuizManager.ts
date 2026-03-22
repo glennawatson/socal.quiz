@@ -133,6 +133,6 @@ export class DurableQuizManager extends QuizManagerBase {
       console.error("could not find a valid guild or channel id");
       return;
     }
-    await this.durableClient.raiseEvent(instanceId, "answerQuestion", {}, {});
+    await this.durableClient.raiseEvent(instanceId, "skipQuestion", {}, {});
   }
 }
