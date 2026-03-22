@@ -1,7 +1,1 @@
-import type { Question } from "./question.interfaces.js";
-
-export interface QuestionBank {
-  name: string;
-  guildId: string;
-  questions: Question[];
-}
+export type { QuestionBank } from "../shared/questionBank.interfaces.js";

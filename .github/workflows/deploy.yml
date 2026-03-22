@@ -31,7 +31,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Install dependencies
+      - name: Install backend dependencies
         run: |
           npm install
           npm install --include=optional sharp
@@ -44,27 +44,54 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
 
-      - name: Build project
+      - name: Build backend
         run: npm run build
 
-      - name: Upload build artifacts
+      - name: Install web client dependencies
+        working-directory: web_client
+        run: npm install
+
+      - name: Build web client
+        working-directory: web_client
+        env:
+          VITE_DISCORD_CLIENT_ID: ${{ secrets.DISCORD_CLIENT_ID }}
+          VITE_DISCORD_REDIRECT_URI: ${{ secrets.WEB_CLIENT_REDIRECT_URI }}
+          VITE_API_BASE_URL: ''
+        run: npm run build
+
+      - name: Upload backend build artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: build
+          name: backend-build
           path: |
             dist/**
             lib/**
+
+      - name: Upload web client build artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: webclient-build
+          path: web_client/dist/**
 
   deploy:
     runs-on: ubuntu-latest
     needs: build
 
     steps:
-      - name: Download build artifacts
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download backend build artifacts
         uses: actions/download-artifact@v8
         with:
-          name: build
+          name: backend-build
           path: ./dist
+
+      - name: Download web client build artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: webclient-build
+          path: ./webclient-dist
 
       - name: Set up Bicep
         run: |
@@ -95,3 +122,22 @@ jobs:
             --name ${functionAppName} \
             --resource-group $RESOURCE_GROUP \
             --src ./dist/deployment.zip
+
+      - name: Get Static Web App deployment token
+        id: swa-token
+        run: |
+          TOKEN=$(az staticwebapp secrets list \
+            --name discordquizbotwebclient \
+            --resource-group $RESOURCE_GROUP \
+            --query "properties.apiKey" -o tsv)
+          echo "::add-mask::$TOKEN"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy web client to Azure Static Web Apps
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ steps.swa-token.outputs.token }}
+          action: upload
+          app_location: ./webclient-dist
+          skip_app_build: true
+          skip_api_build: true

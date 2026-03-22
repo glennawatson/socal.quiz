@@ -6,7 +6,7 @@ A Discord quiz bot that runs interactive, timed multiple-choice quizzes in Disco
 
 The system has two parts:
 - **Backend**: TypeScript Azure Functions handling Discord interactions, quiz orchestration, and a REST API for question management
-- **Web Client**: Blazor WebAssembly app (`web_client/`) for editing question banks via a browser UI
+- **Web Client**: React + Vite SPA (`web_client/`) for editing question banks via a browser UI, using shadcn/ui + Tailwind CSS
 
 ## Architecture
 
@@ -16,16 +16,22 @@ The system has two parts:
 - **Azure Blob Storage** — stores question/explanation images, generates pre-signed URLs for Discord
 - **Discord API** — slash commands and modal interactions via `@discordjs/rest` and `discord-api-types`, verified with `discord-verify`
 - **Discord OAuth2** — users authenticate via Discord; guild ownership/roles gate access to question editing
+- **Azure Static Web Apps** — hosts the web client (free tier), with built-in API proxy to Azure Functions
 
 ## Tech Stack & Targets
 
 - **TypeScript 5.9** — use latest features: `verbatimModuleSyntax`, `erasableSyntaxOnly`, `isolatedModules`, `exactOptionalPropertyTypes`, iterator helpers, Set methods, inferred type predicates
 - **Node.js 22** — target runtime for Azure Functions and CI (`.nvmrc` pins this)
+- **nvm** — used for Node.js version management; run `nvm use` before any npm commands
 - **ESM only** — `"type": "module"` in package.json, `NodeNext` module resolution
 - **No enums, no parameter properties** — `erasableSyntaxOnly` enforced for Node.js native type-stripping compatibility
 - **Vitest 4** — test runner, runs `.ts` files directly (no build step needed for tests)
 - **ESLint 10 + Prettier** — linting and formatting
 - **sharp** — image processing (replaced deprecated `gm`)
+- **React 19 + Vite** — web client SPA framework
+- **shadcn/ui + Tailwind CSS 4** — web client UI components and styling
+- **TanStack Query + TanStack Table** — data fetching/caching and data grid for web client
+- **React Hook Form + Zod** — form handling and validation for web client
 
 ## Project Structure
 
@@ -35,20 +41,35 @@ src/
   handlers/          # Business logic: bot service, quiz management, commands
     actions/         # Individual Discord slash commands
   util/              # Storage clients, auth, config, helpers
+shared/              # Shared TypeScript interfaces (used by both backend and web client)
 tests/
   unit/              # Vitest unit tests
   helpers/           # Test utilities (interaction generators, mocks)
-web_client/          # Blazor WebAssembly question editor (C#/.NET 8)
+web_client/          # React + Vite question editor SPA
+  src/
+    api/             # API client, TanStack Query hooks
+    auth/            # Discord OAuth2 PKCE flow, auth context
+    components/      # Reusable UI components
+    pages/           # Route pages
 main.bicep           # Azure infrastructure as code
 ```
 
 ## Key Commands
 
 ```bash
+# Always run nvm use first to ensure correct Node.js version
+nvm use
+
+# Backend
 npm run build        # Compile TypeScript
 npm test             # Run tests (vitest, no build step needed)
 npm run coverage     # Run tests with coverage
 npm start            # Start Azure Functions locally (builds first)
+
+# Web Client
+cd web_client
+npm run build        # TypeScript check + Vite production build
+npm run dev          # Start Vite dev server with API proxy to localhost:7071
 ```
 
 ## Conventions
@@ -61,6 +82,7 @@ npm start            # Start Azure Functions locally (builds first)
 - Use iterator helpers (`.map()`, `.filter()`, `.toArray()`) on Map/Set iterators where applicable
 - Use `Set.difference()`, `Set.intersection()` etc. for set operations
 - Optional interface properties that may be explicitly set to undefined should use `?: T | undefined`
+- Shared types between backend and web client live in `shared/` — backend re-exports them from `src/*.interfaces.ts`
 
 ## Goals
 

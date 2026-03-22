@@ -1,4 +1,1 @@
-export interface Answer {
-  answerId: string;
-  answer: string;
-}
+export type { Answer } from "../shared/answer.interfaces.js";

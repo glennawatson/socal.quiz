@@ -97,7 +97,38 @@ resource functionApp 'Microsoft.Web/sites@2022-09-01' = {
   }
 }
 
+@description('Name of the static web app')
+param staticWebAppName string = 'discordquizbotwebclient'
+
+// Resource: Static Web App (Free tier)
+resource staticWebApp 'Microsoft.Web/staticSites@2022-09-01' = {
+  name: staticWebAppName
+  location: location
+  sku: {
+    name: 'Free'
+    tier: 'Free'
+  }
+  properties: {
+    buildProperties: {
+      appLocation: 'web_client'
+      outputLocation: 'dist'
+    }
+  }
+}
+
+// Link the Static Web App to the Function App backend
+resource staticWebAppBackend 'Microsoft.Web/staticSites/linkedBackends@2022-09-01' = {
+  parent: staticWebApp
+  name: 'backend'
+  properties: {
+    backendResourceId: functionApp.id
+    region: location
+  }
+}
+
 // Output
 output functionAppName string = functionApp.name
 output storageAccountName string = storageAccount.name
 output appServicePlanName string = appServicePlan.name
+output staticWebAppName string = staticWebApp.name
+output staticWebAppDefaultHostname string = staticWebApp.properties.defaultHostname

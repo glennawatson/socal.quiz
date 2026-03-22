@@ -36,3 +36,18 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Build backend
+        run: npm run build
+
+      - name: Install web client dependencies
+        working-directory: web_client
+        run: npm install
+
+      - name: Build web client
+        working-directory: web_client
+        env:
+          VITE_DISCORD_CLIENT_ID: test
+          VITE_DISCORD_REDIRECT_URI: http://localhost:5173/auth/callback
+          VITE_API_BASE_URL: ''
+        run: npm run build
