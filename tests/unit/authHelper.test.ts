@@ -4,28 +4,46 @@ import {
   HttpResponseInit,
   InvocationContext,
 } from "@azure/functions";
+
+vi.mock("@azure/data-tables", () => ({
+  TableClient: {
+    fromConnectionString: vi.fn().mockReturnValue({
+      createTable: vi.fn(),
+      getEntity: vi.fn(),
+      createEntity: vi.fn(),
+      listEntities: vi.fn(),
+      deleteEntity: vi.fn(),
+    }),
+  },
+}));
+
+vi.mock("@azure/storage-blob", () => ({
+  BlobServiceClient: {
+    fromConnectionString: vi.fn().mockReturnValue({
+      getContainerClient: vi.fn().mockReturnValue({
+        getBlockBlobClient: vi.fn().mockReturnValue({
+          uploadData: vi.fn(),
+        }),
+      }),
+    }),
+  },
+  BlobSASPermissions: { parse: vi.fn() },
+  StorageSharedKeyCredential: vi.fn(),
+  generateBlobSASQueryParameters: vi.fn().mockReturnValue({
+    toString: vi.fn().mockReturnValue("mock-sas-token"),
+  }),
+}));
+
 import {
   validateAuthAndGuildOwnership,
   validateAuth,
   isErrorResponse,
+  isValidationSuccess,
   AuthResult,
-  oauth2,
 } from "@src/util/authHelper.js";
 
-vi.mock("@src/util/OAuth2.js");
-vi.mock("@src/util/errorHelpers.js", () => ({
-  throwError: vi.fn((msg) => {
-    throw new Error(msg);
-  }),
-}));
-
-const mockOAuth2 = {
-  validateToken: vi.fn(),
-  getUserGuilds: vi.fn(),
-};
-
-oauth2.validateToken = mockOAuth2.validateToken;
-oauth2.getUserGuilds = mockOAuth2.getUserGuilds;
+const mockFetch = vi.fn();
+vi.stubGlobal("fetch", mockFetch);
 
 const setupMocks = () => {
   process.env.CLIENT_ID = "test-client-id";
@@ -101,11 +119,6 @@ describe("Auth Helper", () => {
         {},
       );
 
-      mockOAuth2.validateToken.mockResolvedValue({ user: { id: "test-user" } });
-      mockOAuth2.getUserGuilds.mockResolvedValue([
-        { id: "test-guild", owner: true },
-      ]);
-
       const result = await validateAuthAndGuildOwnership(
         mockHttpRequest,
         mockInvocationContext,
@@ -124,10 +137,15 @@ describe("Auth Helper", () => {
         { guildId: "test-guild" },
       );
 
-      mockOAuth2.validateToken.mockResolvedValue({ user: { id: "test-user" } });
-      mockOAuth2.getUserGuilds.mockResolvedValue([
-        { id: "test-guild", owner: false },
-      ]);
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => [{ id: "test-guild", owner: false }],
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ id: "test-user" }),
+        });
 
       const result = await validateAuthAndGuildOwnership(
         mockHttpRequest,
@@ -147,10 +165,15 @@ describe("Auth Helper", () => {
         { guildId: "test-guild" },
       );
 
-      mockOAuth2.validateToken.mockResolvedValue({ user: { id: "test-user" } });
-      mockOAuth2.getUserGuilds.mockResolvedValue([
-        { id: "test-guild", owner: true },
-      ]);
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => [{ id: "test-guild", owner: true }],
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ id: "test-user" }),
+        });
 
       const result = await validateAuthAndGuildOwnership(
         mockHttpRequest,
@@ -166,7 +189,7 @@ describe("Auth Helper", () => {
         { guildId: "test-guild" },
       );
 
-      mockOAuth2.validateToken.mockRejectedValue(new Error("Invalid token"));
+      mockFetch.mockRejectedValue(new Error("Invalid token"));
 
       const result = await validateAuthAndGuildOwnership(
         mockHttpRequest,
@@ -219,7 +242,7 @@ describe("Auth Helper", () => {
         {},
       );
 
-      mockOAuth2.validateToken.mockRejectedValue(new Error("Invalid token"));
+      mockFetch.mockRejectedValue(new Error("Invalid token"));
 
       const result = await validateAuth(mockHttpRequest, mockInvocationContext);
 
@@ -230,17 +253,21 @@ describe("Auth Helper", () => {
       });
     });
 
-    it("should return undefined if token is valid", async () => {
+    it("should return token if token is valid", async () => {
       mockHttpRequest = createMockHttpRequest(
         { Authorization: "Bearer test-token" },
         {},
       );
 
-      mockOAuth2.validateToken.mockResolvedValue({ user: { id: "test-user" } });
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({ id: "test-user" }),
+      });
 
       const result = await validateAuth(mockHttpRequest, mockInvocationContext);
 
-      expect(result).toBeUndefined();
+      expect(isValidationSuccess(result)).toBe(true);
+      expect(result).toEqual({ token: "test-token" });
     });
   });
 

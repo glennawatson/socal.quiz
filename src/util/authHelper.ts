@@ -1,6 +1,6 @@
-import { HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
+import { HttpRequest, type HttpResponseInit, InvocationContext } from "@azure/functions";
 import { Config } from "./config.js";
-import { APIGuild, APIUser } from "discord-api-types/v10";
+import type { APIGuild, APIUser } from "discord-api-types/v10";
 
 await Config.initialize();
 

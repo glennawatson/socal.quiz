@@ -7,6 +7,7 @@ import {
   ChannelType,
   InteractionResponseType,
   InteractionType,
+  Locale,
   MessageFlags,
 } from "discord-api-types/v10";
 import { CommandManager } from "../../src/handlers/actions/commandManager.js";
@@ -75,9 +76,10 @@ describe("CommandManager", () => {
         channel_id: "123",
         entitlements: [],
         id: "",
-        locale: "en-US",
+        locale: Locale.EnglishUS,
         token: "",
         version: 1,
+        attachment_size_limit: 8388608,
         type: InteractionType.ApplicationCommand,
         data: {
           name: "unknownCommand",
@@ -138,9 +140,10 @@ describe("CommandManager", () => {
         channel_id: "123",
         entitlements: [],
         id: "",
-        locale: "en-US",
+        locale: Locale.EnglishUS,
         token: "",
         version: 1,
+        attachment_size_limit: 8388608,
         type: InteractionType.ApplicationCommand,
         data: {
           name: "test",
@@ -192,9 +195,10 @@ describe("CommandManager", () => {
         channel_id: "123",
         entitlements: [],
         id: "",
-        locale: "en-US",
+        locale: Locale.EnglishUS,
         token: "",
         version: 1,
+        attachment_size_limit: 8388608,
         type: InteractionType.ModalSubmit,
         data: {
           custom_id: "testModal",

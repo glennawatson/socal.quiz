@@ -52,9 +52,7 @@ describe("Quiz Functions", () => {
       ]),
     };
     question = {
-      guildId: "guild-id",
       questionShowTimeMs: 10,
-      bankName: "bankName",
       questionId: "questionId",
       question: "What is the capital of France?",
       answers: [

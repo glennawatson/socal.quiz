@@ -4,10 +4,9 @@ import { Config } from "@src/util/config.js";
 import { QuestionStorage } from "@src/util/questionStorage.js";
 import { QuizImageStorage } from "@src/util/quizImageStorage.js";
 import {
-  deleteQuestionHandler,
-  getQuestionHandler,
-  getQuestionsHandler,
-  updateQuestionHandler,
+  deleteQuestionBankHandler,
+  getQuestionBankHandler,
+  upsertQuestionBankHandler,
   getQuestionBankNamesHandler,
 } from "@src/functions/questionBankHttpTriggers.js";
 import {
@@ -24,12 +23,12 @@ vi.mock("@src/util/config.js");
 
 const setupMocks = () => {
   const mockQuestionStorage = {
-    deleteQuestion: vi.fn(),
-    getQuestion: vi.fn(),
-    getQuestions: vi.fn(),
-    updateQuestion: vi.fn(),
+    getQuestionBank: vi.fn(),
+    deleteQuestionBank: vi.fn(),
     getQuestionBankNames: vi.fn(),
+    generateQuestion: vi.fn(),
     generateAnswer: vi.fn(),
+    upsertQuestionBank: vi.fn(),
   } as any as QuestionStorage;
 
   const mockImageStorage = {
@@ -76,18 +75,17 @@ describe("Question Handlers", () => {
     vi.mocked(isErrorResponse).mockReturnValue(false);
   });
 
-  describe("deleteQuestionHandler", () => {
+  describe("deleteQuestionBankHandler", () => {
     beforeEach(() => {
       mockHttpRequest = createMockHttpRequest({
         bankname: "testBank",
-        questionId: "testQuestionId",
       });
     });
 
-    it("should return 400 if bankName or questionId is missing", async () => {
+    it("should return 400 if bankName is missing", async () => {
       mockHttpRequest.query.delete("bankname");
 
-      const response = await deleteQuestionHandler(
+      const response = await deleteQuestionBankHandler(
         mockHttpRequest,
         mockInvocationContext,
       );
@@ -98,10 +96,10 @@ describe("Question Handlers", () => {
       );
     });
 
-    it("should return 200 if question is deleted successfully", async () => {
-      (mockQuestionStorage.deleteQuestion as any).mockResolvedValue(undefined);
+    it("should return 200 if question bank is deleted successfully", async () => {
+      (mockQuestionStorage.deleteQuestionBank as any).mockResolvedValue(undefined);
 
-      const response = await deleteQuestionHandler(
+      const response = await deleteQuestionBankHandler(
         mockHttpRequest,
         mockInvocationContext,
       );
@@ -113,11 +111,11 @@ describe("Question Handlers", () => {
     });
 
     it("should return 500 if an error occurs", async () => {
-      (mockQuestionStorage.deleteQuestion as any).mockRejectedValue(
+      (mockQuestionStorage.deleteQuestionBank as any).mockRejectedValue(
         new Error("Deletion error"),
       );
 
-      const response = await deleteQuestionHandler(
+      const response = await deleteQuestionBankHandler(
         mockHttpRequest,
         mockInvocationContext,
       );
@@ -127,7 +125,7 @@ describe("Question Handlers", () => {
     });
   });
 
-  describe("getQuestionHandler", () => {
+  describe("getQuestionBankHandler", () => {
     beforeEach(() => {
       mockHttpRequest = createMockHttpRequest({
         bankname: "testBank",
@@ -138,7 +136,7 @@ describe("Question Handlers", () => {
     it("should return 400 if bankName or questionId is missing", async () => {
       mockHttpRequest.query.delete("bankname");
 
-      const response = await getQuestionHandler(
+      const response = await getQuestionBankHandler(
         mockHttpRequest,
         mockInvocationContext,
       );
@@ -149,28 +147,29 @@ describe("Question Handlers", () => {
       );
     });
 
-    it("should return 200 if question is retrieved successfully", async () => {
-      const mockQuestion = {
-        questionId: "testQuestionId",
-        question: "testQuestion",
+    it("should return 200 if question bank is retrieved successfully", async () => {
+      const mockQuestionBank = {
+        name: "testBank",
+        guildId: "testGuildId",
+        questions: [{ questionId: "testQuestionId", question: "testQuestion" }],
       };
-      (mockQuestionStorage.getQuestion as any).mockResolvedValue(mockQuestion);
+      (mockQuestionStorage.getQuestionBank as any).mockResolvedValue(mockQuestionBank);
 
-      const response = await getQuestionHandler(
+      const response = await getQuestionBankHandler(
         mockHttpRequest,
         mockInvocationContext,
       );
 
       expect(response.status).toBe(200);
-      expect(response.body).toBe(JSON.stringify(mockQuestion));
+      expect(response.body).toBe(JSON.stringify(mockQuestionBank));
     });
 
     it("should return 500 if an error occurs", async () => {
-      (mockQuestionStorage.getQuestion as any).mockRejectedValue(
+      (mockQuestionStorage.getQuestionBank as any).mockRejectedValue(
         new Error("Fetch error"),
       );
 
-      const response = await getQuestionHandler(
+      const response = await getQuestionBankHandler(
         mockHttpRequest,
         mockInvocationContext,
       );
@@ -180,29 +179,34 @@ describe("Question Handlers", () => {
     });
   });
 
-  describe("updateQuestionHandler", () => {
+  describe("upsertQuestionBankHandler", () => {
     beforeEach(() => {
       mockHttpRequest = createMockHttpRequest(
         {},
         {
-          bankName: "testBank",
-          questionId: "testQuestionId",
-          questionText: "updated question",
-          answers: ["answer1", "answer2"],
-          correctAnswerIndex: 1,
-          imageUrl: "http://example.com/image.png",
-          explanation: "updated explanation",
-          explanationImageUrl: "http://example.com/explanation.png",
-          showTimeMs: 30000,
+          name: "testBank",
+          guildId: "testGuildId",
+          questions: [
+            {
+              questionId: "testQuestionId",
+              question: "updated question",
+              answers: [
+                { answerId: "a1", answer: "answer1" },
+                { answerId: "a2", answer: "answer2" },
+              ],
+              correctAnswerId: "a2",
+              questionShowTimeMs: 30000,
+            },
+          ],
         },
       );
     });
 
-    it("should return 400 if requestBody is missing", async () => {
-      mockHttpRequest = createMockHttpRequest({}, null); // Simulate missing request body
+    it("should return 500 if requestBody is missing", async () => {
+      mockHttpRequest = createMockHttpRequest({}, null);
       (mockHttpRequest.text as any).mockResolvedValue(undefined);
 
-      const response = await updateQuestionHandler(
+      const response = await upsertQuestionBankHandler(
         mockHttpRequest,
         mockInvocationContext,
       );
@@ -211,122 +215,8 @@ describe("Question Handlers", () => {
       expect(response.body).toBe(JSON.stringify("Invalid JSON body"));
     });
 
-    it("should return 400 if answers are provided without correctAnswerIndex", async () => {
-      (mockHttpRequest.text as any).mockResolvedValue(
-        JSON.stringify({
-          bankName: "testBank",
-          questionId: "testQuestionId",
-          questionText: "updated question",
-          answers: ["answer1", "answer2"],
-          imageUrl: "http://example.com/image.png",
-          explanation: "updated explanation",
-          explanationImageUrl: "http://example.com/explanation.png",
-          showTimeMs: 30000,
-        }),
-      );
-
-      const response = await updateQuestionHandler(
-        mockHttpRequest,
-        mockInvocationContext,
-      );
-
-      expect(response.status).toBe(400);
-      expect(response.body).toBe(
-        JSON.stringify("Must have correct answer ID with answers"),
-      );
-    });
-
-    it("should return 400 if correctAnswerIndex is out of bounds", async () => {
-      (mockHttpRequest.text as any).mockResolvedValue(
-        JSON.stringify({
-          bankName: "testBank",
-          questionId: "testQuestionId",
-          questionText: "updated question",
-          answers: ["answer1", "answer2"],
-          correctAnswerIndex: 3,
-          imageUrl: "http://example.com/image.png",
-          explanation: "updated explanation",
-          explanationImageUrl: "http://example.com/explanation.png",
-          showTimeMs: 30000,
-        }),
-      );
-
-      const response = await updateQuestionHandler(
-        mockHttpRequest,
-        mockInvocationContext,
-      );
-
-      expect(response.status).toBe(400);
-      expect(response.body).toBe(
-        JSON.stringify("Correct answer index must be between 0 and 1"),
-      );
-    });
-
-    it("should update the correctAnswerId if correctAnswer is found", async () => {
-      const mockQuestion = {
-        questionId: "testQuestionId",
-        question: "testQuestion",
-        answers: [],
-        correctAnswerId: "",
-      };
-      (mockQuestionStorage.getQuestion as any).mockResolvedValue(mockQuestion);
-      (mockQuestionStorage.generateAnswer as any).mockImplementation(
-        (answerText: string) => ({ answerId: answerText, answer: answerText }),
-      );
-
-      const requestBody = {
-        bankName: "testBank",
-        questionId: "testQuestionId",
-        questionText: "updated question",
-        answers: ["answer1", "answer2"],
-        correctAnswerIndex: 1,
-        imageUrl: "http://example.com/image.png",
-        explanation: "updated explanation",
-        explanationImageUrl: "http://example.com/explanation.png",
-        showTimeMs: 30000,
-      };
-      (mockHttpRequest.text as any).mockResolvedValue(
-        JSON.stringify(requestBody),
-      );
-
-      await updateQuestionHandler(mockHttpRequest, mockInvocationContext);
-
-      expect(mockQuestion.correctAnswerId).toBe("answer2");
-    });
-
-    it("should return 400 if bankName or questionId is missing", async () => {
-      (mockHttpRequest.text as any).mockResolvedValue(
-        JSON.stringify({
-          questionId: "testQuestionId",
-          questionText: "updated question",
-          answers: ["answer1", "answer2"],
-          correctAnswerIndex: 1,
-          imageUrl: "http://example.com/image.png",
-          explanation: "updated explanation",
-          explanationImageUrl: "http://example.com/explanation.png",
-          showTimeMs: 30000,
-        }),
-      );
-
-      const response = await updateQuestionHandler(
-        mockHttpRequest,
-        mockInvocationContext,
-      );
-
-      expect(response.status).toBe(400);
-      expect(response.body).toBe(
-        JSON.stringify("Required fields: bankName, questionId"),
-      );
-    });
-
-    it("should return 200 if question is updated successfully", async () => {
-      const mockQuestion = {
-        questionId: "testQuestionId",
-        question: "testQuestion",
-      };
-      (mockQuestionStorage.getQuestion as any).mockResolvedValue(mockQuestion);
-
-      const response = await updateQuestionHandler(
+    it("should return 200 if question bank is upserted successfully", async () => {
+      const response = await upsertQuestionBankHandler(
         mockHttpRequest,
         mockInvocationContext,
       );
@@ -338,66 +228,17 @@ describe("Question Handlers", () => {
     });
 
     it("should return 500 if an error occurs", async () => {
-      (mockQuestionStorage.getQuestion as any).mockRejectedValue(
+      (mockQuestionStorage.upsertQuestionBank as any).mockRejectedValue(
         new Error("Update error"),
       );
 
-      const response = await updateQuestionHandler(
+      const response = await upsertQuestionBankHandler(
         mockHttpRequest,
         mockInvocationContext,
       );
 
       expect(response.status).toBe(500);
       expect(response.body).toBe(JSON.stringify("Error updating question"));
-    });
-  });
-
-  describe("getQuestionsHandler", () => {
-    beforeEach(() => {
-      mockHttpRequest = createMockHttpRequest({ bankname: "testBank" });
-    });
-
-    it("should return 400 if bankName is missing", async () => {
-      mockHttpRequest.query.delete("bankname");
-
-      const response = await getQuestionsHandler(
-        mockHttpRequest,
-        mockInvocationContext,
-      );
-
-      expect(response.status).toBe(400);
-      expect(response.body).toBe(JSON.stringify("Required field: bankname"));
-    });
-
-    it("should return 200 if questions are retrieved successfully", async () => {
-      const mockQuestions = [
-        { questionId: "testQuestionId", question: "testQuestion" },
-      ];
-      (mockQuestionStorage.getQuestions as any).mockResolvedValue(
-        mockQuestions,
-      );
-
-      const response = await getQuestionsHandler(
-        mockHttpRequest,
-        mockInvocationContext,
-      );
-
-      expect(response.status).toBe(200);
-      expect(response.body).toBe(JSON.stringify(mockQuestions));
-    });
-
-    it("should return 500 if an error occurs", async () => {
-      (mockQuestionStorage.getQuestions as any).mockRejectedValue(
-        new Error("Fetch error"),
-      );
-
-      const response = await getQuestionsHandler(
-        mockHttpRequest,
-        mockInvocationContext,
-      );
-
-      expect(response.status).toBe(500);
-      expect(response.body).toBe(JSON.stringify("Error retrieving questions"));
     });
   });
 

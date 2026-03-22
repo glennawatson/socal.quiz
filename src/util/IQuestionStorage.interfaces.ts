@@ -1,6 +1,6 @@
-import { Question } from "../question.interfaces.js";
-import { Answer } from "../answer.interfaces.js";
-import { QuestionBank } from "../questionBank.interfaces.js";
+import type { Question } from "../question.interfaces.js";
+import type { Answer } from "../answer.interfaces.js";
+import type { QuestionBank } from "../questionBank.interfaces.js";
 
 /**
  * Interface for managing questions in a storage system.
@@ -65,8 +65,9 @@ export interface IQuestionStorage {
   upsertQuestionBank(questionBank: QuestionBank) : Promise<void>;
 }
 
-export enum ImageType {
-  Question = "QuestionImage",
-  Explanation = "ExplanationImage",
-}
+export const ImageType = {
+  Question: "QuestionImage",
+  Explanation: "ExplanationImage",
+} as const;
+export type ImageType = (typeof ImageType)[keyof typeof ImageType];
 

@@ -87,7 +87,7 @@ resource functionApp 'Microsoft.Web/sites@2022-09-01' = {
         }
         {
           name: 'WEBSITE_NODE_DEFAULT_VERSION'
-          value: '20.x'
+          value: '22.x'
         }
       ]
     }

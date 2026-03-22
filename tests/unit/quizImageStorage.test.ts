@@ -25,14 +25,14 @@ vi.mock("file-type", () => ({
 
 global.fetch = vi.fn();
 
-const gmMock = {
+const sharpMock = {
   resize: vi.fn().mockReturnThis(),
-  quality: vi.fn().mockReturnThis(),
-  toBuffer: vi.fn(),
+  jpeg: vi.fn().mockReturnThis(),
+  toBuffer: vi.fn().mockResolvedValue(Buffer.from("optimized-image-buffer")),
 };
 
-vi.mock("gm", () => ({
-  default: () => gmMock,
+vi.mock("sharp", () => ({
+  default: () => sharpMock,
 }));
 
 describe("QuizImageStorage", () => {
@@ -45,13 +45,11 @@ describe("QuizImageStorage", () => {
     vi.resetModules();
     vi.clearAllMocks();
 
-    gmMock.resize.mockClear();
-    gmMock.quality.mockClear();
-    gmMock.toBuffer.mockClear();
+    sharpMock.resize.mockClear();
+    sharpMock.jpeg.mockClear();
+    sharpMock.toBuffer.mockClear();
 
-    gmMock.toBuffer.mockImplementation((_format, callback) => {
-      callback(null, Buffer.from("optimized-image-buffer"));
-    });
+    sharpMock.toBuffer.mockResolvedValue(Buffer.from("optimized-image-buffer"));
 
     previousStorageAccountKey = process.env.AZURE_STORAGE_ACCOUNT_KEY;
     previousStorageAccountName = process.env.AZURE_STORAGE_ACCOUNT_NAME;
@@ -135,7 +133,7 @@ describe("QuizImageStorage", () => {
         customBlobServiceClient as any,
       );
 
-      expect(storage["quizImageClient"]).toBe(customBlobServiceClient);
+      expect((storage as any)["blobImageClient"]).toBe(customBlobServiceClient);
     });
   });
 
@@ -159,26 +157,12 @@ describe("QuizImageStorage", () => {
         mime: "image/jpeg",
       } as any);
 
-      gmMock.toBuffer.mockImplementation((_format, callback) => {
-        callback(new Error("Image optimization failed"), null);
-      });
-
-      // vi.mock("gm", () => ({
-      //   default: () => ({
-      //     resize: vi.fn().mockReturnThis(),
-      //     quality: vi.fn().mockReturnThis(),
-      //     toBuffer: vi.fn((_format, callback) => {
-      //       callback(new Error("Image optimization failed"), null);
-      //     }),
-      //   }),
-      // }));
+      sharpMock.toBuffer.mockRejectedValueOnce(new Error("Image optimization failed"));
 
       await expect(
         quizImageStorage.downloadAndValidateImageForDiscord(
-          "mock-guild",
           "https://image-url.com",
-          "container",
-          "partition",
+          "question1",
           ImageType.Question,
         ),
       ).rejects.toThrow("Image optimization failed");
@@ -210,10 +194,8 @@ describe("QuizImageStorage", () => {
       } as any);
 
       const url = await quizImageStorage.downloadAndValidateImageForDiscord(
-        "mock-guild",
         "https://image-url.com",
-        "container",
-        "partition",
+        "question1",
         ImageType.Question,
       );
 
@@ -241,10 +223,8 @@ describe("QuizImageStorage", () => {
 
       await expect(
         quizImageStorage.downloadAndValidateImageForDiscord(
-          "mock-guild",
           "https://image-url.com",
-          "container",
-          "partition",
+          "question1",
           ImageType.Question,
         ),
       ).rejects.toThrow("Image size exceeds Discord's 8MB limit.");
@@ -269,10 +249,8 @@ describe("QuizImageStorage", () => {
       } as any);
 
       const url = await quizImageStorage.downloadAndValidateImageForDiscord(
-        "mock-guild",
         "https://image-url.com",
-        "container",
-        "partition",
+        "question1",
         ImageType.Question,
       );
 
@@ -295,10 +273,8 @@ describe("QuizImageStorage", () => {
 
       await expect(
         quizImageStorage.downloadAndValidateImageForDiscord(
-          "mock-guild",
           "https://image-url.com",
-          "container",
-          "partition",
+          "question1",
           ImageType.Question,
         ),
       ).rejects.toThrow("Image size exceeds Discord's 8MB limit.");
@@ -325,10 +301,8 @@ describe("QuizImageStorage", () => {
 
       await expect(
         quizImageStorage.downloadAndValidateImageForDiscord(
-          "mock-guild",
           "https://image-url.com",
-          "container",
-          "partition",
+          "question1",
           ImageType.Question,
         ),
       ).rejects.toThrow("Invalid image file type for Discord.");
@@ -343,10 +317,8 @@ describe("QuizImageStorage", () => {
 
       await expect(
         quizImageStorage.downloadAndValidateImageForDiscord(
-          "mock-guild",
           "https://image-url.com",
-          "container",
-          "partition",
+          "question1",
           ImageType.Question,
         ),
       ).rejects.toThrow("Failed to fetch image: 404 Not Found");
@@ -363,10 +335,8 @@ describe("QuizImageStorage", () => {
 
       await expect(
         quizImageStorage.downloadAndValidateImageForDiscord(
-          "mock-guild",
           "https://image-url.com",
-          "container",
-          "partition",
+          "question1",
           ImageType.Question,
         ),
       ).rejects.toThrow(
@@ -412,7 +382,6 @@ describe("QuizImageStorage", () => {
       );
 
       const url = await quizImageStorage.getPresignedUrl(
-        "container",
         "partition",
       );
 
@@ -427,8 +396,6 @@ describe("QuizImageStorage", () => {
   describe("getQuestionImagePresignedUrl", () => {
     it("should return a presigned URL for question image", async () => {
       const url = await quizImageStorage.getQuestionImagePresignedUrl(
-        "mock-guild",
-        "bank1",
         "question1",
       );
 
@@ -439,8 +406,6 @@ describe("QuizImageStorage", () => {
   describe("getExplanationImagePresignedUrl", () => {
     it("should return a presigned URL for explanation image", async () => {
       const url = await quizImageStorage.getExplanationImagePresignedUrl(
-        "mock-guild",
-        "bank1",
         "question1",
       );
 

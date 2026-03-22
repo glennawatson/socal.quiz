@@ -1,17 +1,18 @@
-import { IModalHandlerCommand } from "./discordCommand.interfaces.js";
+import type { IModalHandlerCommand } from "./discordCommand.interfaces.js";
 import {
   ActionRowBuilder,
   ModalBuilder,
   SlashCommandBuilder,
-  SlashCommandOptionsOnlyBuilder,
+  type SlashCommandOptionsOnlyBuilder,
   TextInputBuilder,
 } from "@discordjs/builders";
 import {
-  APIChatInputApplicationCommandInteraction,
-  APIInteractionResponse,
-  APIModalSubmitInteraction,
+  type APIChatInputApplicationCommandInteraction,
+  type APIInteractionResponse,
+  type APIModalSubmissionComponent,
+  type APIModalSubmitInteraction,
+  ComponentType,
   InteractionResponseType,
-  ModalSubmitActionRowComponent,
   TextInputStyle,
 } from "discord-api-types/v10";
 import {
@@ -23,8 +24,8 @@ import {
   getOptionValue,
 } from "../../util/interactionHelpers.js";
 import { createTextInput } from "../../util/commandHelpers.js";
-import { Question } from "../../question.interfaces.js";
-import { IQuestionStorage } from "../../util/IQuestionStorage.interfaces.js";
+import type { Question } from "../../question.interfaces.js";
+import type { IQuestionStorage } from "../../util/IQuestionStorage.interfaces.js";
 import { throwError } from "../../util/errorHelpers.js";
 
 interface Inputs {
@@ -53,7 +54,10 @@ export class EditQuestionCommand implements IModalHandlerCommand {
     questionId: "questionid",
   };
 
-  constructor(private readonly questionStorage: IQuestionStorage) {}
+  private readonly questionStorage: IQuestionStorage;
+  constructor(questionStorage: IQuestionStorage) {
+    this.questionStorage = questionStorage;
+  }
 
   public async handleModalSubmit(
       interaction: APIModalSubmitInteraction,
@@ -81,9 +85,10 @@ export class EditQuestionCommand implements IModalHandlerCommand {
     }
 
     try {
-      const customIdParts = interaction.data.custom_id.split('_');
-      const questionId = customIdParts[1];
-      const bankName = customIdParts[customIdParts.length - 1];
+      const customIdSuffix = interaction.data.custom_id.substring(this.name.length + 1);
+      const lastSeparator = customIdSuffix.lastIndexOf('_');
+      const questionId = lastSeparator >= 0 ? customIdSuffix.substring(0, lastSeparator) : undefined;
+      const bankName = lastSeparator >= 0 ? customIdSuffix.substring(lastSeparator + 1) : undefined;
 
       if (questionId === undefined) {
         return createEphemeralResponse("No valid question id defined.");
@@ -119,7 +124,7 @@ export class EditQuestionCommand implements IModalHandlerCommand {
   }
 
   private extractInputs(
-      components: ModalSubmitActionRowComponent[]
+      components: APIModalSubmissionComponent[]
   ): Inputs {
     return {
       bankName: getComponentValue(components, EditQuestionCommand.componentIds.bankName),
@@ -146,11 +151,11 @@ export class EditQuestionCommand implements IModalHandlerCommand {
   }
 
   private extractAnswersText(
-      components: ModalSubmitActionRowComponent[]
+      components: APIModalSubmissionComponent[]
   ): string[] {
     const answersText: string[] = [];
     components.forEach((component) => {
-      if (component.components[0]?.custom_id.startsWith("answer")) {
+      if (component.type === ComponentType.ActionRow && component.components[0]?.custom_id.startsWith("answer")) {
         answersText.push(component.components[0].value);
       }
     });

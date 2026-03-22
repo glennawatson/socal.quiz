@@ -1,10 +1,11 @@
 import {
-  APIApplicationCommandInteractionDataOption,
-  APIInteractionResponse,
+  type APIApplicationCommandInteractionDataOption,
+  type APIInteractionResponse,
   ApplicationCommandOptionType,
   InteractionResponseType,
   MessageFlags,
-  ModalSubmitActionRowComponent,
+  type APIModalSubmissionComponent,
+  ComponentType,
 } from "discord-api-types/v10";
 
 export function generateErrorResponse(error: Error): APIInteractionResponse {
@@ -46,13 +47,15 @@ export function createEphemeralResponse(
 }
 
 export function getComponentValue(
-  components: ModalSubmitActionRowComponent[],
+  components: APIModalSubmissionComponent[],
   customId: string,
 ) {
   for (const row of components) {
-    for (const component of row.components) {
-      if (component.custom_id === customId) {
-        return component.value;
+    if (row.type === ComponentType.ActionRow) {
+      for (const component of row.components) {
+        if (component.custom_id === customId) {
+          return component.value;
+        }
       }
     }
   }
@@ -60,7 +63,7 @@ export function getComponentValue(
 }
 
 export function getComponentValueNumber(
-  components: ModalSubmitActionRowComponent[],
+  components: APIModalSubmissionComponent[],
   customId: string,
 ): number | undefined {
   const value = getComponentValue(components, customId);

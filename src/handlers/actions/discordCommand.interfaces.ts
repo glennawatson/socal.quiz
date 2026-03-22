@@ -1,9 +1,9 @@
-import {
+import type {
   APIChatInputApplicationCommandInteraction,
   APIInteractionResponse,
   APIModalSubmitInteraction,
 } from "discord-api-types/v10";
-import { SlashCommandOptionsOnlyBuilder } from "@discordjs/builders";
+import type { SlashCommandOptionsOnlyBuilder } from "@discordjs/builders";
 
 export interface IDiscordCommand {
   data(): SlashCommandOptionsOnlyBuilder;

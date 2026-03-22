@@ -7,6 +7,7 @@ import {
   ChannelType,
   InteractionResponseType,
   InteractionType,
+  Locale,
 } from "discord-api-types/v10";
 import { interactions } from "../../src/functions/lambdaHttpTrigger.js";
 import { Config } from "../../src/util/config.js";
@@ -39,6 +40,7 @@ vi.mock("@azure/data-tables", () => {
   const tableClientMock = {
     getEntity: vi.fn(),
     createEntity: vi.fn(),
+    createTable: vi.fn(),
     listEntities: vi.fn().mockReturnValue({
       next: vi.fn().mockResolvedValue({ done: true, value: undefined }),
       [Symbol.asyncIterator]() {
@@ -112,11 +114,14 @@ describe("interactions function", () => {
   beforeEach(async () => {
     // Reset mocks and stubs
     vi.clearAllMocks();
+    (Config as any)["_initialized"] = false;
+    (Config as any)["_initializePromise"] = null;
 
     // Re-initialize mocks
     tableClientMock = {
       getEntity: vi.fn(),
       createEntity: vi.fn(),
+      createTable: vi.fn(),
       listEntities: vi.fn().mockReturnValue({
         next: vi.fn().mockResolvedValue({ done: true, value: undefined }),
         [Symbol.asyncIterator]() {
@@ -178,6 +183,7 @@ describe("interactions function", () => {
       token: "",
       type: InteractionType.Ping,
       version: 1,
+      attachment_size_limit: 8388608,
     };
 
     const request = createMockHttpRequest(interaction, {
@@ -206,6 +212,7 @@ describe("interactions function", () => {
       token: "interaction-token",
       entitlements: [],
       authorizing_integration_owners: {},
+      attachment_size_limit: 8388608,
       version: 1,
       data: {
         id: "command-id",
@@ -260,8 +267,8 @@ describe("interactions function", () => {
       },
       app_permissions: "0",
       channel_id: "channel-id",
-      locale: "en-US",
-      guild_locale: "en-US",
+      locale: Locale.EnglishUS,
+      guild_locale: Locale.EnglishUS,
     };
 
     const mockResponse = {

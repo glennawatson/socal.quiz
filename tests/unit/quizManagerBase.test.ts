@@ -43,12 +43,12 @@ describe("QuizManagerBase", () => {
   beforeEach(() => {
     restMock = {} as REST;
     quizStateStorageMock = {
-      getQuestions: vi.fn(),
-      updateQuestion: vi.fn(),
-      deleteQuestion: vi.fn(),
+      getQuestionBank: vi.fn(),
       deleteQuestionBank: vi.fn(),
-      generateAndAddQuestion: vi.fn(),
+      getQuestionBankNames: vi.fn(),
       generateQuestion: vi.fn(),
+      generateAnswer: vi.fn(),
+      upsertQuestionBank: vi.fn(),
     } as unknown as IQuestionStorage;
 
     quizManagerBase = new QuizManagerBaseImpl(restMock, quizStateStorageMock);
@@ -78,7 +78,7 @@ describe("QuizManagerBase", () => {
     });
 
     it("should return an error if no questions are found", async () => {
-      quizStateStorageMock.getQuestions = vi.fn().mockResolvedValue([]);
+      quizStateStorageMock.getQuestionBank = vi.fn().mockResolvedValue({ name: "bank123", guildId: "guild123", questions: [] });
       const response = await quizManagerBase.startQuiz(
         "guild123",
         "channel123",
@@ -94,8 +94,6 @@ describe("QuizManagerBase", () => {
     it("should call startQuizInternal with valid questions", async () => {
       const questions: Question[] = [
         {
-          guildId: "guild-id",
-          bankName: "bank1",
           questionId: "q1",
           question: "What is 2 + 2?",
           answers: [
@@ -109,7 +107,7 @@ describe("QuizManagerBase", () => {
         },
       ];
 
-      quizStateStorageMock.getQuestions = vi.fn().mockResolvedValue(questions);
+      quizStateStorageMock.getQuestionBank = vi.fn().mockResolvedValue({ name: "bank1", guildId: "guild123", questions });
 
       const startQuizInternalSpy = vi.spyOn(
         quizManagerBase,
@@ -141,8 +139,6 @@ describe("QuizManagerBase", () => {
     it("should return an error if there are invalid questions", async () => {
       const questions: Question[] = [
         {
-          guildId: "guild-id",
-          bankName: "bank1",
           questionId: "q1",
           question: "",
           answers: [
@@ -169,8 +165,6 @@ describe("QuizManagerBase", () => {
     it("should call stopQuiz and runQuiz with valid questions", async () => {
       const questions: Question[] = [
         {
-          guildId: "guild-id",
-          bankName: "bank1",
           questionId: "q1",
           question: "What is 2 + 2?",
           answers: [

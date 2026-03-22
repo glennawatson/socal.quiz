@@ -1,15 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { QuestionStorage } from "../../src/util/questionStorage.js";
 import { odata, TableClient, TableEntity } from "@azure/data-tables";
-import { Question } from "../../src/question.interfaces.js";
+import { QuestionBank } from "../../src/questionBank.interfaces.js";
 import { fileTypeFromBuffer } from "file-type";
 import { BlobServiceClient } from "@azure/storage-blob";
 import { QuizImageStorage } from "../../src/util/quizImageStorage.js";
+import { ImageType } from "../../src/util/IQuestionStorage.interfaces.js";
 
 vi.mock("@azure/data-tables", () => ({
   TableClient: {
     fromConnectionString: vi.fn(),
   },
+  TableTransaction: vi.fn().mockImplementation(function (this: any) {
+    this.upsertEntity = vi.fn();
+    this.actions = [];
+  }),
   odata: vi.fn(),
 }));
 
@@ -33,9 +38,13 @@ vi.mock("@azure/storage-blob", () => ({
   }),
 }));
 
-vi.mock("uuid", () => ({
-  v4: vi.fn(() => "mock-uuid"),
-}));
+vi.mock("node:crypto", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:crypto")>();
+  return {
+    ...actual,
+    randomUUID: vi.fn(() => "mock-uuid"),
+  };
+});
 
 vi.mock("file-type", () => ({
   __esModule: true,
@@ -70,6 +79,8 @@ describe("QuestionStorage", () => {
       listEntities: vi.fn(),
       deleteEntity: vi.fn(),
       updateEntity: vi.fn(),
+      getEntity: vi.fn(),
+      submitTransaction: vi.fn(),
     };
 
     blobServiceClientMock = {
@@ -133,23 +144,6 @@ describe("QuestionStorage", () => {
   });
 
   describe("constructor", () => {
-    it("should throw an error if storage account key is missing", () => {
-      delete process.env.AZURE_STORAGE_ACCOUNT_KEY;
-      expect(() => {
-        new QuestionStorage(
-          new QuizImageStorage("mock-connection-string"),
-          "mock-connection-string",
-        );
-      }).toThrow("invalid storage account key");
-    });
-
-    it("should throw an error if connection string is missing account name", () => {
-      expect(() => {
-        delete process.env.AZURE_STORAGE_ACCOUNT_NAME;
-        new QuestionStorage(new QuizImageStorage("mock-connection-string"), "");
-      }).toThrow("invalid storage account name");
-    });
-
     it("should throw an error if connection string is missing and quizImageClient is not set", () => {
       delete process.env.AZURE_STORAGE_CONNECTION_STRING;
       expect(() => {
@@ -172,10 +166,7 @@ describe("QuestionStorage", () => {
 
       expect(TableClient.fromConnectionString).toHaveBeenCalledWith(
         "mock-connection-string",
-        "QuizQuestions",
-      );
-      expect(BlobServiceClient.fromConnectionString).toHaveBeenCalledWith(
-        "mock-connection-string",
+        "QuizQuestionBanks",
       );
     });
 
@@ -209,140 +200,70 @@ describe("QuestionStorage", () => {
     });
   });
 
-  describe("getQuestions", () => {
-    it("should return a list of questions", async () => {
-      const mockQuestions: TableEntity<Question>[] = [
-        {
-          partitionKey: "guild1-bank1",
-          rowKey: "question1",
-          question: "What is 2+2?",
-          answers: [
-            { answerId: "1", answer: "3" },
-            { answerId: "2", answer: "4" },
-          ],
-          correctAnswerId: "2",
-          guildId: "guild1",
-          bankName: "bank1",
-          questionId: "question1",
-          questionShowTimeMs: 20000,
-        },
-      ];
-      tableClientMock.listEntities.mockReturnValue(mockQuestions);
+  describe("getQuestionBank", () => {
+    it("should return a question bank", async () => {
+      const mockQuestionBank: TableEntity<QuestionBank> = {
+        partitionKey: "guild1",
+        rowKey: "bank1",
+        guildId: "guild1",
+        name: "bank1",
+        questions: [
+          {
+            questionId: "question1",
+            question: "What is 2+2?",
+            answers: [
+              { answerId: "1", answer: "3" },
+              { answerId: "2", answer: "4" },
+            ],
+            correctAnswerId: "2",
+            questionShowTimeMs: 20000,
+          },
+        ],
+      };
+      tableClientMock.getEntity.mockResolvedValue(mockQuestionBank);
 
-      const questions = await questionStorage.getQuestions("guild1", "bank1");
+      const questionBank = await questionStorage.getQuestionBank("guild1", "bank1");
 
-      expect(questions).toEqual([
-        {
-          guildId: "guild1",
-          bankName: "bank1",
-          questionId: "question1",
-          question: "What is 2+2?",
-          answers: [
-            { answerId: "1", answer: "3" },
-            { answerId: "2", answer: "4" },
-          ],
-          correctAnswerId: "2",
-          questionShowTimeMs: 20000,
-        },
-      ]);
+      expect(tableClientMock.getEntity).toHaveBeenCalledWith("guild1", "bank1");
+      expect(questionBank).toEqual(mockQuestionBank);
     });
   });
 
-  describe("addQuestion", () => {
-    it("should add a question", async () => {
-      const question: Question = {
+  describe("upsertQuestionBank", () => {
+    it("should upsert a question bank", async () => {
+      const questionBank: QuestionBank = {
         guildId: "guild1",
-        bankName: "bank1",
-        questionId: "mock-uuid",
-        question: "What is 2+2?",
-        answers: [
-          { answerId: "1", answer: "3" },
-          { answerId: "2", answer: "4" },
+        name: "bank1",
+        questions: [
+          {
+            questionId: "mock-uuid",
+            question: "What is 2+2?",
+            answers: [
+              { answerId: "1", answer: "3" },
+              { answerId: "2", answer: "4" },
+            ],
+            correctAnswerId: "2",
+            questionShowTimeMs: 20000,
+          },
         ],
-        correctAnswerId: "2",
-        questionShowTimeMs: 20000,
       };
 
-      await questionStorage.addQuestion("guild1", question);
+      await questionStorage.upsertQuestionBank(questionBank);
 
-      expect(tableClientMock.createEntity).toHaveBeenCalledWith({
-        partitionKey: "guild1-bank1",
-        rowKey: "mock-uuid",
-        guildId: "guild1",
-        question: "What is 2+2?",
-        questionId: "mock-uuid",
-        bankName: "bank1",
-        answers: [
-          { answerId: "1", answer: "3" },
-          { answerId: "2", answer: "4" },
-        ],
-        correctAnswerId: "2",
-        questionShowTimeMs: 20000,
-      });
+      expect(tableClientMock.submitTransaction).toHaveBeenCalled();
     });
   });
 
-  describe("deleteQuestion", () => {
-    it("should delete a question", async () => {
-      await questionStorage.deleteQuestion("guild1", "bank1", "question1");
+  describe("deleteQuestionBank", () => {
+    it("should delete a question bank", async () => {
+      tableClientMock.deleteEntity.mockResolvedValue(undefined);
+
+      await questionStorage.deleteQuestionBank("guild1", "bank1");
 
       expect(tableClientMock.deleteEntity).toHaveBeenCalledWith(
-        "guild1-bank1",
-        "question1",
-      );
-    });
-  });
-
-  describe("getQuestion", () => {
-    it("should return a question by its ID", async () => {
-      const mockEntity = {
-        partitionKey: "guild1-bank1",
-        rowKey: "question1",
-        question: "What is 2+2?",
-        answers: [
-          { answerId: "1", answer: "3" },
-          { answerId: "2", answer: "4" },
-        ],
-        correctAnswerId: "2",
-        bankName: "bank1",
-        questionId: "question1",
-        questionShowTimeMs: 20000,
-      };
-
-      tableClientMock.getEntity = vi.fn().mockResolvedValue(mockEntity);
-
-      const question = await questionStorage.getQuestion(
         "guild1",
         "bank1",
-        "question1",
       );
-
-      expect(tableClientMock.getEntity).toHaveBeenCalledWith(
-        "guild1-bank1",
-        "question1",
-      );
-
-      expect(question).toEqual({
-        bankName: "bank1",
-        questionId: "question1",
-        question: "What is 2+2?",
-        answers: [
-          { answerId: "1", answer: "3" },
-          { answerId: "2", answer: "4" },
-        ],
-        correctAnswerId: "2",
-        questionShowTimeMs: 20000,
-      });
-    });
-
-    it("should throw an error if the question is not found", async () => {
-      tableClientMock.getEntity = vi
-        .fn()
-        .mockRejectedValue(new Error("Entity not found"));
-
-      await expect(
-        questionStorage.getQuestion("guild1", "bank1", "question1"),
-      ).rejects.toThrow("Entity not found");
     });
   });
 
@@ -392,117 +313,9 @@ describe("QuestionStorage", () => {
     });
   });
 
-  describe("deleteQuestionBank", () => {
-    it("should delete all questions in a bank", async () => {
-      const mockEntities = [
-        { partitionKey: "guild1-bank1", rowKey: "question1" },
-        { partitionKey: "guild1-bank1", rowKey: "question2" },
-      ];
-
-      (odata as any).mockImplementation(() => {
-        return "PartitionKey eq 'guild1-bank1'";
-      });
-
-      tableClientMock.listEntities.mockReturnValue({
-        async *[Symbol.asyncIterator]() {
-          for (const entity of mockEntities) {
-            yield entity;
-          }
-        },
-      });
-
-      tableClientMock.deleteEntity.mockResolvedValue(undefined);
-
-      await questionStorage.deleteQuestionBank("guild1", "bank1");
-
-      expect(tableClientMock.listEntities).toHaveBeenCalledWith(
-        expect.objectContaining({
-          queryOptions: expect.objectContaining({
-            filter: "PartitionKey eq 'guild1-bank1'",
-          }),
-        }),
-      );
-
-      expect(tableClientMock.deleteEntity).toHaveBeenCalledTimes(2);
-      expect(tableClientMock.deleteEntity).toHaveBeenCalledWith(
-        "guild1-bank1",
-        "question1",
-      );
-      expect(tableClientMock.deleteEntity).toHaveBeenCalledWith(
-        "guild1-bank1",
-        "question2",
-      );
-    });
-  });
-
-  describe("generateAndAddQuestion", () => {
-    it("should generate and add a question", async () => {
-      const mockQuestion: Question = {
-        guildId: "guild1",
-        bankName: "bank1",
-        questionId: "mock-uuid",
-        question: "What is 2+2?",
-        answers: [
-          { answerId: "1", answer: "3" },
-          { answerId: "2", answer: "4" },
-        ],
-        correctAnswerId: "2",
-        questionShowTimeMs: 20000,
-      };
-
-      vi.spyOn(questionStorage, "generateQuestion").mockResolvedValue(
-        mockQuestion,
-      );
-
-      await questionStorage.generateAndAddQuestion(
-        "guild1",
-        "bank1",
-        "What is 2+2?",
-        [
-          { answerId: "1", answer: "3" },
-          { answerId: "2", answer: "4" },
-        ],
-        "2",
-        20000,
-      );
-
-      expect(questionStorage.generateQuestion).toHaveBeenCalledWith(
-        "guild1",
-        "bank1",
-        "What is 2+2?",
-        [
-          { answerId: "1", answer: "3" },
-          { answerId: "2", answer: "4" },
-        ],
-        "2",
-        20000,
-        undefined,
-        undefined,
-        undefined,
-      );
-
-      expect(tableClientMock.createEntity).toHaveBeenCalledWith({
-        partitionKey: "guild1-bank1",
-        rowKey: "mock-uuid",
-        guildId: "guild1",
-        question: "What is 2+2?",
-        questionId: "mock-uuid",
-        bankName: "bank1",
-        answers: [
-          { answerId: "1", answer: "3" },
-          { answerId: "2", answer: "4" },
-        ],
-        correctAnswerId: "2",
-        questionShowTimeMs: 20000,
-      });
-    });
-  });
-
   describe("generateQuestion", () => {
     it("should generate a question", async () => {
       const question = await questionStorage.generateQuestion(
-        "guild1",
-        "bank1",
         "What is 2+2?",
         [
           { answerId: "1", answer: "3" },
@@ -513,8 +326,6 @@ describe("QuestionStorage", () => {
       );
 
       expect(question).toEqual({
-        guildId: "guild1",
-        bankName: "bank1",
         questionId: "mock-uuid",
         question: "What is 2+2?",
         answers: [
@@ -565,8 +376,6 @@ describe("QuestionStorage", () => {
         .mockResolvedValueOnce({ mime: "image/png" });
 
       const question = await questionStorage.generateQuestion(
-        "guild1",
-        "bank1",
         "What is 2+2?",
         [
           { answerId: "1", answer: "3" },
@@ -580,8 +389,6 @@ describe("QuestionStorage", () => {
       );
 
       expect(question).toEqual({
-        guildId: "guild1",
-        bankName: "bank1",
         questionId: "mock-uuid",
         question: "What is 2+2?",
         answers: [
@@ -590,136 +397,25 @@ describe("QuestionStorage", () => {
         ],
         correctAnswerId: "2",
         questionShowTimeMs: 20000,
-        imagePartitionKey: "guild1-bank1-mock-uuid-question",
+        imagePartitionKey: "mock-uuid-question",
         explanation: "Explanation",
-        explanationImagePartitionKey: "guild1-bank1-mock-uuid-explanation",
+        explanationImagePartitionKey: "mock-uuid-explanation",
       });
 
       expect(
         quizImageStorage.downloadAndValidateImageForDiscord,
       ).toHaveBeenCalledWith(
-        "guild1",
         "https://image-url.com",
-        "bank1",
         "mock-uuid",
-        "QuestionImage",
+        ImageType.Question,
       );
 
       expect(
         quizImageStorage.downloadAndValidateImageForDiscord,
       ).toHaveBeenCalledWith(
-        "guild1",
         "https://explanation-image-url.com",
-        "bank1",
         "mock-uuid",
-        "ExplanationImage",
-      );
-    });
-  });
-
-  describe("addQuestions", () => {
-    it("should add multiple questions", async () => {
-      const questions: Question[] = [
-        {
-          guildId: "guild1",
-          bankName: "bank1",
-          questionId: "mock-uuid-1",
-          question: "What is 2+2?",
-          answers: [
-            { answerId: "1", answer: "3" },
-            { answerId: "2", answer: "4" },
-          ],
-          correctAnswerId: "2",
-          questionShowTimeMs: 20000,
-        },
-        {
-          guildId: "guild1",
-          bankName: "bank2",
-          questionId: "mock-uuid-2",
-          question: "What is the capital of France?",
-          answers: [
-            { answerId: "1", answer: "Berlin" },
-            { answerId: "2", answer: "Paris" },
-          ],
-          correctAnswerId: "2",
-          questionShowTimeMs: 20000,
-        },
-      ];
-
-      await questionStorage.addQuestions("guild1", questions);
-
-      expect(tableClientMock.createEntity).toHaveBeenCalledTimes(2);
-      expect(tableClientMock.createEntity).toHaveBeenCalledWith({
-        partitionKey: "guild1-bank1",
-        rowKey: "mock-uuid-1",
-        guildId: "guild1",
-        bankName: "bank1",
-        questionId: "mock-uuid-1",
-        question: "What is 2+2?",
-        answers: [
-          { answerId: "1", answer: "3" },
-          { answerId: "2", answer: "4" },
-        ],
-        correctAnswerId: "2",
-        questionShowTimeMs: 20000,
-        imagePartitionKey: undefined,
-        explanation: undefined,
-        explanationImagePartitionKey: undefined,
-      });
-
-      expect(tableClientMock.createEntity).toHaveBeenCalledWith({
-        partitionKey: "guild1-bank2",
-        rowKey: "mock-uuid-2",
-        guildId: "guild1",
-        bankName: "bank2",
-        questionId: "mock-uuid-2",
-        question: "What is the capital of France?",
-        answers: [
-          { answerId: "1", answer: "Berlin" },
-          { answerId: "2", answer: "Paris" },
-        ],
-        correctAnswerId: "2",
-        questionShowTimeMs: 20000,
-        imagePartitionKey: undefined,
-        explanation: undefined,
-        explanationImagePartitionKey: undefined,
-      });
-    });
-  });
-
-  describe("updateQuestion", () => {
-    it("should update an existing question", async () => {
-      const question: Question = {
-        guildId: "guild1",
-        bankName: "bank1",
-        questionId: "mock-uuid",
-        question: "What is 2+2?",
-        answers: [
-          { answerId: "1", answer: "3" },
-          { answerId: "2", answer: "4" },
-        ],
-        correctAnswerId: "2",
-        questionShowTimeMs: 20000,
-      };
-
-      await questionStorage.updateQuestion("guild1", question);
-
-      expect(tableClientMock.updateEntity).toHaveBeenCalledWith(
-        {
-          partitionKey: "guild1-bank1",
-          rowKey: "mock-uuid",
-          guildId: "guild1",
-          question: "What is 2+2?",
-          questionId: "mock-uuid",
-          bankName: "bank1",
-          answers: [
-            { answerId: "1", answer: "3" },
-            { answerId: "2", answer: "4" },
-          ],
-          correctAnswerId: "2",
-          questionShowTimeMs: 20000,
-        },
-        "Merge",
+        ImageType.Explanation,
       );
     });
   });

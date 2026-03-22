@@ -7,8 +7,8 @@ import {
 import { throwError } from "./errorHelpers.js";
 import { ImageType } from "./IQuestionStorage.interfaces.js";
 import { fileTypeFromBuffer } from "file-type";
-import gm from "gm";
-import { IQuizImageStorage } from "./IQuizImageStorage.interfaces.js";
+import sharp from "sharp";
+import type { IQuizImageStorage } from "./IQuizImageStorage.interfaces.js";
 
 const MAX_FILE_SIZE_BYTES = 8 * 1024 * 1024; // 8MB for Discord
 const VALID_IMAGE_TYPES = [
@@ -28,14 +28,19 @@ function getImageKey(
 export class QuizImageStorage implements IQuizImageStorage {
   private static readonly containerName = "QuizImages";
   private blobImageClient: BlobServiceClient;
+  private readonly storageAccountKey: string;
+  private readonly storageAccountName: string;
+
   constructor(
     connectionString?: string | undefined,
-    private readonly storageAccountKey: string = process.env
+    storageAccountKey: string = process.env
       .AZURE_STORAGE_ACCOUNT_KEY ?? throwError("invalid storage account key"),
-    private readonly storageAccountName: string = process.env
+    storageAccountName: string = process.env
       .AZURE_STORAGE_ACCOUNT_NAME ?? throwError("invalid storage account name"),
     blobServiceClient?: BlobServiceClient,
   ) {
+    this.storageAccountKey = storageAccountKey;
+    this.storageAccountName = storageAccountName;
     if (!blobServiceClient) {
       if (!connectionString) {
         throw new Error("invalid connection string");
@@ -97,21 +102,11 @@ export class QuizImageStorage implements IQuizImageStorage {
       throw new Error("Invalid image file type for Discord.");
     }
 
-    // Optimize image using ImageMagick
-    const optimizedImageBuffer = await new Promise<Buffer>(
-      (resolve, reject) => {
-        gm(buffer)
-          .resize(1000) // Resize image while keeping aspect ratio
-          .quality(85)
-          .toBuffer("JPEG", (err, buffer) => {
-            if (err) {
-              reject(err);
-            } else {
-              resolve(buffer);
-            }
-          });
-      },
-    );
+    // Optimize image using sharp
+    const optimizedImageBuffer = await sharp(buffer)
+      .resize(1000, undefined, { withoutEnlargement: true })
+      .jpeg({ quality: 85 })
+      .toBuffer();
 
     const imagePartitionKey = getImageKey(
       questionId,

@@ -1,11 +1,11 @@
-import { IDiscordCommand } from "./discordCommand.interfaces.js";
+import type { IDiscordCommand } from "./discordCommand.interfaces.js";
 import {
   SlashCommandBuilder,
-  SlashCommandOptionsOnlyBuilder,
+  type SlashCommandOptionsOnlyBuilder,
 } from "@discordjs/builders";
 import {
-  APIChatInputApplicationCommandInteraction,
-  APIInteractionResponse,
+  type APIChatInputApplicationCommandInteraction,
+  type APIInteractionResponse,
 } from "discord-api-types/v10";
 import {
   createEphemeralResponse,
@@ -14,10 +14,13 @@ import {
   getOptionValue,
 } from "../../util/interactionHelpers.js";
 
-import { IQuestionStorage } from "../../util/IQuestionStorage.interfaces.js";
+import type { IQuestionStorage } from "../../util/IQuestionStorage.interfaces.js";
 
 export class DeleteQuestionBankCommand implements IDiscordCommand {
-  constructor(private readonly questionStorage: IQuestionStorage) {}
+  private readonly questionStorage: IQuestionStorage;
+  constructor(questionStorage: IQuestionStorage) {
+    this.questionStorage = questionStorage;
+  }
 
   public data(): SlashCommandOptionsOnlyBuilder {
     return new SlashCommandBuilder()

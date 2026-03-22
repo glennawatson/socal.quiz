@@ -1,7 +1,7 @@
 import {
   app,
   HttpRequest,
-  HttpResponseInit,
+  type HttpResponseInit,
   InvocationContext,
 } from "@azure/functions";
 import { Config } from "../util/config.js";
@@ -10,10 +10,10 @@ import {
   isErrorResponse, isValidationSuccess, validateAuth,
   validateAuthAndGuildOwnership,
 } from "../util/authHelper.js";
-import { APIGuild, Routes } from "discord-api-types/v10";
-import { Question } from "../question.interfaces.js";
-import { IQuizImageStorage } from "../util/IQuizImageStorage.interfaces.js";
-import { QuestionBank } from "../questionBank.interfaces.js";
+import { type APIGuild, Routes } from "discord-api-types/v10";
+import type { Question } from "../question.interfaces.js";
+import type { IQuizImageStorage } from "../util/IQuizImageStorage.interfaces.js";
+import type { QuestionBank } from "../questionBank.interfaces.js";
 
 interface QuestionRequestBody extends Question {
   imageUrl?: string;

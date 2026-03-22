@@ -1,4 +1,4 @@
-import { Question } from "./question.interfaces.js";
+import type { Question } from "./question.interfaces.js";
 
 export interface QuestionBank {
   name: string;

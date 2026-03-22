@@ -1,4 +1,4 @@
-import { Question } from "../question.interfaces.js";
+import type { Question } from "../question.interfaces.js";
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -7,7 +7,7 @@ import {
 import { Routes } from "discord-api-types/v10";
 import { QuizImageStorage } from "../util/quizImageStorage.js";
 import { REST } from "@discordjs/rest";
-import { QuizState } from "./quizState.interfaces.js";
+import type { QuizState } from "./quizState.interfaces.js";
 
 export async function sendQuestionSummary(
   rest: REST,

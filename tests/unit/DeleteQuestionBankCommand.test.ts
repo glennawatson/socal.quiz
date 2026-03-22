@@ -5,6 +5,7 @@ import {
   ApplicationCommandType,
   ChannelType,
   GuildMemberFlags,
+  Locale,
 } from "discord-api-types/v10";
 import { QuestionStorage } from "../../src/util/questionStorage.js";
 import { DeleteQuestionBankCommand } from "../../src/handlers/actions/deleteQuestionBankCommand.js";
@@ -99,7 +100,8 @@ function generateBankOptions(
     authorizing_integration_owners: {},
     channel: { id: "channel-id", type: ChannelType.GuildVoice },
     entitlements: [],
-    locale: "en-US",
+    locale: Locale.EnglishUS,
+    attachment_size_limit: 8388608,
     version: 1,
     type: 2,
     data: {

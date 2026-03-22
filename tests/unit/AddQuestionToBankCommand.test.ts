@@ -24,7 +24,9 @@ describe("AddQuestionToBankCommand", () => {
           answer: answerText,
         } as Answer);
       }),
-      generateAndAddQuestion: spyGenerateAndAddQuestion,
+      generateQuestion: spyGenerateAndAddQuestion,
+      getQuestionBank: vi.fn().mockResolvedValue({ name: '', guildId: '', questions: [] }),
+      upsertQuestionBank: vi.fn(),
     } as unknown as IQuestionStorage;
 
     addQuestionToBankCommand = new AddQuestionToBankCommand(questionStorage);
@@ -114,8 +116,6 @@ describe("AddQuestionToBankCommand", () => {
         await addQuestionToBankCommand.handleModalSubmit(interaction);
 
       expect(spyGenerateAndAddQuestion).toHaveBeenCalledWith(
-        "123",
-        "sampleBank",
         "What is 2+2?",
         [
           { answerId: "2id", answer: "2" },
@@ -247,7 +247,7 @@ describe("AddQuestionToBankCommand", () => {
     });
 
     it("should return a generic error response if an unknown error occurs", async () => {
-      questionStorage.generateAndAddQuestion = vi
+      questionStorage.generateQuestion = vi
         .fn()
         .mockImplementation(() => {
           throw new Error("Unknown error");
@@ -287,7 +287,7 @@ describe("AddQuestionToBankCommand", () => {
     });
 
     it("should return a generic error response if an unknown error occurs", async () => {
-      questionStorage.generateAndAddQuestion = vi
+      questionStorage.generateQuestion = vi
         .fn()
         .mockImplementation(() => {
           throw "Unknown error";

@@ -1,8 +1,8 @@
-import { IModalHandlerCommand } from "./discordCommand.interfaces.js";
+import type { IModalHandlerCommand } from "./discordCommand.interfaces.js";
 import {
-  APIChatInputApplicationCommandInteraction,
-  APIInteractionResponse,
-  APIModalSubmitInteraction,
+  type APIChatInputApplicationCommandInteraction,
+  type APIInteractionResponse,
+  type APIModalSubmitInteraction,
   InteractionResponseType,
   TextInputStyle,
 } from "discord-api-types/v10";
@@ -10,7 +10,7 @@ import {
   ActionRowBuilder,
   ModalBuilder,
   SlashCommandBuilder,
-  SlashCommandOptionsOnlyBuilder,
+  type SlashCommandOptionsOnlyBuilder,
   TextInputBuilder,
 } from "@discordjs/builders";
 import {
@@ -20,8 +20,8 @@ import {
   getComponentValueNumber,
 } from "../../util/interactionHelpers.js";
 import { createTextInput } from "../../util/commandHelpers.js";
-import { IQuestionStorage } from "../../util/IQuestionStorage.interfaces.js";
-import { Answer } from "../../answer.interfaces.js";
+import type { IQuestionStorage } from "../../util/IQuestionStorage.interfaces.js";
+import type { Answer } from "../../answer.interfaces.js";
 
 export class AddQuestionToBankCommand implements IModalHandlerCommand {
   public static readonly componentIds = {
@@ -35,7 +35,10 @@ export class AddQuestionToBankCommand implements IModalHandlerCommand {
     correctAnswerIndex: "correctAnswerIndex",
   };
 
-  constructor(private readonly questionStorage: IQuestionStorage) {}
+  private readonly questionStorage: IQuestionStorage;
+  constructor(questionStorage: IQuestionStorage) {
+    this.questionStorage = questionStorage;
+  }
 
   data(): SlashCommandOptionsOnlyBuilder {
     return new SlashCommandBuilder()

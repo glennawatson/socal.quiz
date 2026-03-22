@@ -1,14 +1,14 @@
 import { REST } from "@discordjs/rest";
-import { IQuestionStorage } from "../util/IQuestionStorage.interfaces.js";
+import type { IQuestionStorage } from "../util/IQuestionStorage.interfaces.js";
 import { DurableClient } from "durable-functions";
-import { QuizState } from "./quizState.interfaces.js";
+import type { QuizState } from "./quizState.interfaces.js";
 import { QuizManagerBase } from "./quizManagerBase.js";
 import {
-  APIInteractionResponse,
+  type APIInteractionResponse,
   InteractionResponseType,
 } from "discord-api-types/v10";
 import { createEphemeralResponse } from "../util/interactionHelpers.js";
-import { AnswerEvent } from "./answerEvent.interfaces.js";
+import type { AnswerEvent } from "./answerEvent.interfaces.js";
 
 /**
  * Generates an instance ID based on guild and channel IDs.
@@ -35,12 +35,15 @@ export class DurableQuizManager extends QuizManagerBase {
    * @param {IQuestionStorage} quizStateStorage - Storage interface for quiz questions.
    * @param {DurableClient} durableClient - The durable client for managing orchestration.
    */
+  private readonly durableClient: DurableClient;
+
   public constructor(
     rest: REST,
     quizStateStorage: IQuestionStorage,
-    private readonly durableClient: DurableClient,
+    durableClient: DurableClient,
   ) {
     super(rest, quizStateStorage);
+    this.durableClient = durableClient;
   }
 
   /**

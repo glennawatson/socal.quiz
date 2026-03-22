@@ -1,25 +1,28 @@
 import {
   odata,
   TableClient,
-  TableEntity,
-  TableQueryOptions,
+  type TableEntity,
+  type TableQueryOptions,
   TableTransaction
 } from "@azure/data-tables";
-import { v4 as uuid } from "uuid";
-import { Question } from "../question.interfaces.js";
-import { Answer } from "../answer.interfaces.js";
-import { ImageType, IQuestionStorage } from "./IQuestionStorage.interfaces.js";
+import { randomUUID } from "node:crypto";
+import type { Question } from "../question.interfaces.js";
+import type { Answer } from "../answer.interfaces.js";
+import { ImageType, type IQuestionStorage } from "./IQuestionStorage.interfaces.js";
 import { QuizImageStorage } from "./quizImageStorage.js";
-import { QuestionBank } from "../questionBank.interfaces.js";
+import type { QuestionBank } from "../questionBank.interfaces.js";
 
 export class QuestionStorage implements IQuestionStorage {
   private quizQuestionsClient: TableClient;
 
+  private readonly quizImageClient: QuizImageStorage;
+
   constructor(
-    private readonly quizImageClient: QuizImageStorage,
+    quizImageClient: QuizImageStorage,
     connectionString?: string | undefined,
     tableClient?: TableClient,
   ) {
+    this.quizImageClient = quizImageClient;
     if (!tableClient) {
       if (!connectionString) {
         connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING;
@@ -49,7 +52,7 @@ export class QuestionStorage implements IQuestionStorage {
   }
 
   async generateAnswer(answerText: string): Promise<Answer> {
-    return { answer: answerText, answerId: uuid() };
+    return { answer: answerText, answerId: randomUUID() };
   }
 
   async getQuestionBank(guildId: string, bankName: string): Promise<QuestionBank> {
@@ -94,7 +97,7 @@ export class QuestionStorage implements IQuestionStorage {
     explanation?: string,
     explanationImageUrl?: string,
   ): Promise<Question> {
-    const questionId = uuid();
+    const questionId = randomUUID();
 
     let imagePartitionKey: string | undefined;
     let explanationImagePartitionKey: string | undefined;

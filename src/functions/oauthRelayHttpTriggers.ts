@@ -1,4 +1,4 @@
-import { InvocationContext, HttpRequest, HttpResponseInit, app } from "@azure/functions";
+import { InvocationContext, HttpRequest, type HttpResponseInit, app } from "@azure/functions";
 import { Config } from "../util/config.js";
 import { parse } from 'querystring';
 

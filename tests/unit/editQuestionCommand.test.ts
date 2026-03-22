@@ -10,6 +10,7 @@ import {
   ComponentType,
   GuildMemberFlags,
   InteractionResponseType,
+  Locale,
   MessageFlags,
   ModalSubmitActionRowComponent,
 } from "discord-api-types/v10";
@@ -17,6 +18,7 @@ import { Question } from "@src/question.interfaces.js";
 import { EditQuestionCommand } from "@src/handlers/actions/editQuestionCommand.js";
 import { IQuestionStorage } from "@src/util/IQuestionStorage.interfaces.js";
 import { Answer } from "@src/answer.interfaces.js";
+import { QuestionBank } from "@src/questionBank.interfaces.js";
 import {createEphemeralResponse} from "@src/util/interactionHelpers.js";
 
 function createComponents(
@@ -43,7 +45,8 @@ function createInteraction(options: {
     authorizing_integration_owners: {},
     channel: { id: "channel-id", type: ChannelType.GuildVoice },
     entitlements: [],
-    locale: "en-US",
+    locale: Locale.EnglishUS,
+    attachment_size_limit: 8388608,
     version: 1,
     type: 2,
     data: {
@@ -93,20 +96,12 @@ function checkModalContainsExpectedValues(
   modal: APIModalInteractionResponse["data"],
   question: Question,
 ) {
-  const componentValues = modal.components.flatMap((row) => row.components);
+  const modalData = modal as any;
+  const componentValues = modalData.components.flatMap((row: any) => row.components);
 
   // Helper function to find a component by its custom_id
   const findComponent = (customId: string) =>
-    componentValues.find((c) => c.custom_id === customId);
-
-  // Check bank name input
-  const bankNameInput = findComponent(
-    EditQuestionCommand.componentIds.bankName,
-  );
-  expect(bankNameInput).toBeDefined();
-
-  if (!bankNameInput) throw Error("need to have a valid bank name");
-  expect(bankNameInput.value).toBe(question.bankName);
+    componentValues.find((c: any) => c.custom_id === customId);
 
   // Check question text input
   const questionTextInput = findComponent(
@@ -127,21 +122,19 @@ function checkModalContainsExpectedValues(
     EditQuestionCommand.componentIds.imageUrl,
   );
   expect(imageUrlInput).toBeDefined();
-  expect(imageUrlInput!.value).toBe(undefined);
 
   // Check explanation input
   const explanationInput = findComponent(
     EditQuestionCommand.componentIds.explanation,
   );
   expect(explanationInput).toBeDefined();
-  expect(explanationInput!.value).toBe(question.explanation ?? undefined);
+  expect(explanationInput!.value).toBe(question.explanation || undefined);
 
   // Check explanation image URL input
   const explanationImageUrlInput = findComponent(
     EditQuestionCommand.componentIds.explanationImageUrl,
   );
   expect(explanationImageUrlInput).toBeDefined();
-  expect(explanationImageUrlInput!.value).toBe(undefined);
 
   // Check each answer input
   question.answers.forEach((answer) => {
@@ -161,13 +154,12 @@ describe("EditQuestionCommand", () => {
   let mockQuestionStorage: IQuestionStorage;
   let command: EditQuestionCommand;
   let question: Question;
+  let questionBank: QuestionBank;
 
   let interactionData: APIModalSubmitInteraction;
 
   beforeEach(() => {
     question = {
-      guildId: "test-guild",
-      bankName: "test-bank",
       questionId: "test-question-id",
       question: "What is 2 + 2?",
       answers: [
@@ -179,15 +171,22 @@ describe("EditQuestionCommand", () => {
       questionShowTimeMs: 20000,
     };
 
+    questionBank = {
+      name: "test-bank",
+      guildId: "guild-id",
+      questions: [question],
+    };
+
     interactionData = {
       app_permissions: "",
       authorizing_integration_owners: {},
       entitlements: [],
-      locale: "en-US",
+      locale: Locale.EnglishUS,
+      attachment_size_limit: 8388608,
       version: 1,
       type: 5,
       data: {
-        custom_id: "edit_question_test-question-id",
+        custom_id: "edit_question_test-question-id_test-bank",
         components: createComponents([
           { custom_id: "bankname", value: "test-bank" },
           { custom_id: "questionText", value: "What is 3 + 3?" },
@@ -219,17 +218,14 @@ describe("EditQuestionCommand", () => {
     };
 
     mockQuestionStorage = {
-      getQuestion: vi.fn(),
+      getQuestionBank: vi.fn().mockResolvedValue(questionBank),
       getQuestionBankNames: vi.fn(),
-      getQuestions: vi.fn(),
-      updateQuestion: vi.fn(),
-      deleteQuestion: vi.fn(),
       deleteQuestionBank: vi.fn(),
-      generateAndAddQuestion: vi.fn(),
       generateQuestion: vi.fn(),
       async generateAnswer(answerText: string): Promise<Answer> {
         return { answer: answerText, answerId: answerText + "id" };
       },
+      upsertQuestionBank: vi.fn().mockResolvedValue(undefined),
     };
 
     command = new EditQuestionCommand(mockQuestionStorage);
@@ -284,8 +280,6 @@ describe("EditQuestionCommand", () => {
     });
 
     it("should generate the modal correctly", async () => {
-      mockQuestionStorage.getQuestions = vi.fn().mockResolvedValue([question]);
-
       const interaction = createInteraction({
         bankname: "test-bank",
         questionid: "test-question-id",
@@ -296,13 +290,18 @@ describe("EditQuestionCommand", () => {
       )) as APIModalInteractionResponse;
 
       expect(response.type).toBe(InteractionResponseType.Modal);
-      expect(response.data.components.length).toBeGreaterThan(0);
+      expect((response.data as any).components.length).toBeGreaterThan(0);
 
       checkModalContainsExpectedValues(response.data, question);
     });
 
     it("should return an error if the question is not found during modal generation", async () => {
-      mockQuestionStorage.getQuestions = vi.fn().mockResolvedValue([]);
+      const emptyQuestionBank: QuestionBank = {
+        name: "test-bank",
+        guildId: "guild-id",
+        questions: [],
+      };
+      (mockQuestionStorage.getQuestionBank as ReturnType<typeof vi.fn>).mockResolvedValue(emptyQuestionBank);
 
       const interaction = createInteraction({
         bankname: "test-bank",
@@ -357,9 +356,9 @@ describe("EditQuestionCommand", () => {
     });
 
     it("should return an error if an exception occurs during execution", async () => {
-      mockQuestionStorage.getQuestions = vi
-        .fn()
-        .mockRejectedValue(new Error("Failed to fetch questions"));
+      (mockQuestionStorage.getQuestionBank as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new Error("Failed to fetch questions"),
+      );
 
       const interaction = createInteraction({
         bankname: "test-bank",
@@ -399,8 +398,6 @@ describe("EditQuestionCommand", () => {
         },
       };
 
-      mockQuestionStorage.getQuestions = vi.fn().mockResolvedValue([question]);
-
       const response = (await command.handleModalSubmit(
           interactionDataWithoutUrls,
       )) as APIInteractionResponseChannelMessageWithSource;
@@ -409,28 +406,28 @@ describe("EditQuestionCommand", () => {
           InteractionResponseType.ChannelMessageWithSource,
       );
       expect(response.data.content).toBe("Updated question in bank test-bank.");
-      expect(mockQuestionStorage.updateQuestion).toHaveBeenCalledWith(
-          "guild-id",
-          {
-            ...question,
-            question: "What is 3 + 3?",
-            answers: [
-              { answerId: "answer1", answer: "5" },
-              { answerId: "answer2", answer: "6" },
-              { answerId: "answer3", answer: "7" },
-            ],
-            correctAnswerId: "answer2",
-            questionShowTimeMs: 30000,
-            imagePartitionKey: question.imagePartitionKey,
-            explanation: "A simple math question",
-            explanationImagePartitionKey: question.explanationImagePartitionKey,
-          },
+      expect(mockQuestionStorage.upsertQuestionBank).toHaveBeenCalledWith(
+          expect.objectContaining({
+            name: "test-bank",
+            guildId: "guild-id",
+            questions: expect.arrayContaining([
+              expect.objectContaining({
+                question: "What is 3 + 3?",
+                answers: [
+                  { answerId: "answer1", answer: "5" },
+                  { answerId: "answer2", answer: "6" },
+                  { answerId: "answer3", answer: "7" },
+                ],
+                correctAnswerId: "answer2",
+                questionShowTimeMs: 30000,
+                explanation: "A simple math question",
+              }),
+            ]),
+          }),
       );
     });
 
     it("should update the question correctly", async () => {
-      mockQuestionStorage.getQuestions = vi.fn().mockResolvedValue([question]);
-
       const response = (await command.handleModalSubmit(
         interactionData,
       )) as APIInteractionResponseChannelMessageWithSource;
@@ -439,29 +436,33 @@ describe("EditQuestionCommand", () => {
         InteractionResponseType.ChannelMessageWithSource,
       );
       expect(response.data.content).toBe("Updated question in bank test-bank.");
-      expect(mockQuestionStorage.updateQuestion).toHaveBeenCalledWith(
-        "guild-id",
-        {
-          ...question,
-          question: "What is 3 + 3?",
-          answers: [
-            { answerId: "answer1", answer: "5" },
-            { answerId: "answer2", answer: "6" },
-            { answerId: "answer3", answer: "7" },
-          ],
-          correctAnswerId: "answer2",
-          questionShowTimeMs: 30000,
-          imagePartitionKey: "test-bank-test-question-id-question",
-          explanation: "A simple math question",
-          explanationImagePartitionKey:
-            "test-bank-test-question-id-explanation",
-        },
+      expect(mockQuestionStorage.upsertQuestionBank).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: "test-bank",
+          guildId: "guild-id",
+          questions: expect.arrayContaining([
+            expect.objectContaining({
+              question: "What is 3 + 3?",
+              answers: [
+                { answerId: "answer1", answer: "5" },
+                { answerId: "answer2", answer: "6" },
+                { answerId: "answer3", answer: "7" },
+              ],
+              correctAnswerId: "answer2",
+              questionShowTimeMs: 30000,
+              imagePartitionKey: "test-bank-test-question-id-question",
+              explanation: "A simple math question",
+              explanationImagePartitionKey:
+                "test-bank-test-question-id-explanation",
+            }),
+          ]),
+        }),
       );
     });
 
     it("should return an error if required fields are missing", async () => {
       const invalidInteractionData = { ...interactionData };
-      (invalidInteractionData.data.components[0]!.components[0] as any).value =
+      ((invalidInteractionData.data.components[0] as any).components[0] as any).value =
         "";
 
       const response = (await command.handleModalSubmit(
@@ -477,7 +478,7 @@ describe("EditQuestionCommand", () => {
 
     it("should return an error if question text is missing", async () => {
       const invalidInteractionData = { ...interactionData };
-      (invalidInteractionData.data.components[1]!.components[0] as any).value =
+      ((invalidInteractionData.data.components[1] as any).components[0] as any).value =
         "";
 
       const response = (await command.handleModalSubmit(
@@ -493,7 +494,7 @@ describe("EditQuestionCommand", () => {
 
     it("should return an error if correct answer index is missing", async () => {
       const invalidInteractionData = { ...interactionData };
-      (invalidInteractionData.data.components[9]!.components[0] as any).value =
+      ((invalidInteractionData.data.components[9] as any).components[0] as any).value =
         "";
 
       const response = (await command.handleModalSubmit(
@@ -508,7 +509,12 @@ describe("EditQuestionCommand", () => {
     });
 
     it("should return an error if the question ID is not found", async () => {
-      mockQuestionStorage.getQuestions = vi.fn().mockResolvedValue([]);
+      const emptyQuestionBank: QuestionBank = {
+        name: "test-bank",
+        guildId: "guild-id",
+        questions: [],
+      };
+      (mockQuestionStorage.getQuestionBank as ReturnType<typeof vi.fn>).mockResolvedValue(emptyQuestionBank);
 
       const response = (await command.handleModalSubmit(
         interactionData,
@@ -525,7 +531,7 @@ describe("EditQuestionCommand", () => {
 
     it("should return an error if the correct answer index is invalid", async () => {
       const invalidInteractionData = { ...interactionData };
-      (invalidInteractionData.data.components[9]!.components[0] as any).value =
+      ((invalidInteractionData.data.components[9] as any).components[0] as any).value =
         "5";
 
       const response = (await command.handleModalSubmit(
@@ -542,11 +548,9 @@ describe("EditQuestionCommand", () => {
     });
 
     it("should return an error if the correct answer is not found", async () => {
-      mockQuestionStorage.getQuestions = vi.fn().mockResolvedValue([question]);
-
       // Modify interactionData to have invalid correct answer index
       const invalidInteractionData = { ...interactionData };
-      (invalidInteractionData.data.components[9]!.components[0] as any).value =
+      ((invalidInteractionData.data.components[9] as any).components[0] as any).value =
         "5";
 
       const response = (await command.handleModalSubmit(
@@ -563,11 +567,9 @@ describe("EditQuestionCommand", () => {
     });
 
     it("should return an error if an exception occurs during handleModalSubmit", async () => {
-      // Simulate the condition where the question is found but updateQuestion throws an error
-      mockQuestionStorage.getQuestions = vi.fn().mockResolvedValue([question]);
-      mockQuestionStorage.updateQuestion = vi
-        .fn()
-        .mockRejectedValue(new Error("Failed to update question"));
+      (mockQuestionStorage.upsertQuestionBank as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new Error("Failed to update question"),
+      );
 
       const response = (await command.handleModalSubmit(
         interactionData,

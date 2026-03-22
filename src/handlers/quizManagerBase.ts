@@ -1,16 +1,16 @@
 import { REST } from "@discordjs/rest";
-import { IQuestionStorage } from "../util/IQuestionStorage.interfaces.js";
-import { QuizState } from "./quizState.interfaces.js";
+import type { IQuestionStorage } from "../util/IQuestionStorage.interfaces.js";
+import type { QuizState } from "./quizState.interfaces.js";
 import {
-  APIInteraction,
-  APIInteractionResponse,
+  type APIInteraction,
+  type APIInteractionResponse,
   InteractionType,
 } from "discord-api-types/v10";
 import {
   createEphemeralResponse,
   isNullOrWhitespace,
 } from "../util/interactionHelpers.js";
-import { Question } from "../question.interfaces.js";
+import type { Question } from "../question.interfaces.js";
 
 /**
  * Abstract base class for managing quiz functionalities.
@@ -21,10 +21,16 @@ export abstract class QuizManagerBase {
    * @param {REST} rest - The REST client for Discord API.
    * @param {IQuestionStorage} quizStateStorage - Storage interface for quiz questions.
    */
+  protected readonly rest: REST;
+  protected readonly quizStateStorage: IQuestionStorage;
+
   protected constructor(
-    protected readonly rest: REST,
-    protected readonly quizStateStorage: IQuestionStorage,
-  ) {}
+    rest: REST,
+    quizStateStorage: IQuestionStorage,
+  ) {
+    this.rest = rest;
+    this.quizStateStorage = quizStateStorage;
+  }
 
   /**
    * Runs the quiz.

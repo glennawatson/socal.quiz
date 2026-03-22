@@ -1,12 +1,12 @@
 import {
   app,
   HttpRequest,
-  HttpResponseInit,
+  type HttpResponseInit,
   InvocationContext,
 } from "@azure/functions";
 import { verify } from "discord-verify";
 import {
-  APIInteraction,
+  type APIInteraction,
   InteractionResponseType,
   InteractionType,
 } from "discord-api-types/v10";

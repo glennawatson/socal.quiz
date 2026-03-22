@@ -1,13 +1,26 @@
 // Define the entity structure for Azure Table Storage
 export class OAuth2Relay {
+  private clientId: string;
+  private clientSecret: string;
+  private readonly defaultScopes: string[];
+  private tokenUrl: string;
+  private authorizeUrl: string;
+  private revokeUrl: string;
+
   constructor(
-    private clientId: string,
-    private clientSecret: string,
-    private readonly defaultScopes: string[] = ["guilds", "email", "openid"],
-    private tokenUrl = "https://discord.com/api/oauth2/token",
-    private authorizeUrl = "https://discord.com/oauth2/authorize",
-    private revokeUrl = "https://discord.com/api/oauth2/revoke"
+    clientId: string,
+    clientSecret: string,
+    defaultScopes: string[] = ["guilds", "email", "openid"],
+    tokenUrl = "https://discord.com/api/oauth2/token",
+    authorizeUrl = "https://discord.com/oauth2/authorize",
+    revokeUrl = "https://discord.com/api/oauth2/revoke"
   ) {
+    this.clientId = clientId;
+    this.clientSecret = clientSecret;
+    this.defaultScopes = defaultScopes;
+    this.tokenUrl = tokenUrl;
+    this.authorizeUrl = authorizeUrl;
+    this.revokeUrl = revokeUrl;
     console.debug("Initializing OAuth2Relay...");
 
     console.debug("OAuth2Relay initialized with clientId: ", clientId);

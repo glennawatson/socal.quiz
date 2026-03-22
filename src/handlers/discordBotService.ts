@@ -1,5 +1,5 @@
 import { CommandManager } from "./actions/commandManager.js";
-import { APIInteraction, InteractionType } from "discord-api-types/v10";
+import { type APIInteraction, InteractionType } from "discord-api-types/v10";
 import {
   createEphemeralResponse,
   generateErrorResponse,
@@ -12,11 +12,16 @@ import { QuizManagerFactoryManager } from "./quizManagerFactoryManager.js";
 export class DiscordBotService {
   private commandManager: CommandManager;
 
+  private readonly guildStorage: GuildStorage;
+  private readonly quizManager: QuizManagerFactoryManager;
+
   constructor(
-    private readonly guildStorage: GuildStorage,
-    private readonly quizManager: QuizManagerFactoryManager,
+    guildStorage: GuildStorage,
+    quizManager: QuizManagerFactoryManager,
     commandManager: CommandManager,
   ) {
+    this.guildStorage = guildStorage;
+    this.quizManager = quizManager;
     this.commandManager =
       commandManager ?? throwError("could not find a valid command manager");
   }

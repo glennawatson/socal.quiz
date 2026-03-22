@@ -1,11 +1,11 @@
 import { InvocationContext } from "@azure/functions";
 import * as df from "durable-functions";
-import {
+import type {
   ActivityHandler,
   OrchestrationContext,
   OrchestrationHandler,
 } from "durable-functions";
-import { QuizState } from "../handlers/quizState.interfaces.js";
+import type { QuizState } from "../handlers/quizState.interfaces.js";
 import { DateTime } from "luxon";
 import { Config } from "../util/config.js";
 import {
@@ -13,7 +13,7 @@ import {
   sendQuestionSummary,
   showScores,
 } from "../handlers/quizStateManager.js";
-import { Question } from "../question.interfaces.js";
+import type { Question } from "../question.interfaces.js";
 import { isAnswerEvent } from "../handlers/answerEvent.interfaces.js";
 
 const summaryDurationMs = 5000;

@@ -10,7 +10,7 @@ describe("StateManager", () => {
   let quizState: QuizState;
   let tableEntity: TableEntity<QuizState>;
   let stateManager: StateManager;
-  let mockTableGetEntity: Mock<any, any>;
+  let mockTableGetEntity: Mock<any>;
   let connectionString: string;
   let previousConnectionString: string | undefined;
 

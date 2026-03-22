@@ -1,12 +1,12 @@
-import { Answer } from "./answer.interfaces.js";
+import type { Answer } from "./answer.interfaces.js";
 
 export interface Question {
   questionId: string;
   question: string;
   answers: Answer[];
   correctAnswerId: string;
-  imagePartitionKey?: string; // Use partition keys instead of direct URLs
-  explanation?: string;
-  explanationImagePartitionKey?: string; // Use partition keys instead of direct URLs
+  imagePartitionKey?: string | undefined;
+  explanation?: string | undefined;
+  explanationImagePartitionKey?: string | undefined;
   questionShowTimeMs: number;
 }

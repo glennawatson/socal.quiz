@@ -7,6 +7,7 @@ import {
   ApplicationCommandType,
   ChannelType,
   GuildMemberFlags,
+  Locale,
 } from "discord-api-types/v10";
 import {
   createEphemeralResponse,
@@ -20,7 +21,8 @@ describe("DeleteQuestionFromBankCommand", () => {
 
   beforeEach(() => {
     questionStorageMock = {
-      deleteQuestion: vi.fn(),
+      getQuestionBank: vi.fn().mockResolvedValue({ name: '', guildId: '', questions: [{ questionId: 'sampleQuestion' }] }),
+      upsertQuestionBank: vi.fn(),
     } as unknown as QuestionStorage;
 
     deleteQuestionFromBankCommand = new DeleteQuestionFromBankCommand(
@@ -58,11 +60,11 @@ describe("DeleteQuestionFromBankCommand", () => {
 
       const response = await deleteQuestionFromBankCommand.execute(interaction);
 
-      expect(questionStorageMock.deleteQuestion).toHaveBeenCalledWith(
+      expect(questionStorageMock.getQuestionBank).toHaveBeenCalledWith(
           "guild-id",
           "sampleBank",
-          "sampleQuestion",
       );
+      expect(questionStorageMock.upsertQuestionBank).toHaveBeenCalled();
       expect(response).toEqual(
           createEphemeralResponse(
               "Deleted question: sampleQuestion from sampleBank",
@@ -101,8 +103,8 @@ describe("DeleteQuestionFromBankCommand", () => {
         type: ApplicationCommandOptionType.String,
       });
 
-      // Simulate an error during the deleteQuestion method call
-      questionStorageMock.deleteQuestion = vi
+      // Simulate an error during the getQuestionBank method call
+      questionStorageMock.getQuestionBank = vi
           .fn()
           .mockRejectedValue(new Error("Some error"));
 
@@ -123,7 +125,8 @@ function generateBankOptions(
     authorizing_integration_owners: {},
     channel: { id: "channel-id", type: ChannelType.GuildVoice },
     entitlements: [],
-    locale: "en-US",
+    locale: Locale.EnglishUS,
+    attachment_size_limit: 8388608,
     version: 1,
     type: 2,
     data: {

@@ -5,6 +5,7 @@ import {
   ApplicationCommandType,
   ChannelType,
   InteractionType,
+  Locale,
 } from "discord-api-types/v10";
 import {
   createEphemeralResponse,
@@ -54,9 +55,10 @@ describe("NextQuestionCommand", () => {
         token: "",
         version: 1,
         app_permissions: "",
-        locale: "en-US",
+        locale: Locale.EnglishUS,
         entitlements: [],
         authorizing_integration_owners: {},
+        attachment_size_limit: 8388608,
         data: { id: "data", type: ApplicationCommandType.ChatInput, name: "" },
       };
 
@@ -96,9 +98,10 @@ describe("NextQuestionCommand", () => {
         token: "",
         version: 1,
         app_permissions: "",
-        locale: "en-US",
+        locale: Locale.EnglishUS,
         entitlements: [],
         authorizing_integration_owners: {},
+        attachment_size_limit: 8388608,
         data: { id: "data", type: ApplicationCommandType.ChatInput, name: "" },
       };
 
@@ -124,9 +127,10 @@ describe("NextQuestionCommand", () => {
         token: "",
         version: 1,
         app_permissions: "",
-        locale: "en-US",
+        locale: Locale.EnglishUS,
         entitlements: [],
         authorizing_integration_owners: {},
+        attachment_size_limit: 8388608,
         data: { id: "data", type: ApplicationCommandType.ChatInput, name: "" },
       };
 

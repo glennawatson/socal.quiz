@@ -1,4 +1,4 @@
-import { RestError, TableClient, TableEntity } from "@azure/data-tables";
+import { RestError, TableClient, type TableEntity } from "@azure/data-tables";
 
 export class GuildStorage {
   private guildClient: TableClient;

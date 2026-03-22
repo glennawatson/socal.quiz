@@ -1,11 +1,11 @@
-import { IDiscordCommand } from "./discordCommand.interfaces.js";
+import type { IDiscordCommand } from "./discordCommand.interfaces.js";
 import {
   SlashCommandBuilder,
-  SlashCommandOptionsOnlyBuilder,
+  type SlashCommandOptionsOnlyBuilder,
 } from "@discordjs/builders";
 import {
-  APIChatInputApplicationCommandInteraction,
-  APIInteractionResponse,
+  type APIChatInputApplicationCommandInteraction,
+  type APIInteractionResponse,
 } from "discord-api-types/v10";
 import {
   createEphemeralResponse,
@@ -15,7 +15,10 @@ import {
 import { QuizManagerFactoryManager } from "../quizManagerFactoryManager.js";
 
 export class StopQuizCommand implements IDiscordCommand {
-  constructor(private readonly quizStateManager: QuizManagerFactoryManager) {}
+  private readonly quizStateManager: QuizManagerFactoryManager;
+  constructor(quizStateManager: QuizManagerFactoryManager) {
+    this.quizStateManager = quizStateManager;
+  }
 
   data(): SlashCommandOptionsOnlyBuilder {
     return new SlashCommandBuilder()

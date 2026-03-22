@@ -11,6 +11,7 @@ import {
   ApplicationCommandType,
   ChannelType,
   GuildMemberFlags,
+  Locale,
 } from "discord-api-types/v10";
 import { QuizManagerFactoryManager } from "../../src/handlers/quizManagerFactoryManager.js";
 import { MockQuizManager } from "./mocks/mockQuizManager.js";
@@ -102,7 +103,8 @@ function generateBankOptions(
     authorizing_integration_owners: {},
     channel: { id: "channel-id", type: ChannelType.GuildVoice },
     entitlements: [],
-    locale: "en-US",
+    locale: Locale.EnglishUS,
+    attachment_size_limit: 8388608,
     version: 1,
     type: 2,
     data: {

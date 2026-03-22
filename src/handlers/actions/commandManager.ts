@@ -4,14 +4,14 @@ import { DeleteQuestionFromBankCommand } from "./deleteQuestionFromBankCommand.j
 import { StopQuizCommand } from "./stopQuizCommand.js";
 import { StartQuizCommand } from "./startQuizCommand.js";
 import { DeleteQuestionBankCommand } from "./deleteQuestionBankCommand.js";
-import {
+import type {
   IDiscordCommand,
   IModalHandlerCommand,
 } from "./discordCommand.interfaces.js";
 import {
-  APIInteraction,
-  APIInteractionResponse,
-  APIModalSubmitInteraction,
+  type APIInteraction,
+  type APIInteractionResponse,
+  type APIModalSubmitInteraction,
   InteractionResponseType,
   InteractionType,
   MessageFlags,
@@ -21,18 +21,27 @@ import { isChatInputApplicationCommandInteraction } from "discord-api-types/util
 import { REST } from "@discordjs/rest";
 import { createEphemeralResponse } from "../../util/interactionHelpers.js";
 import { EditQuestionCommand } from "./editQuestionCommand.js";
-import { IQuestionStorage } from "../../util/IQuestionStorage.interfaces.js";
+import type { IQuestionStorage } from "../../util/IQuestionStorage.interfaces.js";
 import { QuizManagerFactoryManager } from "../quizManagerFactoryManager.js";
 
 export class CommandManager {
   private readonly commands: Map<string, IDiscordCommand>;
 
+  private readonly quizStateManager: QuizManagerFactoryManager;
+  private readonly questionStorage: IQuestionStorage;
+  private readonly clientId: string;
+  private readonly rest: REST;
+
   constructor(
-    private readonly quizStateManager: QuizManagerFactoryManager,
-    private readonly questionStorage: IQuestionStorage,
-    private readonly clientId: string,
-    private readonly rest: REST,
+    quizStateManager: QuizManagerFactoryManager,
+    questionStorage: IQuestionStorage,
+    clientId: string,
+    rest: REST,
   ) {
+    this.quizStateManager = quizStateManager;
+    this.questionStorage = questionStorage;
+    this.clientId = clientId;
+    this.rest = rest;
     this.commands = new Map();
   }
 

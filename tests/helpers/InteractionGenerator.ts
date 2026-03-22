@@ -8,6 +8,7 @@ import {
   ComponentType,
   GuildMemberFlags,
   InteractionType,
+  Locale,
 } from "discord-api-types/v10";
 
 class InteractionGenerator {
@@ -19,7 +20,7 @@ class InteractionGenerator {
     correctAnswerIndex: number | string | undefined,
   ): APIModalSubmitInteraction {
     const answers = answersInput.map((answer, index) => ({
-      type: ComponentType.TextInput,
+      type: ComponentType.TextInput as const,
       custom_id: `answer${index + 1}`,
       value: answer,
     }));
@@ -34,9 +35,10 @@ class InteractionGenerator {
       token: "",
       version: 1,
       app_permissions: "",
-      locale: "en-US",
+      locale: Locale.EnglishUS,
       entitlements: [],
       authorizing_integration_owners: {},
+      attachment_size_limit: 8388608,
       data: {
         custom_id: "add-question-modal",
         components: [
@@ -44,18 +46,18 @@ class InteractionGenerator {
             type: ComponentType.ActionRow,
             components: [
               {
-                type: ComponentType.TextInput,
+                type: ComponentType.TextInput as const,
                 custom_id: "questionText",
                 value: question,
               },
               ...answers,
               {
-                type: ComponentType.TextInput,
+                type: ComponentType.TextInput as const,
                 custom_id: "correctAnswerIndex",
                 value: correctAnswerIndex?.toString() ?? "",
               },
               {
-                type: ComponentType.TextInput,
+                type: ComponentType.TextInput as const,
                 custom_id: "bankname",
                 value: bankName,
               },
@@ -85,7 +87,8 @@ class InteractionGenerator {
       authorizing_integration_owners: {},
       channel: { id: "channel-id", type: ChannelType.GuildVoice },
       entitlements: [],
-      locale: "en-US",
+      locale: Locale.EnglishUS,
+      attachment_size_limit: 8388608,
       version: 1,
       type: InteractionType.ApplicationCommand,
       data: {
@@ -146,7 +149,8 @@ class InteractionGenerator {
       authorizing_integration_owners: {},
       channel: { id: "channel-id", type: ChannelType.GuildVoice },
       entitlements: [],
-      locale: "en-US",
+      locale: Locale.EnglishUS,
+      attachment_size_limit: 8388608,
       version: 1,
       type: InteractionType.ApplicationCommand,
       data: {
@@ -195,7 +199,8 @@ class InteractionGenerator {
       authorizing_integration_owners: {},
       channel: { id: "channel-id", type: ChannelType.GuildVoice },
       entitlements: [],
-      locale: "en-US",
+      locale: Locale.EnglishUS,
+      attachment_size_limit: 8388608,
       version: 1,
       type: InteractionType.ApplicationCommand,
       data: {

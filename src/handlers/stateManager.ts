@@ -1,5 +1,5 @@
-import { TableClient, TableEntity } from "@azure/data-tables";
-import { QuizState } from "./quizState.interfaces.js";
+import { TableClient, type TableEntity } from "@azure/data-tables";
+import type { QuizState } from "./quizState.interfaces.js";
 
 export class StateManager {
   private static tableName = "quiz_state_table";

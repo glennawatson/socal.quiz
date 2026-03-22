@@ -3,7 +3,9 @@ import { QuizManagerBase } from "./quizManagerBase.js";
 export type QuizManagerFactory = () => QuizManagerBase;
 export class QuizManagerFactoryManager {
   private quizManagers: Map<string, Promise<QuizManagerBase>>;
-  constructor(private readonly quizFactory: QuizManagerFactory) {
+  private readonly quizFactory: QuizManagerFactory;
+  constructor(quizFactory: QuizManagerFactory) {
+    this.quizFactory = quizFactory;
     this.quizManagers = new Map();
   }
 
