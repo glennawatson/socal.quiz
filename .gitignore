@@ -88,6 +88,9 @@ typings/
 # DynamoDB Local files
 .dynamodb/
 
+# Vite compiled artifacts
+vite.config.js
+
 # TypeScript output
 dist
 out
