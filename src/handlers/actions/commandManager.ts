@@ -88,6 +88,7 @@ export class CommandManager {
       return null;
     }
 
+    /* v8 ignore next -- fallback is for DM interactions where member is absent; guild commands always have member */
     const permissions = BigInt(interaction.member?.permissions ?? "0");
     const MANAGE_GUILD = 1n << 5n;
     if ((permissions & MANAGE_GUILD) !== 0n) {

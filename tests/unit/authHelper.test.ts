@@ -5,33 +5,10 @@ import {
   InvocationContext,
 } from "@azure/functions";
 
-vi.mock("@azure/data-tables", () => ({
-  TableClient: {
-    fromConnectionString: vi.fn().mockReturnValue({
-      createTable: vi.fn(),
-      getEntity: vi.fn(),
-      createEntity: vi.fn(),
-      listEntities: vi.fn(),
-      deleteEntity: vi.fn(),
-    }),
+vi.mock("@src/util/config", () => ({
+  Config: {
+    initialize: vi.fn().mockResolvedValue({}),
   },
-}));
-
-vi.mock("@azure/storage-blob", () => ({
-  BlobServiceClient: {
-    fromConnectionString: vi.fn().mockReturnValue({
-      getContainerClient: vi.fn().mockReturnValue({
-        getBlockBlobClient: vi.fn().mockReturnValue({
-          uploadData: vi.fn(),
-        }),
-      }),
-    }),
-  },
-  BlobSASPermissions: { parse: vi.fn() },
-  StorageSharedKeyCredential: vi.fn(),
-  generateBlobSASQueryParameters: vi.fn().mockReturnValue({
-    toString: vi.fn().mockReturnValue("mock-sas-token"),
-  }),
 }));
 
 import {
@@ -159,6 +136,85 @@ describe("Auth Helper", () => {
       });
     });
 
+    it("should return 400 if user guilds response is not ok", async () => {
+      mockHttpRequest = createMockHttpRequest(
+        { Authorization: "Bearer test-token" },
+        { guildId: "test-guild" },
+      );
+
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        statusText: "Forbidden",
+      });
+
+      const result = await validateAuthAndGuildOwnership(
+        mockHttpRequest,
+        mockInvocationContext,
+      );
+
+      expect(result).toEqual({
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify("Could not get the user guilds"),
+      });
+    });
+
+    it("should return 400 if user details response is not ok", async () => {
+      mockHttpRequest = createMockHttpRequest(
+        { Authorization: "Bearer test-token" },
+        { guildId: "test-guild" },
+      );
+
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => [{ id: "test-guild", owner: true }],
+        })
+        .mockResolvedValueOnce({
+          ok: false,
+          statusText: "Unauthorized",
+        });
+
+      const result = await validateAuthAndGuildOwnership(
+        mockHttpRequest,
+        mockInvocationContext,
+      );
+
+      expect(result).toEqual({
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify("Could not get the user details"),
+      });
+    });
+
+    it("should return 403 if guild is not found in user guilds", async () => {
+      mockHttpRequest = createMockHttpRequest(
+        { Authorization: "Bearer test-token" },
+        { guildId: "test-guild" },
+      );
+
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => [{ id: "other-guild", owner: true }],
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ id: "test-user" }),
+        });
+
+      const result = await validateAuthAndGuildOwnership(
+        mockHttpRequest,
+        mockInvocationContext,
+      );
+
+      expect(result).toEqual({
+        status: 403,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify("You do not own this guild"),
+      });
+    });
+
     it("should return userId and guildId if user owns the guild", async () => {
       mockHttpRequest = createMockHttpRequest(
         { Authorization: "Bearer test-token" },
@@ -250,6 +306,26 @@ describe("Auth Helper", () => {
         status: 401,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify("Invalid token"),
+      });
+    });
+
+    it("should return 400 if user response is not ok", async () => {
+      mockHttpRequest = createMockHttpRequest(
+        { Authorization: "Bearer test-token" },
+        {},
+      );
+
+      mockFetch.mockResolvedValue({
+        ok: false,
+        statusText: "Unauthorized",
+      });
+
+      const result = await validateAuth(mockHttpRequest, mockInvocationContext);
+
+      expect(result).toEqual({
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify("Invalid Token"),
       });
     });
 

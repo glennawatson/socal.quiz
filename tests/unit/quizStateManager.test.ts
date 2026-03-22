@@ -5,12 +5,16 @@ import { QuizState } from "../../src/handlers/quizState.interfaces.js";
 import { Question } from "../../src/question.interfaces.js";
 import {
   postQuestion,
+  postInterQuestionMessage,
   sendQuestionSummary,
   showScores,
 } from "../../src/handlers/quizStateManager.js";
 import { QuizImageStorage } from "../../src/util/quizImageStorage.js";
 
 vi.mock("../../src/util/quizImageStorage.js");
+vi.mock("../../src/util/answerImageComposer.js", () => ({
+  composeAnswerGrid: vi.fn(),
+}));
 
 describe("Quiz Functions", () => {
   let rest: REST;
@@ -241,5 +245,181 @@ describe("Quiz Functions", () => {
         },
       },
     );
+  });
+
+  describe("postQuestion with answer images", () => {
+    it("should compose answer grid when answers have images", async () => {
+      const { composeAnswerGrid } = await import("../../src/util/answerImageComposer.js");
+      const mockComposeAnswerGrid = vi.mocked(composeAnswerGrid);
+      const gridBuffer = Buffer.from("grid-image-data");
+      mockComposeAnswerGrid.mockResolvedValue(gridBuffer);
+
+      const mockUploadImageBuffer = vi.fn().mockResolvedValue(undefined);
+      const mockGetPresignedUrl = vi.fn().mockResolvedValue("https://example.com/grid.jpg");
+      imageStorage.uploadImageBuffer = mockUploadImageBuffer;
+      imageStorage.getPresignedUrl = mockGetPresignedUrl;
+
+      const questionWithAnswerImages: Question = {
+        questionShowTimeMs: 10,
+        questionId: "questionId",
+        question: "Which image is correct?",
+        answers: [
+          { answerId: "1", answer: "Option A", imagePartitionKey: "img1" },
+          { answerId: "2", answer: "Option B", imagePartitionKey: "img2" },
+        ],
+        correctAnswerId: "1",
+      };
+
+      await postQuestion(
+        rest,
+        imageStorage,
+        "channel-id",
+        "interaction-id",
+        questionWithAnswerImages,
+      );
+
+      expect(mockComposeAnswerGrid).toHaveBeenCalledWith(
+        questionWithAnswerImages.answers,
+        "questionId",
+        imageStorage,
+      );
+      expect(mockUploadImageBuffer).toHaveBeenCalledWith(
+        gridBuffer,
+        "AnswerImage",
+        "questionId-answer-grid.jpg",
+      );
+      expect(mockGetPresignedUrl).toHaveBeenCalledWith(
+        "AnswerImage",
+        "questionId-answer-grid",
+      );
+      expect(mockRestPost).toHaveBeenCalledWith(
+        Routes.channelMessages("channel-id"),
+        expect.objectContaining({
+          body: expect.objectContaining({
+            embeds: [
+              expect.objectContaining({
+                image: { url: "https://example.com/grid.jpg" },
+              }),
+            ],
+          }),
+        }),
+      );
+    });
+
+    it("should handle composeAnswerGrid error gracefully", async () => {
+      const { composeAnswerGrid } = await import("../../src/util/answerImageComposer.js");
+      const mockComposeAnswerGrid = vi.mocked(composeAnswerGrid);
+      mockComposeAnswerGrid.mockRejectedValue(new Error("Grid composition failed"));
+
+      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const questionWithAnswerImages: Question = {
+        questionShowTimeMs: 10,
+        questionId: "questionId",
+        question: "Which image is correct?",
+        answers: [
+          { answerId: "1", answer: "Option A", imagePartitionKey: "img1" },
+          { answerId: "2", answer: "Option B", imagePartitionKey: "img2" },
+        ],
+        correctAnswerId: "1",
+      };
+
+      await postQuestion(
+        rest,
+        imageStorage,
+        "channel-id",
+        "interaction-id",
+        questionWithAnswerImages,
+      );
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Failed to compose answer grid"),
+      );
+      // Should still post the question, just without the image
+      expect(mockRestPost).toHaveBeenCalled();
+      consoleSpy.mockRestore();
+    });
+  });
+
+  describe("postQuestion with no images at all", () => {
+    it("should post question without any image when neither answer images nor question image exist", async () => {
+      const questionNoImages: Question = {
+        questionShowTimeMs: 10,
+        questionId: "questionId",
+        question: "What is 1 + 1?",
+        answers: [
+          { answerId: "1", answer: "1" },
+          { answerId: "2", answer: "2" },
+        ],
+        correctAnswerId: "2",
+      };
+
+      await postQuestion(
+        rest,
+        imageStorage,
+        "channel-id",
+        "interaction-id",
+        questionNoImages,
+      );
+
+      expect(mockRestPost).toHaveBeenCalledWith(
+        Routes.channelMessages("channel-id"),
+        expect.objectContaining({
+          body: expect.objectContaining({
+            embeds: [
+              expect.not.objectContaining({
+                image: expect.anything(),
+              }),
+            ],
+          }),
+        }),
+      );
+    });
+  });
+
+  describe("postInterQuestionMessage", () => {
+    it("should post a message with text content", async () => {
+      await postInterQuestionMessage(rest, "channel-id", {
+        messageId: "m1",
+        content: "Fun fact: The sky is blue!",
+      });
+
+      expect(mockRestPost).toHaveBeenCalledWith(
+        Routes.channelMessages("channel-id"),
+        {
+          body: {
+            embeds: [
+              {
+                title: "Did you know?",
+                description: "Fun fact: The sky is blue!",
+              },
+            ],
+          },
+        },
+      );
+    });
+
+    it("should post a message with image", async () => {
+      await postInterQuestionMessage(rest, "channel-id", {
+        messageId: "m2",
+        content: "Check this out!",
+        imageUrl: "https://example.com/image.png",
+      });
+
+      expect(mockRestPost).toHaveBeenCalledWith(
+        Routes.channelMessages("channel-id"),
+        {
+          body: {
+            embeds: [
+              {
+                title: "Did you know?",
+                description: "Check this out!",
+                image: { url: "https://example.com/image.png" },
+              },
+            ],
+          },
+        },
+      );
+    });
   });
 });

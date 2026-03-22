@@ -174,6 +174,35 @@ describe("QuizManagerBase", () => {
       );
     });
 
+    it("should set currentQuestionId to null when first question has undefined questionId", async () => {
+      const questions: Question[] = [
+        {
+          questionId: undefined as unknown as string,
+          question: "What is 2 + 2?",
+          answers: [
+            { answerId: "a1", answer: "3" },
+            { answerId: "a2", answer: "4" },
+          ],
+          correctAnswerId: "a1",
+          questionShowTimeMs: 50,
+        },
+      ];
+
+      const runQuizSpy = vi.spyOn(quizManagerBase, "runQuiz");
+
+      await quizManagerBase.startQuizInternal(
+        questions,
+        "guild123",
+        "channel123",
+      );
+
+      expect(runQuizSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          currentQuestionId: null,
+        }),
+      );
+    });
+
     it("should call stopQuiz and runQuiz with valid questions", async () => {
       const questions: Question[] = [
         {

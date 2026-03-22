@@ -83,6 +83,7 @@ export function getComponentValue(
   customId: string,
 ): string | undefined {
   for (const row of components) {
+    /* v8 ignore next -- Discord modal submissions always contain ActionRow components */
     if (row.type === ComponentType.ActionRow) {
       for (const component of row.components) {
         if (component.custom_id === customId) {

@@ -85,6 +85,7 @@ export const QuizOrchestrator: OrchestrationHandler = function* (
         const answerEventData = answerEvent.result;
 
         // Skip if user already answered this question
+        /* v8 ignore next -- generator yield/continue branch is exercised by "duplicate answer" test but v8 cannot track it */
         if (quiz.answeredUsersForQuestion.has(answerEventData.userId)) {
           continue;
         }
@@ -127,6 +128,7 @@ export const QuizOrchestrator: OrchestrationHandler = function* (
     if (quiz.interQuestionMessages.length > 0) {
       const messageIndex: number = index % quiz.interQuestionMessages.length;
       const message: InterQuestionMessage | undefined = quiz.interQuestionMessages[messageIndex];
+      /* v8 ignore next -- messageIndex is bounded by array length so message is always defined */
       if (message) {
         yield context.df.callActivity("PostInterQuestionMessage", {
           channelId: quiz.channelId,
@@ -142,6 +144,7 @@ export const QuizOrchestrator: OrchestrationHandler = function* (
     ) {
       const soundIndex: number = index % quiz.soundboardSoundIds.length;
       const soundId: string | undefined = quiz.soundboardSoundIds[soundIndex];
+      /* v8 ignore next -- soundIndex is bounded by array length so soundId is always defined */
       if (soundId) {
         yield context.df.callActivity("PlaySound", {
           guildId: quiz.guildId,

@@ -295,6 +295,33 @@ describe("EditQuestionCommand", () => {
       checkModalContainsExpectedValues(response.data, question);
     });
 
+    it("should generate modal with undefined value for image URL when question has imagePartitionKey", async () => {
+      const questionWithImages: Question = {
+        ...question,
+        imagePartitionKey: "some-image-key",
+        explanationImagePartitionKey: "some-explanation-key",
+      };
+
+      const questionBankWithImages: QuestionBank = {
+        name: "test-bank",
+        guildId: "guild-id",
+        questions: [questionWithImages],
+      };
+      (mockQuestionStorage.getQuestionBank as ReturnType<typeof vi.fn>).mockResolvedValue(questionBankWithImages);
+
+      const interaction = createInteraction({
+        bankname: "test-bank",
+        questionid: "test-question-id",
+      });
+
+      const response = (await command.execute(
+        interaction,
+      )) as APIModalInteractionResponse;
+
+      expect(response.type).toBe(InteractionResponseType.Modal);
+      expect((response.data as any).components.length).toBeGreaterThan(0);
+    });
+
     it("should return an error if the question is not found during modal generation", async () => {
       const emptyQuestionBank: QuestionBank = {
         name: "test-bank",
@@ -598,6 +625,170 @@ describe("EditQuestionCommand", () => {
         InteractionResponseType.ChannelMessageWithSource,
       );
       expect(response.data.content).toBe("Must have a valid guild id.");
+      expect(response.data.flags).toBe(MessageFlags.Ephemeral);
+    });
+
+    it("should return an error if custom_id has no valid questionId", async () => {
+      const invalidInteractionData = {
+        ...interactionData,
+        data: {
+          ...interactionData.data,
+          custom_id: "edit_question",
+        },
+      };
+
+      const response = (await command.handleModalSubmit(
+        invalidInteractionData,
+      )) as APIInteractionResponseChannelMessageWithSource;
+
+      expect(response.type).toBe(
+        InteractionResponseType.ChannelMessageWithSource,
+      );
+      expect(response.data.content).toBe("No valid question id defined.");
+      expect(response.data.flags).toBe(MessageFlags.Ephemeral);
+    });
+
+    it("should return an error if custom_id has no separator (no valid questionId or bankName)", async () => {
+      // custom_id = "edit_question_someid" where there is no underscore after the initial prefix
+      // So customIdSuffix = "someid", lastSeparator = -1
+      const invalidInteractionData = {
+        ...interactionData,
+        data: {
+          ...interactionData.data,
+          custom_id: "edit_question_someid",
+        },
+      };
+
+      const response = (await command.handleModalSubmit(
+        invalidInteractionData,
+      )) as APIInteractionResponseChannelMessageWithSource;
+
+      expect(response.type).toBe(
+        InteractionResponseType.ChannelMessageWithSource,
+      );
+      expect(response.data.content).toBe("No valid question id defined.");
+      expect(response.data.flags).toBe(MessageFlags.Ephemeral);
+    });
+
+    it("should handle custom_id with valid questionId but empty bankName by passing through to getUpdatedQuestion", async () => {
+      // custom_id = "edit_question_realid_" => customIdSuffix = "realid_",
+      // lastSeparator = 6, questionId = "realid", bankName = "" (empty string, not undefined)
+      // This falls through since bankName === undefined check won't catch empty string
+      const invalidInteractionData = {
+        ...interactionData,
+        data: {
+          ...interactionData.data,
+          custom_id: "edit_question_realid_",
+        },
+      };
+
+      const emptyQuestionBank: QuestionBank = {
+        name: "",
+        guildId: "guild-id",
+        questions: [],
+      };
+      (mockQuestionStorage.getQuestionBank as ReturnType<typeof vi.fn>).mockResolvedValue(emptyQuestionBank);
+
+      const response = (await command.handleModalSubmit(
+        invalidInteractionData,
+      )) as APIInteractionResponseChannelMessageWithSource;
+
+      expect(response.type).toBe(
+        InteractionResponseType.ChannelMessageWithSource,
+      );
+      expect(response.data.content).toBe(
+        "Question with ID realid not found.",
+      );
+      expect(response.data.flags).toBe(MessageFlags.Ephemeral);
+    });
+
+    it("should return an error if question is not found in bank during update", async () => {
+      // First call for getUpdatedQuestion returns the question, second call for bank check returns empty
+      const questionBankWithQuestion: QuestionBank = {
+        name: "test-bank",
+        guildId: "guild-id",
+        questions: [question],
+      };
+      const questionBankEmpty: QuestionBank = {
+        name: "test-bank",
+        guildId: "guild-id",
+        questions: [],
+      };
+
+      (mockQuestionStorage.getQuestionBank as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce(questionBankWithQuestion)  // first call in getUpdatedQuestion
+        .mockResolvedValueOnce(questionBankEmpty);         // second call to find question index
+
+      const response = (await command.handleModalSubmit(
+        interactionData,
+      )) as APIInteractionResponseChannelMessageWithSource;
+
+      expect(response.type).toBe(
+        InteractionResponseType.ChannelMessageWithSource,
+      );
+      expect(response.data.content).toBe(
+        "Question with ID test-question-id not found.",
+      );
+      expect(response.data.flags).toBe(MessageFlags.Ephemeral);
+    });
+
+    it("should use default timeout when timeoutTimeSeconds is empty", async () => {
+      const interactionDataNoTimeout = {
+        ...interactionData,
+        data: {
+          ...interactionData.data,
+          components: createComponents([
+            { custom_id: "bankname", value: "test-bank" },
+            { custom_id: "questionText", value: "What is 3 + 3?" },
+            { custom_id: "timeoutTimeSeconds", value: "" },
+            { custom_id: "imageUrl", value: "" },
+            { custom_id: "explanation", value: "A simple math question" },
+            { custom_id: "explanationImageUrl", value: "" },
+            { custom_id: "answer_answer1", value: "5" },
+            { custom_id: "answer_answer2", value: "6" },
+            { custom_id: "answer_answer3", value: "7" },
+            { custom_id: "correctAnswerIndex", value: "1" },
+          ]),
+        },
+      };
+
+      const response = (await command.handleModalSubmit(
+        interactionDataNoTimeout,
+      )) as APIInteractionResponseChannelMessageWithSource;
+
+      expect(response.type).toBe(
+        InteractionResponseType.ChannelMessageWithSource,
+      );
+      expect(response.data.content).toBe("Updated question in bank test-bank.");
+      expect(mockQuestionStorage.upsertQuestionBank).toHaveBeenCalledWith(
+        expect.objectContaining({
+          questions: expect.arrayContaining([
+            expect.objectContaining({
+              questionShowTimeMs: 20000,
+            }),
+          ]),
+        }),
+      );
+    });
+
+    it("should return an error if the question is not found during getUpdatedQuestion", async () => {
+      const emptyQuestionBank: QuestionBank = {
+        name: "test-bank",
+        guildId: "guild-id",
+        questions: [],
+      };
+      (mockQuestionStorage.getQuestionBank as ReturnType<typeof vi.fn>).mockResolvedValue(emptyQuestionBank);
+
+      const response = (await command.handleModalSubmit(
+        interactionData,
+      )) as APIInteractionResponseChannelMessageWithSource;
+
+      expect(response.type).toBe(
+        InteractionResponseType.ChannelMessageWithSource,
+      );
+      expect(response.data.content).toBe(
+        "Question with ID test-question-id not found.",
+      );
       expect(response.data.flags).toBe(MessageFlags.Ephemeral);
     });
   });

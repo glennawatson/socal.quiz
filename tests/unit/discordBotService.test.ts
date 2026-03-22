@@ -1,14 +1,23 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DiscordBotService } from "../../src/handlers/discordBotService.js";
+import {
+  DiscordBotService,
+  QUIZ_ADMIN_ROLE_NAME,
+} from "../../src/handlers/discordBotService.js";
 import {
   createEphemeralResponse,
   generateErrorResponse,
 } from "../../src/util/interactionHelpers.js";
-import { APIInteraction, InteractionType } from "discord-api-types/v10";
+import {
+  APIInteraction,
+  APIRole,
+  InteractionType,
+  Routes,
+} from "discord-api-types/v10";
 import { GuildStorage } from "../../src/util/guildStorage.js";
 import { CommandManager } from "../../src/handlers/actions/commandManager.js";
 import { QuizManagerFactoryManager } from "../../src/handlers/quizManagerFactoryManager.js";
 import { MockQuizManager } from "./mocks/mockQuizManager.js";
+import { REST } from "@discordjs/rest";
 
 vi.mock("@discordjs/rest");
 vi.mock("../../src/util/interactionHelpers.js");
@@ -18,6 +27,7 @@ describe("DiscordBotService", () => {
   let quizManager: QuizManagerFactoryManager;
   let commandManager: CommandManager;
   let service: DiscordBotService;
+  let mockRest: REST;
 
   beforeEach(() => {
     guildStorage = {
@@ -30,8 +40,15 @@ describe("DiscordBotService", () => {
     commandManager = {
       registerDefaultCommands: vi.fn(),
       handleInteraction: vi.fn(),
+      setQuizAdminRoleId: vi.fn(),
     } as any as CommandManager;
-    service = new DiscordBotService(guildStorage, quizManager, commandManager);
+
+    mockRest = {
+      get: vi.fn(),
+      post: vi.fn(),
+    } as any as REST;
+
+    service = new DiscordBotService(guildStorage, quizManager, commandManager, mockRest);
   });
 
   afterEach(() => {
@@ -133,5 +150,75 @@ describe("DiscordBotService", () => {
     const response = await service.handleInteraction(interaction);
 
     expect(response).toBe(expectedResponse);
+  });
+
+  describe("ensureQuizAdminRole", () => {
+    it("should find existing QuizAdmin role and set its ID", async () => {
+      const existingRole: Partial<APIRole> = {
+        id: "existing-role-id",
+        name: QUIZ_ADMIN_ROLE_NAME,
+      };
+      vi.mocked(mockRest.get).mockResolvedValue([existingRole]);
+
+      await service.start("guildId");
+
+      expect(mockRest.get).toHaveBeenCalledWith(Routes.guildRoles("guildId"));
+      expect(commandManager.setQuizAdminRoleId).toHaveBeenCalledWith(
+        "existing-role-id",
+      );
+      expect(mockRest.post).not.toHaveBeenCalledWith(
+        Routes.guildRoles("guildId"),
+        expect.anything(),
+      );
+    });
+
+    it("should create a new QuizAdmin role when none exists", async () => {
+      const otherRole: Partial<APIRole> = {
+        id: "other-role-id",
+        name: "OtherRole",
+      };
+      const newRole: Partial<APIRole> = {
+        id: "new-role-id",
+        name: QUIZ_ADMIN_ROLE_NAME,
+      };
+
+      vi.mocked(mockRest.get).mockResolvedValue([otherRole]);
+      vi.mocked(mockRest.post).mockResolvedValue(newRole);
+
+      await service.start("guildId");
+
+      expect(mockRest.post).toHaveBeenCalledWith(
+        Routes.guildRoles("guildId"),
+        {
+          body: {
+            name: QUIZ_ADMIN_ROLE_NAME,
+            color: 0x2ecc71,
+            permissions: "0",
+            mentionable: false,
+            hoist: false,
+          },
+        },
+      );
+      expect(commandManager.setQuizAdminRoleId).toHaveBeenCalledWith(
+        "new-role-id",
+      );
+    });
+
+    it("should handle errors gracefully without throwing", async () => {
+      const consoleSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+      vi.mocked(mockRest.get).mockRejectedValue(
+        new Error("Discord API error"),
+      );
+
+      // start() should not throw
+      await service.start("guildId");
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Failed to create QuizAdmin role"),
+      );
+      consoleSpy.mockRestore();
+    });
   });
 });

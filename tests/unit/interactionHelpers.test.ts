@@ -1,15 +1,18 @@
 import { describe, it, expect } from "vitest";
-import { InteractionResponseType, MessageFlags } from "discord-api-types/v10";
+import { InteractionResponseType, MessageFlags, ComponentType } from "discord-api-types/v10";
 import {
   generateErrorResponse,
   generateOptionMissingErrorResponse,
   isNullOrWhitespace,
   createEphemeralResponse,
   getOptionValue,
+  getComponentValue,
+  getComponentValueNumber,
 } from "../../src/util/interactionHelpers.js";
 import {
   ApplicationCommandOptionType,
   APIApplicationCommandInteractionDataOption,
+  APIModalSubmissionComponent,
 } from "discord-api-types/v10";
 
 describe("interactionHelpers", () => {
@@ -70,6 +73,99 @@ describe("interactionHelpers", () => {
     });
   });
 
+  describe("getComponentValue", () => {
+    it("should return the value of a matching component", () => {
+      const components: APIModalSubmissionComponent[] = [
+        {
+          type: ComponentType.ActionRow,
+          components: [
+            {
+              type: ComponentType.TextInput,
+              custom_id: "test_id",
+              value: "test_value",
+            },
+          ],
+        },
+      ];
+
+      expect(getComponentValue(components, "test_id")).toBe("test_value");
+    });
+
+    it("should return undefined if no matching component is found", () => {
+      const components: APIModalSubmissionComponent[] = [
+        {
+          type: ComponentType.ActionRow,
+          components: [
+            {
+              type: ComponentType.TextInput,
+              custom_id: "other_id",
+              value: "other_value",
+            },
+          ],
+        },
+      ];
+
+      expect(getComponentValue(components, "nonexistent_id")).toBeUndefined();
+    });
+
+    it("should return undefined for empty components array", () => {
+      expect(getComponentValue([], "test_id")).toBeUndefined();
+    });
+  });
+
+  describe("getComponentValueNumber", () => {
+    it("should return a parsed number for a matching component", () => {
+      const components: APIModalSubmissionComponent[] = [
+        {
+          type: ComponentType.ActionRow,
+          components: [
+            {
+              type: ComponentType.TextInput,
+              custom_id: "timeout",
+              value: "42",
+            },
+          ],
+        },
+      ];
+
+      expect(getComponentValueNumber(components, "timeout")).toBe(42);
+    });
+
+    it("should return undefined when no matching component is found", () => {
+      const components: APIModalSubmissionComponent[] = [
+        {
+          type: ComponentType.ActionRow,
+          components: [
+            {
+              type: ComponentType.TextInput,
+              custom_id: "other",
+              value: "10",
+            },
+          ],
+        },
+      ];
+
+      expect(getComponentValueNumber(components, "timeout")).toBeUndefined();
+    });
+
+    it("should return undefined when value is empty string", () => {
+      const components: APIModalSubmissionComponent[] = [
+        {
+          type: ComponentType.ActionRow,
+          components: [
+            {
+              type: ComponentType.TextInput,
+              custom_id: "timeout",
+              value: "",
+            },
+          ],
+        },
+      ];
+
+      expect(getComponentValueNumber(components, "timeout")).toBeUndefined();
+    });
+  });
+
   describe("getOptionValue", () => {
     it("should return the value of the specified option", () => {
       const components: APIApplicationCommandInteractionDataOption[] = [
@@ -112,6 +208,19 @@ describe("interactionHelpers", () => {
 
     it("should return undefined if components is null", () => {
       const value = getOptionValue(null as any, "option1");
+      expect(value).toBeUndefined();
+    });
+
+    it("should return undefined if option name matches but type is not String", () => {
+      const components: APIApplicationCommandInteractionDataOption[] = [
+        {
+          name: "option1",
+          type: ApplicationCommandOptionType.Integer,
+          value: 42,
+        } as any,
+      ];
+
+      const value = getOptionValue(components, "option1");
       expect(value).toBeUndefined();
     });
   });

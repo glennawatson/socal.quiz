@@ -11,6 +11,7 @@ import { QuizManagerFactoryManager } from "@src/handlers/quizManagerFactoryManag
 import { DurableClient } from "durable-functions";
 import { DurableQuizManager } from "@src/handlers/durableQuizManager.js";
 import { GuildQuizConfigStorage } from "@src/util/guildQuizConfigStorage.js";
+import { OAuth2Relay } from "@src/util/oauth2Relay.js";
 
 vi.mock("@discordjs/rest");
 vi.mock("@src/handlers/discordBotService");
@@ -20,8 +21,11 @@ vi.mock("@src/util/guildStorage");
 vi.mock("@src/util/guildQuizConfigStorage");
 vi.mock("@src/util/soundboardStorage");
 vi.mock("@src/handlers/soundboardManager");
+vi.mock("@src/util/oauth2Relay");
 vi.mock("@src/util/errorHelpers", () => ({
-  throwError: vi.fn(),
+  throwError: vi.fn((msg: string): never => {
+    throw new Error(msg);
+  }),
 }));
 
 const mockedThrowError = vi.mocked(throwError);
@@ -31,6 +35,14 @@ describe("Config", () => {
     vi.clearAllMocks();
     Config["_initialized"] = false;
     Config["_initializePromise"] = null;
+
+    process.env.DISCORD_BOT_TOKEN = "test-bot-token";
+    process.env.DISCORD_CLIENT_ID = "test-client-id";
+    process.env.DISCORD_PUBLIC_KEY = "test-public-key";
+    process.env.DISCORD_CLIENT_SECRET = "test-client-secret";
+    process.env.AZURE_STORAGE_CONNECTION_STRING = "test-connection-string";
+    process.env.AZURE_STORAGE_ACCOUNT_KEY = "test-account-key";
+    process.env.AZURE_STORAGE_ACCOUNT_NAME = "test-account-name";
   });
 
   it("should use provided quizManagerFactory when provided", async () => {

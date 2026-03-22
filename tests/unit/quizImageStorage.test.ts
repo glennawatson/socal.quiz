@@ -413,4 +413,69 @@ describe("QuizImageStorage", () => {
       expect(url).toBe("mock-url?mock-sas-token");
     });
   });
+
+  describe("uploadImageBuffer", () => {
+    it("should upload a buffer to blob storage", async () => {
+      const buffer = Buffer.from("test-image-data");
+      const uploadDataMock = vi.fn().mockResolvedValue(undefined);
+
+      blobServiceClientMock.getContainerClient.mockReturnValue({
+        getBlockBlobClient: vi.fn().mockReturnValue({
+          uploadData: uploadDataMock,
+        }),
+      });
+
+      await quizImageStorage.uploadImageBuffer(
+        buffer,
+        "test-container",
+        "test-blob.jpg",
+      );
+
+      expect(blobServiceClientMock.getContainerClient).toHaveBeenCalledWith(
+        "test-container",
+      );
+      expect(uploadDataMock).toHaveBeenCalledWith(buffer);
+    });
+  });
+
+  describe("getAnswerImagePresignedUrl", () => {
+    it("should return a presigned URL for answer image", async () => {
+      const url = await quizImageStorage.getAnswerImagePresignedUrl(
+        "question1",
+        "answer1",
+      );
+
+      expect(url).toBe("mock-url?mock-sas-token");
+    });
+  });
+
+  describe("downloadAndValidateAnswerImage", () => {
+    it("should download and validate an answer image", async () => {
+      const mockImageBuffer = Buffer.from("mock-image-buffer");
+
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        headers: {
+          get: () => mockImageBuffer.length.toString(),
+        },
+        body: {
+          getReader: () => ({
+            read: () => Promise.resolve({ value: mockImageBuffer, done: true }),
+          }),
+        },
+      } as unknown as Response);
+
+      vi.mocked(fileTypeFromBuffer).mockResolvedValueOnce({
+        mime: "image/jpeg",
+      } as any);
+
+      const url = await quizImageStorage.downloadAndValidateAnswerImage(
+        "https://image-url.com",
+        "question1",
+        "answer1",
+      );
+
+      expect(url).toBe("mock-url");
+    });
+  });
 });

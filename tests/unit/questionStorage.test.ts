@@ -147,20 +147,20 @@ describe("QuestionStorage", () => {
     it("should throw an error if connection string is missing and quizImageClient is not set", () => {
       delete process.env.AZURE_STORAGE_CONNECTION_STRING;
       expect(() => {
-        new QuestionStorage(new QuizImageStorage("mock-connection-string"));
+        new QuestionStorage(new QuizImageStorage("mock-connection-string", "mock-key", "mock-name"));
       }).toThrow("invalid azure storage connection string");
     });
 
     it("should throw an error if connection string is missing and clients are not provided", () => {
       delete process.env.AZURE_STORAGE_CONNECTION_STRING;
       expect(() => {
-        new QuestionStorage(new QuizImageStorage("mock-connection-string"));
+        new QuestionStorage(new QuizImageStorage("mock-connection-string", "mock-key", "mock-name"));
       }).toThrow("invalid azure storage connection string");
     });
 
     it("should create default clients when connection string is provided", () => {
       new QuestionStorage(
-        new QuizImageStorage("mock-connection-string"),
+        new QuizImageStorage("mock-connection-string", "mock-key", "mock-name"),
         "mock-connection-string",
       );
 
@@ -296,6 +296,30 @@ describe("QuestionStorage", () => {
           }),
         }),
       );
+
+      expect(bankNames).toEqual(["bank1", "bank2"]);
+    });
+
+    it("should skip entities with undefined rowKey", async () => {
+      (odata as any).mockImplementation(() => {
+        return "PartitionKey eq 'guild1'";
+      });
+
+      const mockEntities = [
+        { partitionKey: "guild1", rowKey: "bank1" },
+        { partitionKey: "guild1", rowKey: undefined },
+        { partitionKey: "guild1", rowKey: "bank2" },
+      ];
+
+      tableClientMock.listEntities.mockReturnValue({
+        async *[Symbol.asyncIterator]() {
+          for (const entity of mockEntities) {
+            yield entity;
+          }
+        },
+      });
+
+      const bankNames = await questionStorage.getQuestionBankNames("guild1");
 
       expect(bankNames).toEqual(["bank1", "bank2"]);
     });

@@ -116,6 +116,15 @@ describe("interactions function", () => {
     (Config as any)["_initialized"] = false;
     (Config as any)["_initializePromise"] = null;
 
+    // Set env vars needed by Config._doInitialize
+    process.env.DISCORD_BOT_TOKEN = "test-token";
+    process.env.DISCORD_CLIENT_ID = "test-client-id";
+    process.env.DISCORD_PUBLIC_KEY = "test-public-key";
+    process.env.DISCORD_CLIENT_SECRET = "test-client-secret";
+    process.env.AZURE_STORAGE_CONNECTION_STRING = "DefaultEndpointsProtocol=https;AccountName=test;AccountKey=dGVzdA==;EndpointSuffix=core.windows.net";
+    process.env.AZURE_STORAGE_ACCOUNT_KEY = "test-account-key";
+    process.env.AZURE_STORAGE_ACCOUNT_NAME = "test-account-name";
+
     // Re-initialize mocks
     tableClientMock = {
       getEntity: vi.fn(),

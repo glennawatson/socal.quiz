@@ -244,6 +244,58 @@ describe("AddQuestionToBankCommand", () => {
       );
     });
 
+    it("should return an error if answersRaw is undefined", async () => {
+      const interaction: APIModalSubmitInteraction =
+        InteractionGenerator.generateModalSubmit(
+          "123",
+          "sampleBank",
+          "What is 2+2?",
+          [],
+          2,
+        );
+
+      // Override the answers component to have no value
+      const answersComponent = interaction.data.components.find(
+        (c: any) => c.components?.[0]?.custom_id === "answers",
+      ) as any;
+      if (answersComponent) {
+        answersComponent.components[0].value = "";
+      }
+
+      const response =
+        await addQuestionToBankCommand.handleModalSubmit(interaction);
+
+      expect(response).toEqual(
+        createEphemeralResponse("Must specify at least one answer."),
+      );
+    });
+
+    it("should return an error if all answers are empty after splitting", async () => {
+      const interaction: APIModalSubmitInteraction =
+        InteractionGenerator.generateModalSubmit(
+          "123",
+          "sampleBank",
+          "What is 2+2?",
+          [],
+          2,
+        );
+
+      // Override the answers component to have only commas/whitespace
+      const answersComponent = interaction.data.components.find(
+        (c: any) => c.components?.[0]?.custom_id === "answers",
+      ) as any;
+      if (answersComponent) {
+        answersComponent.components[0].value = ", , ,";
+      }
+
+      const response =
+        await addQuestionToBankCommand.handleModalSubmit(interaction);
+
+      expect(response).toEqual(
+        createEphemeralResponse("Must specify at least one answer."),
+      );
+    });
+
     it("should return a generic error response if an unknown error occurs", async () => {
       questionStorage.generateQuestion = vi
         .fn()

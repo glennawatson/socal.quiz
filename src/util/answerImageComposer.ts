@@ -37,6 +37,7 @@ export async function composeAnswerGrid(
 
   for (let i = 0; i < answersWithImages.length; i++) {
     const answer = answersWithImages[i];
+    /* v8 ignore next -- array is pre-filtered so index access is always defined */
     if (!answer) continue;
 
     const answerIndex = answers.indexOf(answer);

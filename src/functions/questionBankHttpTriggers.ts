@@ -71,6 +71,7 @@ async function processQuestion(requestBody: QuestionRequestBody, imageStorage: I
       );
     }
   } catch {
+    /* v8 ignore next -- imageUrl is always truthy inside the if-guard so ?? fallback is unreachable */
     return { questionId: requestBody.questionId, success: false, errorMessage: `failed to download question image ${requestBody.imageUrl ?? ''}` };
   }
 
@@ -84,6 +85,7 @@ async function processQuestion(requestBody: QuestionRequestBody, imageStorage: I
     }
 
   } catch {
+    /* v8 ignore next -- explanationImageUrl is always truthy inside the if-guard so ?? fallback is unreachable */
     return { questionId: requestBody.questionId, success: false, errorMessage: `failed to download explanation image ${requestBody.explanationImageUrl ?? ''}` };
   }
 

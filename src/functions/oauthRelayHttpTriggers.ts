@@ -202,23 +202,31 @@ export async function userInfo(req: HttpRequest, context: InvocationContext): Pr
   }
 }
 
-/** Handles CORS preflight OPTIONS requests for all auth endpoints. */
+/**
+ * Handles CORS preflight OPTIONS requests for all auth endpoints.
+ *
+ * @param req - The incoming HTTP request.
+ * @param context - The Azure Functions invocation context.
+ * @returns A 204 response with CORS headers.
+ */
+export function preflight(req: HttpRequest, context: InvocationContext): HttpResponseInit {
+  context.log("Handling preflight request");
+  return {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': getBaseUrl(req),
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Max-Age': '86400' // Cache the preflight response for 1 day
+    }
+  };
+}
+
 app.http("preflight", {
   methods: ["OPTIONS"],
   authLevel: "anonymous",
   route: "auth/{*restOfPath}",
-  handler: (req: HttpRequest, context: InvocationContext): HttpResponseInit => {
-    context.log("Handling preflight request");
-    return {
-      status: 204,
-      headers: {
-        'Access-Control-Allow-Origin': getBaseUrl(req),
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-        'Access-Control-Max-Age': '86400' // Cache the preflight response for 1 day
-      }
-    };
-  }
+  handler: preflight,
 });
 
 app.http("userInfo", {

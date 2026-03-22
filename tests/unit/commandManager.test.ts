@@ -220,6 +220,279 @@ describe("CommandManager", () => {
         interaction,
       );
     });
+
+    it("should deny modal submit for admin command without permission", async () => {
+      const mockModalCommand: IModalHandlerCommand = {
+        execute(
+          _: APIChatInputApplicationCommandInteraction,
+        ): Promise<APIInteractionResponse> {
+          return Promise.resolve({} as unknown as APIInteractionResponse);
+        },
+        data: () =>
+          new SlashCommandBuilder()
+            .setName("add_question_to_bank")
+            .setDescription("An admin modal command"),
+        handleModalSubmit: vi.fn().mockResolvedValue({
+          type: InteractionResponseType.ChannelMessageWithSource,
+          data: {
+            content: "Should not reach here",
+          },
+        }),
+        name: "add_question_to_bank",
+      };
+
+      commandManager.registerCommand(mockModalCommand);
+
+      const interaction: APIModalSubmitInteraction = {
+        app_permissions: "",
+        application_id: "",
+        authorizing_integration_owners: {},
+        channel: { id: "123", type: ChannelType.GuildVoice },
+        channel_id: "123",
+        entitlements: [],
+        id: "",
+        locale: Locale.EnglishUS,
+        token: "",
+        version: 1,
+        attachment_size_limit: 8388608,
+        type: InteractionType.ModalSubmit,
+        data: {
+          custom_id: "add_question_to_bank",
+          components: [],
+        },
+        member: {
+          user: {
+            id: "user-id",
+            username: "username",
+            discriminator: "0001",
+            avatar: "avatar-hash",
+            global_name: "user-id",
+          },
+          roles: [],
+          premium_since: null,
+          permissions: "0",
+          pending: false,
+          mute: false,
+          deaf: false,
+          joined_at: "",
+          flags: 0,
+        },
+      };
+
+      const response = await commandManager.handleInteraction(
+        interaction as any,
+      );
+
+      expect(response).toEqual(
+        createEphemeralResponse(
+          "You need the Manage Server permission or the QuizAdmin role to use this command.",
+        ),
+      );
+      expect(mockModalCommand.handleModalSubmit).not.toHaveBeenCalled();
+    });
+
+    it("should allow modal submit for admin command with QuizAdmin role", async () => {
+      commandManager.setQuizAdminRoleId("quiz-admin-role-id");
+
+      const mockModalCommand: IModalHandlerCommand = {
+        execute(
+          _: APIChatInputApplicationCommandInteraction,
+        ): Promise<APIInteractionResponse> {
+          return Promise.resolve({} as unknown as APIInteractionResponse);
+        },
+        data: () =>
+          new SlashCommandBuilder()
+            .setName("add_question_to_bank")
+            .setDescription("An admin modal command"),
+        handleModalSubmit: vi.fn().mockResolvedValue({
+          type: InteractionResponseType.ChannelMessageWithSource,
+          data: {
+            content: "Modal handled with role!",
+          },
+        }),
+        name: "add_question_to_bank",
+      };
+
+      commandManager.registerCommand(mockModalCommand);
+
+      const interaction: APIModalSubmitInteraction = {
+        app_permissions: "",
+        application_id: "",
+        authorizing_integration_owners: {},
+        channel: { id: "123", type: ChannelType.GuildVoice },
+        channel_id: "123",
+        entitlements: [],
+        id: "",
+        locale: Locale.EnglishUS,
+        token: "",
+        version: 1,
+        attachment_size_limit: 8388608,
+        type: InteractionType.ModalSubmit,
+        data: {
+          custom_id: "add_question_to_bank",
+          components: [],
+        },
+        member: {
+          user: {
+            id: "user-id",
+            username: "username",
+            discriminator: "0001",
+            avatar: "avatar-hash",
+            global_name: "user-id",
+          },
+          roles: ["quiz-admin-role-id"],
+          premium_since: null,
+          permissions: "0",
+          pending: false,
+          mute: false,
+          deaf: false,
+          joined_at: "",
+          flags: 0,
+        },
+      };
+
+      const response = await commandManager.handleInteraction(
+        interaction as any,
+      );
+
+      expect(response).toEqual({
+        type: InteractionResponseType.ChannelMessageWithSource,
+        data: {
+          content: "Modal handled with role!",
+        },
+      });
+      expect(mockModalCommand.handleModalSubmit).toHaveBeenCalledWith(
+        interaction,
+      );
+    });
+
+    it("should allow ApplicationCommand for admin command with MANAGE_GUILD permission", async () => {
+      const mockCommand = {
+        data: () =>
+          new SlashCommandBuilder()
+            .setName("start_quiz")
+            .setDescription("Start quiz"),
+        execute: vi.fn().mockResolvedValue({
+          type: InteractionResponseType.ChannelMessageWithSource,
+          data: { content: "Started!" },
+        }),
+        name: "start_quiz",
+      };
+
+      commandManager.registerCommand(mockCommand);
+
+      const MANAGE_GUILD = (1n << 5n).toString();
+      const interaction: APIChatInputApplicationCommandInteraction = {
+        app_permissions: "",
+        application_id: "",
+        authorizing_integration_owners: {},
+        channel: { id: "123", type: ChannelType.GuildVoice },
+        channel_id: "123",
+        entitlements: [],
+        id: "",
+        locale: Locale.EnglishUS,
+        token: "",
+        version: 1,
+        attachment_size_limit: 8388608,
+        type: InteractionType.ApplicationCommand,
+        data: {
+          name: "start_quiz",
+          id: "",
+          type: ApplicationCommandType.ChatInput,
+        },
+        member: {
+          user: {
+            id: "user-id",
+            username: "username",
+            discriminator: "0001",
+            avatar: "avatar-hash",
+            global_name: "user-id",
+          },
+          roles: [],
+          premium_since: null,
+          permissions: MANAGE_GUILD,
+          pending: false,
+          mute: false,
+          deaf: false,
+          joined_at: "",
+          flags: 0,
+        },
+      };
+
+      const response = await commandManager.handleInteraction(
+        interaction as any,
+      );
+
+      expect(response).toEqual({
+        type: InteractionResponseType.ChannelMessageWithSource,
+        data: { content: "Started!" },
+      });
+      expect(mockCommand.execute).toHaveBeenCalledWith(interaction);
+    });
+
+    it("should deny ApplicationCommand for admin command without permission", async () => {
+      const mockCommand = {
+        data: () =>
+          new SlashCommandBuilder()
+            .setName("start_quiz")
+            .setDescription("Start quiz"),
+        execute: vi.fn().mockResolvedValue({
+          type: InteractionResponseType.ChannelMessageWithSource,
+          data: { content: "Started!" },
+        }),
+        name: "start_quiz",
+      };
+
+      commandManager.registerCommand(mockCommand);
+
+      const interaction: APIChatInputApplicationCommandInteraction = {
+        app_permissions: "",
+        application_id: "",
+        authorizing_integration_owners: {},
+        channel: { id: "123", type: ChannelType.GuildVoice },
+        channel_id: "123",
+        entitlements: [],
+        id: "",
+        locale: Locale.EnglishUS,
+        token: "",
+        version: 1,
+        attachment_size_limit: 8388608,
+        type: InteractionType.ApplicationCommand,
+        data: {
+          name: "start_quiz",
+          id: "",
+          type: ApplicationCommandType.ChatInput,
+        },
+        member: {
+          user: {
+            id: "user-id",
+            username: "username",
+            discriminator: "0001",
+            avatar: "avatar-hash",
+            global_name: "user-id",
+          },
+          roles: [],
+          premium_since: null,
+          permissions: "0",
+          pending: false,
+          mute: false,
+          deaf: false,
+          joined_at: "",
+          flags: 0,
+        },
+      };
+
+      const response = await commandManager.handleInteraction(
+        interaction as any,
+      );
+
+      expect(response).toEqual(
+        createEphemeralResponse(
+          "You need the Manage Server permission or the QuizAdmin role to use this command.",
+        ),
+      );
+      expect(mockCommand.execute).not.toHaveBeenCalled();
+    });
   });
 
   describe("registerCommands", () => {
