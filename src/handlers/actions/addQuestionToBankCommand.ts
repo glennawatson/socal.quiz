@@ -194,16 +194,16 @@ export class AddQuestionToBankCommand implements IModalHandlerCommand {
         AddQuestionToBankCommand.componentIds.timeoutTimeSeconds,
       ) ?? 20) * 1000;
 
-    // Extract answers
+    // Extract answers - TS 5.5 infers type predicate from filter, removing need for `as string`
     const answers: Answer[] = await Promise.all(
       AddQuestionToBankCommand.componentIds.answers
         .map((answerId) => ({
           answerId,
           value: getComponentValue(components, answerId),
         }))
-        .filter(({ value }) => value !== undefined)
+        .filter((entry): entry is { answerId: string; value: string } => entry.value !== undefined)
         .map(({ value }) =>
-          this.questionStorage.generateAnswer(value as string),
+          this.questionStorage.generateAnswer(value),
         ),
     );
 

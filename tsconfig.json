@@ -22,6 +22,7 @@
     "isolatedModules": true,
     "noUncheckedSideEffectImports": true,
     "skipLibCheck": true,
+    "libReplacement": false,
 
     // Node.js native type stripping compatibility
     "erasableSyntaxOnly": true,

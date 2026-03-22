@@ -101,7 +101,7 @@ export class CommandManager {
     console.debug(
       `Sending registrations to the server for ${this.commands.size} commands.`,
     );
-    const commandData = Array.from(this.commands.values())
+    const commandData = this.commands.values()
       .map((command) => {
         if (command && typeof command.data === "function") {
           return command.data().toJSON();
@@ -110,7 +110,8 @@ export class CommandManager {
           return null;
         }
       })
-      .filter((data) => data !== null);
+      .filter((data) => data !== null)
+      .toArray();
 
     try {
       console.log("Started refreshing application (/) commands.");

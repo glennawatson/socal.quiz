@@ -115,8 +115,9 @@ export async function showScores(rest: REST, quiz: QuizState) {
     `showing the scores for quiz in ${quiz?.channelId} with ${quiz.activeUsers.size} user entries.`,
   );
 
-  const scoreEntries = Array.from(quiz.activeUsers.entries());
-  scoreEntries.sort(([, scoreA], [, scoreB]) => scoreB - scoreA); // Higher scores first
+  const scoreEntries = quiz.activeUsers.entries()
+    .toArray()
+    .sort(([, scoreA], [, scoreB]) => scoreB - scoreA); // Higher scores first
 
   let scoreDescription = "";
   for (const [userId, score] of scoreEntries) {

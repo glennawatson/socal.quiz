@@ -28,9 +28,7 @@ export class OAuth2Relay {
 
   public getAuthorizeUrl(redirectUri: string, state: string, codeChallenge: string, codeChallengeMethod: string, scopeValues?: string[]): string {
     const scopeSet = new Set<string>((scopeValues ?? this.defaultScopes).flatMap(scope => scope.split(' ')));
-    scopeSet.delete("profile");
-
-    const scopes = Array.from(scopeSet).join(' ');
+    const scopes = scopeSet.difference(new Set(["profile"])).values().toArray().join(' ');
 
     const params = new URLSearchParams();
     params.append('client_id', this.clientId);
@@ -92,11 +90,11 @@ export class OAuth2Relay {
     urlParams.append('client_secret', this.clientSecret);
     urlParams.append('grant_type', grantType);
 
-    Object.keys(params).forEach(key => {
-      if (params[key]) {
-        urlParams.append(key, params[key]);
+    for (const [key, value] of Object.entries(params)) {
+      if (value) {
+        urlParams.append(key, value);
       }
-    });
+    }
 
     const response = await fetch(this.tokenUrl, {
       method: 'POST',
