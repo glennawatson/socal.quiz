@@ -1,10 +1,12 @@
+import { secureGet } from "@/auth/secureStorage";
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL as string;
 
 export async function apiFetch<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const token = sessionStorage.getItem("discord_token");
+  const token = await secureGet("discord_token");
 
   const res = await fetch(`${API_BASE_URL}${path}`, {
     ...options,

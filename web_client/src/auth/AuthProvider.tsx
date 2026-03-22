@@ -8,9 +8,14 @@ import {
 } from "react";
 import type { ReactNode } from "react";
 import { generatePKCE } from "./pkce";
+import { secureGet, secureRemove, secureSet } from "./secureStorage";
 
 const DISCORD_REDIRECT_URI = import.meta.env.VITE_DISCORD_REDIRECT_URI;
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
+const TOKEN_KEY = "discord_token";
+const PKCE_KEY = "pkce_verifier";
+const STATE_KEY = "oauth_state";
 
 interface AuthState {
   token: string | null;
@@ -28,14 +33,13 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({
-    token: sessionStorage.getItem("discord_token"),
+    token: null,
     user: null,
     isLoading: true,
   });
 
   const fetchUser = useCallback(async (token: string) => {
     try {
-      // Use the backend's userinfo endpoint to validate and get user data
       const res = await fetch(`${API_BASE_URL}/api/auth/userinfo`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -52,33 +56,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading: false,
       });
     } catch {
-      sessionStorage.removeItem("discord_token");
+      await secureRemove(TOKEN_KEY);
       setState({ token: null, user: null, isLoading: false });
     }
   }, []);
 
   useEffect(() => {
-    if (state.token) {
-      void fetchUser(state.token);
-    } else {
-      setState((prev) => ({ ...prev, isLoading: false }));
-    }
+    void (async () => {
+      const token = await secureGet(TOKEN_KEY);
+      if (token) {
+        await fetchUser(token);
+      } else {
+        setState((prev) => ({ ...prev, isLoading: false }));
+      }
+    })();
   }, []);
 
   const login = useCallback(async () => {
     const { codeVerifier, codeChallenge } = await generatePKCE();
     const oauthState = crypto.randomUUID();
-    sessionStorage.setItem("pkce_verifier", codeVerifier);
-    sessionStorage.setItem("oauth_state", oauthState);
+    await secureSet(PKCE_KEY, codeVerifier);
+    await secureSet(STATE_KEY, oauthState);
 
-    // Use the backend's authorize relay which handles the Discord redirect
     const params = new URLSearchParams({
       state: oauthState,
       code_challenge: codeChallenge,
       code_challenge_method: "S256",
       redirect_uri: DISCORD_REDIRECT_URI,
     });
-    // Add scopes as separate params (backend expects multiple 'scope' params)
     params.append("scope", "identify");
     params.append("scope", "guilds");
 
@@ -86,19 +91,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
-    const token = sessionStorage.getItem("discord_token");
-    sessionStorage.removeItem("discord_token");
-    sessionStorage.removeItem("pkce_verifier");
-    sessionStorage.removeItem("oauth_state");
-    setState({ token: null, user: null, isLoading: false });
+    void (async () => {
+      const token = await secureGet(TOKEN_KEY);
+      secureRemove(TOKEN_KEY);
+      secureRemove(PKCE_KEY);
+      secureRemove(STATE_KEY);
+      setState({ token: null, user: null, isLoading: false });
 
-    // Best-effort token revocation
-    if (token) {
-      void fetch(
-        `${API_BASE_URL}/api/auth/revokeToken?token=${encodeURIComponent(token)}`,
-        { method: "POST" },
-      ).catch(() => {});
-    }
+      if (token) {
+        void fetch(
+          `${API_BASE_URL}/api/auth/revokeToken?token=${encodeURIComponent(token)}`,
+          { method: "POST" },
+        ).catch(() => {});
+      }
+    })();
   }, []);
 
   const getToken = useCallback(() => state.token, [state.token]);
@@ -120,12 +126,11 @@ export function useAuth(): AuthContextValue {
 }
 
 export async function handleOAuthCallback(code: string): Promise<string> {
-  const codeVerifier = sessionStorage.getItem("pkce_verifier");
+  const codeVerifier = await secureGet(PKCE_KEY);
   if (!codeVerifier) {
     throw new Error("Missing PKCE verifier");
   }
 
-  // Backend expects application/x-www-form-urlencoded
   const body = new URLSearchParams({
     grant_type: "authorization_code",
     code,
@@ -145,8 +150,8 @@ export async function handleOAuthCallback(code: string): Promise<string> {
   }
 
   const data = (await res.json()) as { access_token: string };
-  sessionStorage.removeItem("pkce_verifier");
-  sessionStorage.removeItem("oauth_state");
-  sessionStorage.setItem("discord_token", data.access_token);
+  secureRemove(PKCE_KEY);
+  secureRemove(STATE_KEY);
+  await secureSet(TOKEN_KEY, data.access_token);
   return data.access_token;
 }
