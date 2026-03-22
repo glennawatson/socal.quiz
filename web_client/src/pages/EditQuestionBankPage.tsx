@@ -60,11 +60,7 @@ export function EditQuestionBankPage() {
     const body: QuestionBankRequestBody = {
       name: bankName,
       guildId: guildId!,
-      questions: questions.map((q) => ({
-        ...q,
-        imageUrl: undefined,
-        explanationImageUrl: undefined,
-      })),
+      questions: questions.map((q) => ({ ...q })),
     };
     upsertMutation.mutate(body, {
       onSuccess: () => {

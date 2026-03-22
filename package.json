@@ -44,5 +44,8 @@
     "typescript-eslint": "^8.57.1",
     "vitest": "^4.1.0"
   },
-"main": "dist/src/functions/*.js"
+"main": "dist/src/functions/*.js",
+  "overrides": {
+    "undici": "^6.24.1"
+  }
 }
