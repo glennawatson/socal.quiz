@@ -6,6 +6,7 @@ import { ImageType } from "./IQuestionStorage.interfaces.js";
 export interface IQuizImageStorage {
   /**
    * Retrieves a presigned URL for accessing a question image.
+   *
    * @param questionId - The ID of the question.
    * @returns A promise that resolves to the presigned URL as a string.
    */
@@ -15,6 +16,7 @@ export interface IQuizImageStorage {
 
   /**
    * Retrieves a presigned URL for accessing an explanation image.
+   *
    * @param questionId - The ID of the question.
    * @returns A promise that resolves to the presigned URL as a string.
    */
@@ -24,6 +26,7 @@ export interface IQuizImageStorage {
 
   /**
    * Retrieves a presigned URL for accessing a file in a specified container.
+   *
    * @param containerName - The name of the container.
    * @param partitionKey - The partition key of the file.
    * @returns A promise that resolves to the presigned URL as a string.
@@ -32,6 +35,7 @@ export interface IQuizImageStorage {
 
   /**
    * Downloads and validates an image from a specified URL for use in Discord.
+   *
    * @param imageUrl - The URL of the image to download.
    * @param questionId - The question id for the question.
    * @param imageType  - the type of image (explanation/question).
@@ -41,5 +45,31 @@ export interface IQuizImageStorage {
     imageUrl: string,
     questionId: string,
     imageType: ImageType
+  ): Promise<string>;
+
+  /**
+   * Retrieves a presigned URL for accessing an answer image.
+   *
+   * @param questionId - The ID of the question the answer belongs to.
+   * @param answerId - The ID of the answer whose image to retrieve.
+   * @returns A promise that resolves to the presigned URL as a string.
+   */
+  getAnswerImagePresignedUrl(
+    questionId: string,
+    answerId: string,
+  ): Promise<string>;
+
+  /**
+   * Downloads and validates an image from a URL for use as an answer image.
+   *
+   * @param imageUrl - The URL of the image to download.
+   * @param questionId - The ID of the question the answer belongs to.
+   * @param answerId - The ID of the answer to associate the image with.
+   * @returns A promise that resolves to the storage key of the stored image.
+   */
+  downloadAndValidateAnswerImage(
+    imageUrl: string,
+    questionId: string,
+    answerId: string,
   ): Promise<string>;
 }

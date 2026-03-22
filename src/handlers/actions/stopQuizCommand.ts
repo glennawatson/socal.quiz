@@ -14,21 +14,36 @@ import {
 } from "../../util/interactionHelpers.js";
 import { QuizManagerFactoryManager } from "../quizManagerFactoryManager.js";
 
+/** Handles the /stop_quiz slash command to end an active quiz session. */
 export class StopQuizCommand implements IDiscordCommand {
   private readonly quizStateManager: QuizManagerFactoryManager;
+  /**
+   * @param quizStateManager - The factory manager for quiz instances.
+   */
   constructor(quizStateManager: QuizManagerFactoryManager) {
     this.quizStateManager = quizStateManager;
   }
 
-  data(): SlashCommandOptionsOnlyBuilder {
+  /**
+   * Returns the slash command definition for stopping a quiz.
+   *
+   * @returns The slash command builder.
+   */
+  public data(): SlashCommandOptionsOnlyBuilder {
     return new SlashCommandBuilder()
       .setName(this.name)
       .setDescription("Stop the current quiz");
   }
 
-  name = "stop_quiz";
+  public name = "stop_quiz";
 
-  async execute(
+  /**
+   * Stops the active quiz in the current guild and channel.
+   *
+   * @param interaction - The incoming chat command interaction.
+   * @returns A promise that resolves to an ephemeral interaction response.
+   */
+  public async execute(
     interaction: APIChatInputApplicationCommandInteraction,
   ): Promise<APIInteractionResponse> {
     try {

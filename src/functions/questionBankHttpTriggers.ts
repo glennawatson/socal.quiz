@@ -15,21 +15,36 @@ import type { Question } from "../question.interfaces.js";
 import type { IQuizImageStorage } from "../util/IQuizImageStorage.interfaces.js";
 import type { QuestionBank } from "../questionBank.interfaces.js";
 
+import type { AnswerRequestBody } from "../../shared/api.interfaces.js";
+
+/** Extends Question with optional image URLs and answer bodies for the HTTP request payload. */
 interface QuestionRequestBody extends Question {
   imageUrl?: string;
   explanationImageUrl?: string;
+  answers: AnswerRequestBody[];
 }
 
+/** Request body for upserting a question bank, including all its questions. */
 interface QuestionBankRequestBody extends QuestionBank {
   questions: QuestionRequestBody[];
 }
 
+/** Result of processing a single question during upsert — tracks success or failure per question. */
 interface UpsertResult {
   questionId: string;
   success: boolean;
   errorMessage?: string;
 }
 
+/**
+ * Processes a single question's images (question image, explanation image, and answer images)
+ * by downloading and validating them for Discord embedding.
+ * Returns a result indicating success or the first image processing failure encountered.
+ *
+ * @param requestBody - The question request body containing image URLs to process.
+ * @param imageStorage - The image storage service for downloading and validating images.
+ * @returns A promise that resolves to the upsert result indicating success or failure.
+ */
 async function processQuestion(requestBody: QuestionRequestBody, imageStorage: IQuizImageStorage): Promise<UpsertResult> {
   if (!requestBody.questionId) {
     return {
@@ -39,7 +54,7 @@ async function processQuestion(requestBody: QuestionRequestBody, imageStorage: I
     };
   }
 
-  if (requestBody.answers && requestBody.correctAnswerId === undefined) {
+  if (requestBody.answers.length > 0 && !requestBody.correctAnswerId) {
     return {
       questionId: requestBody.questionId,
       success: false,
@@ -55,8 +70,8 @@ async function processQuestion(requestBody: QuestionRequestBody, imageStorage: I
           ImageType.Question,
       );
     }
-  } catch (error) {
-    return { questionId: requestBody.questionId, success: false, errorMessage: 'failed to download question image ' + requestBody.imageUrl };
+  } catch {
+    return { questionId: requestBody.questionId, success: false, errorMessage: `failed to download question image ${requestBody.imageUrl ?? ''}` };
   }
 
   try {
@@ -68,22 +83,54 @@ async function processQuestion(requestBody: QuestionRequestBody, imageStorage: I
       );
     }
 
-  } catch (error) {
-    return { questionId: requestBody.questionId, success: false, errorMessage: 'failed to download explanation image ' + requestBody.explanationImageUrl };
+  } catch {
+    return { questionId: requestBody.questionId, success: false, errorMessage: `failed to download explanation image ${requestBody.explanationImageUrl ?? ''}` };
+  }
+
+  // Process answer images
+  for (const answer of requestBody.answers) {
+    if (answer.imageUrl) {
+      try {
+        answer.imagePartitionKey = await imageStorage.downloadAndValidateAnswerImage(
+          answer.imageUrl,
+          requestBody.questionId,
+          answer.answerId,
+        );
+      } catch {
+        return { questionId: requestBody.questionId, success: false, errorMessage: `failed to download answer image for answer ${answer.answerId}: ${answer.imageUrl}` };
+      }
+    }
   }
 
   return { questionId: requestBody.questionId, success: true };
 }
 
+/** Result of validating the request's auth and required query parameters. */
 interface ValidationResult {
   guildId: string;
   bankName: string;
 }
 
+/**
+ * Type guard that determines whether a validation result is an HTTP error response
+ * rather than a successful ValidationResult.
+ *
+ * @param validationResult - The result to check.
+ * @returns True if the result is an HTTP error response.
+ */
 function isErrorValidationResult(validationResult: ValidationResult | HttpResponseInit): validationResult is HttpResponseInit {
   return "status" in validationResult;
 }
 
+/**
+ * Validates the request by checking guild ownership auth and extracting the
+ * required "bankname" query parameter. Returns either a ValidationResult on
+ * success or an HttpResponseInit error response.
+ *
+ * @param req - The incoming HTTP request.
+ * @param context - The Azure Functions invocation context.
+ * @returns A promise that resolves to either a ValidationResult or an HTTP error response.
+ */
 async function validate(req: HttpRequest,
                   context: InvocationContext) : Promise<ValidationResult | HttpResponseInit>
 {
@@ -91,7 +138,7 @@ async function validate(req: HttpRequest,
   if (isErrorResponse(authResult)) return authResult;
   const { guildId } = authResult;
 
-  const bankName = req.query.get("bankname");
+  const bankName: string | null = req.query.get("bankname");
 
   if (!bankName) {
     return {
@@ -104,6 +151,13 @@ async function validate(req: HttpRequest,
   return { guildId, bankName };
 }
 
+/**
+ * Deletes an entire question bank for the authenticated guild by bank name.
+ *
+ * @param req - The incoming HTTP request.
+ * @param context - The Azure Functions invocation context.
+ * @returns A promise that resolves to the HTTP response indicating success or failure.
+ */
 export async function deleteQuestionBankHandler(
   req: HttpRequest,
   context: InvocationContext,
@@ -112,7 +166,7 @@ export async function deleteQuestionBankHandler(
   await Config.initialize();
   const questionStorage = Config.questionStorage;
 
-  const validationResult = await validate(req, context);
+  const validationResult: ValidationResult | HttpResponseInit = await validate(req, context);
   if (isErrorValidationResult(validationResult)) return validationResult;
 
   try {
@@ -124,7 +178,7 @@ export async function deleteQuestionBankHandler(
       body: JSON.stringify("Question deleted successfully"),
     };
   } catch (error) {
-    context.error(`Could not delete the question ${error}`);
+    context.error(`Could not delete the question ${String(error)}`);
     return {
       status: 500,
       headers: { "Content-Type": "application/json" },
@@ -133,6 +187,14 @@ export async function deleteQuestionBankHandler(
   }
 }
 
+/**
+ * Retrieves a question bank for the authenticated guild by bank name and question ID.
+ * Requires "bankname" and "questionId" query parameters.
+ *
+ * @param req - The incoming HTTP request.
+ * @param context - The Azure Functions invocation context.
+ * @returns A promise that resolves to the HTTP response containing the question bank or an error.
+ */
 export async function getQuestionBankHandler(
   req: HttpRequest,
   context: InvocationContext,
@@ -144,8 +206,8 @@ export async function getQuestionBankHandler(
   await Config.initialize();
   const questionStorage = Config.questionStorage;
 
-  const bankName = req.query.get("bankname");
-  const questionId = req.query.get("questionId");
+  const bankName: string | null = req.query.get("bankname");
+  const questionId: string | null = req.query.get("questionId");
 
   if (!bankName || !questionId) {
     return {
@@ -166,7 +228,7 @@ export async function getQuestionBankHandler(
       body: JSON.stringify(question),
     };
   } catch (error) {
-    context.error(`Could not get the question ${error}`);
+    context.error(`Could not get the question ${String(error)}`);
     return {
       status: 500,
       headers: { "Content-Type": "application/json" },
@@ -175,6 +237,15 @@ export async function getQuestionBankHandler(
   }
 }
 
+/**
+ * Creates or updates a question bank for the authenticated guild.
+ * Parses the JSON body, validates guild ownership, processes all question and answer
+ * images, and persists the question bank to storage.
+ *
+ * @param req - The incoming HTTP request containing the question bank JSON body.
+ * @param context - The Azure Functions invocation context.
+ * @returns A promise that resolves to the HTTP response indicating success or failure.
+ */
 export async function upsertQuestionBankHandler(
     req: HttpRequest,
     context: InvocationContext,
@@ -182,7 +253,7 @@ export async function upsertQuestionBankHandler(
   const authResult = await validateAuthAndGuildOwnership(req, context);
   if (isErrorResponse(authResult)) return authResult;
 
-  const guildId = authResult.guildId;
+  const guildId: string = authResult.guildId;
 
   try {
     await Config.initialize();
@@ -193,7 +264,7 @@ export async function upsertQuestionBankHandler(
     try {
       requestBody = JSON.parse(await req.text()) as QuestionBankRequestBody;
     } catch (error) {
-      context.error(`Could not upsert the question bank, since we are unable to read the request body ${error}`);
+      context.error(`Could not upsert the question bank, since we are unable to read the request body ${String(error)}`);
       return {
         status: 500,
         headers: { "Content-Type": "application/json" },
@@ -210,7 +281,7 @@ export async function upsertQuestionBankHandler(
       };
     }
 
-      const processedQuestions = await Promise.all(requestBody.questions.map(question => processQuestion(question, imageStorage)));
+      const processedQuestions: UpsertResult[] = await Promise.all(requestBody.questions.map(question => processQuestion(question, imageStorage)));
 
     if (processedQuestions.some(x => !x.success)) {
       console.error("Could not process the questions.");
@@ -229,7 +300,7 @@ export async function upsertQuestionBankHandler(
       body: JSON.stringify("Question updated successfully"),
     };
   } catch (error) {
-    context.error(`Could not update the question ${error}`);
+    context.error(`Could not update the question ${String(error)}`);
     return {
       status: 500,
       headers: { "Content-Type": "application/json" },
@@ -238,6 +309,13 @@ export async function upsertQuestionBankHandler(
   }
 }
 
+/**
+ * Returns the list of question bank names for the authenticated guild.
+ *
+ * @param req - The incoming HTTP request.
+ * @param context - The Azure Functions invocation context.
+ * @returns A promise that resolves to the HTTP response containing the bank names or an error.
+ */
 export async function getQuestionBankNamesHandler(
   req: HttpRequest,
   context: InvocationContext,
@@ -258,7 +336,7 @@ export async function getQuestionBankNamesHandler(
       body: JSON.stringify(bankNames),
     };
   } catch (error) {
-    context.error(`Could not retrieve question bank names: ${error}`);
+    context.error(`Could not retrieve question bank names: ${String(error)}`);
     return {
       status: 500,
       headers: { "Content-Type": "application/json" },
@@ -267,6 +345,15 @@ export async function getQuestionBankNamesHandler(
   }
 }
 
+/**
+ * Returns the list of Discord guilds accessible to the authenticated user
+ * that the bot is also a member of. Cross-references the user's guilds
+ * (from Discord API) with the bot's guilds.
+ *
+ * @param req - The incoming HTTP request.
+ * @param context - The Azure Functions invocation context.
+ * @returns A promise that resolves to the HTTP response containing the accessible guilds or an error.
+ */
 export async function getGuildsHandler(
   req: HttpRequest,
   context: InvocationContext
@@ -278,9 +365,9 @@ export async function getGuildsHandler(
   const authResult = await validateAuth(req, context);
   if (!isValidationSuccess(authResult)) return authResult;
 
-  const token = authResult.token;
+  const token: string = authResult.token;
 
-  const userGuildsResponse = await fetch('https://discord.com/api/v10/users/@me/guilds', {
+  const userGuildsResponse: Response = await fetch('https://discord.com/api/v10/users/@me/guilds', {
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json'
@@ -302,7 +389,7 @@ export async function getGuildsHandler(
     const botGuilds = await botRest.get(Routes.userGuilds()) as APIGuild[];
 
     // Filter user guilds to find where the bot is also a member
-    const accessibleGuilds = userGuilds.filter(userGuild =>
+    const accessibleGuilds: APIGuild[] = userGuilds.filter(userGuild =>
       botGuilds.some(botGuild => botGuild.id === userGuild.id)
     );
 
@@ -312,7 +399,7 @@ export async function getGuildsHandler(
       body: JSON.stringify(accessibleGuilds),
     };
   } catch (error) {
-    context.error(`Could not retrieve bot guilds: ${error}`);
+    context.error(`Could not retrieve bot guilds: ${String(error)}`);
     return {
       status: 500,
       headers: { "Content-Type": "application/json" },

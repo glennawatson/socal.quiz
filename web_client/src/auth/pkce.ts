@@ -21,6 +21,11 @@ function base64UrlEncode(buffer: ArrayBuffer): string {
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
+/**
+ * Generates a PKCE (Proof Key for Code Exchange) code verifier and challenge pair.
+ *
+ * @returns A promise resolving to an object with the code verifier and code challenge.
+ */
 export async function generatePKCE(): Promise<{
   codeVerifier: string;
   codeChallenge: string;

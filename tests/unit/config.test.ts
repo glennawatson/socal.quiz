@@ -10,12 +10,16 @@ import { QuizImageStorage } from "@src/util/quizImageStorage.js";
 import { QuizManagerFactoryManager } from "@src/handlers/quizManagerFactoryManager.js";
 import { DurableClient } from "durable-functions";
 import { DurableQuizManager } from "@src/handlers/durableQuizManager.js";
+import { GuildQuizConfigStorage } from "@src/util/guildQuizConfigStorage.js";
 
 vi.mock("@discordjs/rest");
 vi.mock("@src/handlers/discordBotService");
 vi.mock("@src/util/questionStorage");
 vi.mock("@src/util/quizImageStorage");
 vi.mock("@src/util/guildStorage");
+vi.mock("@src/util/guildQuizConfigStorage");
+vi.mock("@src/util/soundboardStorage");
+vi.mock("@src/handlers/soundboardManager");
 vi.mock("@src/util/errorHelpers", () => ({
   throwError: vi.fn(),
 }));
@@ -42,6 +46,7 @@ describe("Config", () => {
             ),
           ),
           {} as DurableClient,
+          new GuildQuizConfigStorage(),
         ),
     );
 
@@ -136,6 +141,7 @@ describe("Config", () => {
                 new REST(),
                 mockQuestionStorage,
                 mockDurableClient,
+                new GuildQuizConfigStorage(),
               ),
           ),
           mockQuestionStorage,
@@ -166,6 +172,7 @@ describe("Config", () => {
           mockRest,
           mockQuestionStorage,
           {} as DurableClient,
+          new GuildQuizConfigStorage(),
         ),
     );
     const mockCommandManager = new CommandManager(

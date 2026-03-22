@@ -4,6 +4,8 @@ import { createEphemeralResponse } from "@src//util/interactionHelpers.js";
 import { REST } from "@discordjs/rest";
 import { MockQuizQuestionStorage } from "./mockQuizQuestionStorage.js";
 import { QuizManagerBase } from "@src/handlers/quizManagerBase.js";
+import { GuildQuizConfigStorage } from "@src/util/guildQuizConfigStorage.js";
+import { defaultQuizConfig } from "../../../shared/quizConfig.interfaces.js";
 
 export class MockQuizManager extends QuizManagerBase {
   public async runQuiz(_quiz: QuizState): Promise<void> {}
@@ -25,6 +27,9 @@ export class MockQuizManager extends QuizManagerBase {
   }
 
   constructor() {
-    super(new REST(), new MockQuizQuestionStorage());
+    const mockConfigStorage = {
+      getEffectiveConfig: async () => ({ ...defaultQuizConfig }),
+    } as unknown as GuildQuizConfigStorage;
+    super(new REST(), new MockQuizQuestionStorage(), mockConfigStorage);
   }
 }

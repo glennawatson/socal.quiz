@@ -2,6 +2,10 @@ export {};
 
 declare global {
   interface Map<K, V> {
+    /**
+     * Returns the value for the key if it exists, otherwise calls defaultValue(),
+     * inserts the result, and returns it.
+     */
     getOrAdd(key: K, defaultValue: () => V): V | undefined;
   }
 }
@@ -12,9 +16,9 @@ Map.prototype.getOrAdd = function <K, V>(
   defaultValue: () => V,
 ): V | undefined {
   if (this.has(key)) {
-    return this.get(key); // Safe non-null assertion, since we checked with 'has'
+    return this.get(key);
   } else {
-    const value = defaultValue();
+    const value: V = defaultValue();
     this.set(key, value);
     return value;
   }

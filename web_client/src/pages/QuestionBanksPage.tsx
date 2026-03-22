@@ -28,10 +28,11 @@ import {
 } from "@/components/ui/breadcrumb";
 
 export function QuestionBanksPage() {
-  const { guildId } = useParams<{ guildId: string }>();
+  const { guildId: rawGuildId } = useParams<{ guildId: string }>();
+  const guildId = rawGuildId ?? "";
   const navigate = useNavigate();
-  const { data: bankNames, isLoading, error } = useQuestionBankNames(guildId!);
-  const deleteMutation = useDeleteQuestionBank(guildId!);
+  const { data: bankNames, isLoading, error } = useQuestionBankNames(guildId);
+  const deleteMutation = useDeleteQuestionBank(guildId);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   if (isLoading) {
@@ -58,13 +59,21 @@ export function QuestionBanksPage() {
 
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Question Banks</h1>
-        <Button
-          onClick={() =>
-            void navigate(`/guilds/${guildId}/banks/__new__`)
-          }
-        >
-          Add Bank
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => void navigate(`/guilds/${guildId}/settings`)}
+          >
+            Settings
+          </Button>
+          <Button
+            onClick={() =>
+              void navigate(`/guilds/${guildId}/banks/__new__`)
+            }
+          >
+            Add Bank
+          </Button>
+        </div>
       </div>
 
       {!bankNames?.length ? (

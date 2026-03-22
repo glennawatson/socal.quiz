@@ -2,15 +2,23 @@ import { InvocationContext, HttpRequest, type HttpResponseInit, app } from "@azu
 import { Config } from "../util/config.js";
 import { parse } from 'querystring';
 
-// Initiate the authorization request
+/**
+ * Initiates the Discord OAuth2 authorization flow.
+ * Constructs the Discord authorize URL from query parameters (state, code_challenge,
+ * redirect_uri, scope) and redirects the user to it.
+ *
+ * @param req - The incoming HTTP request with OAuth query parameters.
+ * @param context - The Azure Functions invocation context.
+ * @returns A promise that resolves to a redirect response to the Discord authorize URL.
+ */
 export async function initiateOAuth(req: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   context.log('Initiating OAuth process');
 
-  const state = req.query.get('state');
-  const codeChallenge = req.query.get('code_challenge');
-  const codeChallengeMethod = req.query.get('code_challenge_method') ?? "S256";
-  const redirectUri = req.query.get('redirect_uri');
-  const scopes = req.query.getAll('scope'); // Get all scope query parameters
+  const state: string | null = req.query.get('state');
+  const codeChallenge: string | null = req.query.get('code_challenge');
+  const codeChallengeMethod: string = req.query.get('code_challenge_method') ?? "S256";
+  const redirectUri: string | null = req.query.get('redirect_uri');
+  const scopes: string[] = req.query.getAll('scope'); // Get all scope query parameters
 
   console.log(JSON.stringify(scopes, null, 2));
 
@@ -22,16 +30,24 @@ export async function initiateOAuth(req: HttpRequest, context: InvocationContext
 
   const oauth2Relay = Config.oauth2Relay;
 
-  const authUrl = oauth2Relay.getAuthorizeUrl(redirectUri, state, codeChallenge, codeChallengeMethod, scopes);
+  const authUrl: string = oauth2Relay.getAuthorizeUrl(redirectUri, state, codeChallenge, codeChallengeMethod, scopes);
   return createRedirectUrl(authUrl, req);
 }
 
-// Handle the OAuth2 callback
+/**
+ * Exchanges an authorization code or refresh token for an access token.
+ * Accepts form-encoded bodies with grant_type "authorization_code" or "refresh_token"
+ * and proxies the token exchange through the Discord OAuth2 API.
+ *
+ * @param req - The incoming HTTP request with form-encoded token parameters.
+ * @param context - The Azure Functions invocation context.
+ * @returns A promise that resolves to the HTTP response containing the token or an error.
+ */
 export async function exchangeToken(req: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   context.log('OAuth Token Callback: starting');
 
   // Parse the request body for application/x-www-form-urlencoded data
-  const requestBody = await req.text();
+  const requestBody: string = await req.text();
   const parsedBody = parse(requestBody);
 
   const grantType = parsedBody.grant_type;
@@ -41,7 +57,7 @@ export async function exchangeToken(req: HttpRequest, context: InvocationContext
     return createHttpResponse(400, { error: 'grant_type is required in the request body' }, req);
   }
 
-  let params: Record<string, string> = {};
+  let params: Record<string, string>;
 
   if (grantType === 'authorization_code') {
     params = {
@@ -80,21 +96,28 @@ export async function exchangeToken(req: HttpRequest, context: InvocationContext
   const oauth2Relay = Config.oauth2Relay;
 
   try {
-    const tokenResponse = await oauth2Relay.exchangeCodeForToken(grantType, params);
+    const tokenResponse: unknown = await oauth2Relay.exchangeCodeForToken(grantType, params);
     context.log(`OAuth Token Callback: success`);
     return createHttpResponse(200, tokenResponse, req);
   } catch (error) {
-    context.error(`OAuth Token Callback failed: ${error}`);
+    context.error(`OAuth Token Callback failed: ${String(error)}`);
     return createHttpResponse(500, { error: 'Failed to handle OAuth callback' }, req);
   }
 }
 
-// Well-known configuration endpoint
-export async function wellKnownConfig(req: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
+/**
+ * Returns the OpenID Connect well-known configuration for the OAuth2 relay.
+ * Dynamically constructs endpoint URLs based on the incoming request's host and protocol.
+ *
+ * @param req - The incoming HTTP request.
+ * @param context - The Azure Functions invocation context.
+ * @returns The HTTP response containing the OpenID configuration.
+ */
+export function wellKnownConfig(req: HttpRequest, context: InvocationContext): HttpResponseInit {
   context.log("WELL-KNOWN: returning the well known data");
 
-  const proto = req.headers.get('x-forwarded-proto') || 'http';
-  const host = req.headers.get('x-forwarded-host') || req.headers.get('host');
+  const proto: string = req.headers.get('x-forwarded-proto') ?? 'http';
+  const host: string | null = req.headers.get('x-forwarded-host') ?? req.headers.get('host');
   const baseUrl = `${proto}://${host}`;
 
   const config = {
@@ -111,11 +134,18 @@ export async function wellKnownConfig(req: HttpRequest, context: InvocationConte
   return createHttpResponse(200, config, req);
 }
 
-// Revoke tokens
+/**
+ * Revokes a Discord OAuth2 token.
+ * Requires a "token" query parameter containing the token to revoke.
+ *
+ * @param req - The incoming HTTP request with the token query parameter.
+ * @param context - The Azure Functions invocation context.
+ * @returns A promise that resolves to the HTTP response indicating success or failure.
+ */
 export async function revokeToken(req: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   context.log('starting revoke token');
 
-  const token = req.query.get("token");
+  const token: string | null = req.query.get("token");
 
   if (!token) {
     return createHttpResponse(400, { error: 'token query parameter is required' }, req);
@@ -129,22 +159,31 @@ export async function revokeToken(req: HttpRequest, context: InvocationContext):
     await oauth2Relay.revokeToken(token);
     return createHttpResponse(200, { message: 'Token revoked successfully' }, req);
   } catch (error) {
-    context.error(`Token revocation failed: ${error}`);
+    context.error(`Token revocation failed: ${String(error)}`);
     return createHttpResponse(500, { error: 'Failed to revoke token' }, req);
   }
 }
 
+/**
+ * Retrieves the authenticated user's Discord profile information.
+ * Extracts the Bearer access token from the Authorization header and
+ * proxies the request to the Discord user info endpoint.
+ *
+ * @param req - The incoming HTTP request with the Authorization header.
+ * @param context - The Azure Functions invocation context.
+ * @returns A promise that resolves to the HTTP response containing user info or an error.
+ */
 export async function userInfo(req: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   context.log('USERINFO: Starting user info request');
 
   // Extract the access token from the Authorization header
-  const authorizationHeader = req.headers.get('Authorization');
+  const authorizationHeader: string | null = req.headers.get('Authorization');
   if (!authorizationHeader) {
     context.log("USERINFO: No authorization header");
     return createHttpResponse(400, { error: 'Authorization header is required' }, req);
   }
 
-  const accessToken = authorizationHeader.replace('Bearer ', '');
+  const accessToken: string = authorizationHeader.replace('Bearer ', '');
   if (!accessToken) {
     context.log("USERINFO: authorization header wrong format");
     return createHttpResponse(400, { error: 'Invalid authorization header format' }, req);
@@ -154,20 +193,21 @@ export async function userInfo(req: HttpRequest, context: InvocationContext): Pr
   const oauth2Relay = Config.oauth2Relay;
 
   try {
-    const userInfo = await oauth2Relay.getUserInfo(accessToken);
+    const userInfo: unknown = await oauth2Relay.getUserInfo(accessToken);
     context.log('User info retrieved successfully');
     return createHttpResponse(200, userInfo, req);
   } catch (error) {
-    context.error(`Failed to retrieve user info: ${error}`);
+    context.error(`Failed to retrieve user info: ${String(error)}`);
     return createHttpResponse(500, { error: 'Failed to retrieve user info' }, req);
   }
 }
 
+/** Handles CORS preflight OPTIONS requests for all auth endpoints. */
 app.http("preflight", {
   methods: ["OPTIONS"],
   authLevel: "anonymous",
   route: "auth/{*restOfPath}",
-  handler: async (req: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> => {
+  handler: (req: HttpRequest, context: InvocationContext): HttpResponseInit => {
     context.log("Handling preflight request");
     return {
       status: 204,
@@ -216,19 +256,34 @@ app.http("revokeToken", {
   handler: revokeToken,
 });
 
-function getBaseUrl(req: HttpRequest) {
-  const host = req.headers.get('x-forwarded-host') || req.headers.get('host');
+/**
+ * Derives the base URL (origin) from the incoming request headers.
+ * Returns "*" for localhost to allow all origins during local development.
+ *
+ * @param req - The incoming HTTP request.
+ * @returns The base URL string for CORS headers.
+ */
+function getBaseUrl(req: HttpRequest): string {
+  const host: string | null = req.headers.get('x-forwarded-host') ?? req.headers.get('host');
 
   if (host?.startsWith('localhost')) {
     return '*';
   }
 
-  const proto = req.headers.get('x-forwarded-proto') || 'http';
+  const proto: string = req.headers.get('x-forwarded-proto') ?? 'http';
   return `${proto}://${host}`;
 }
 
-// Helper method to create HttpResponseInit with CORS headers
-function createHttpResponse(status: number, body: any, req: HttpRequest): HttpResponseInit {
+/**
+ * Creates a JSON HTTP response with standard CORS headers.
+ * Serializes the body and attaches Access-Control-Allow-* headers based on the request origin.
+ *
+ * @param status - The HTTP status code.
+ * @param body - The response body to serialize as JSON.
+ * @param req - The incoming HTTP request used to derive CORS origin.
+ * @returns The HTTP response object.
+ */
+function createHttpResponse(status: number, body: unknown, req: HttpRequest): HttpResponseInit {
 
   return {
     status,
@@ -242,6 +297,13 @@ function createHttpResponse(status: number, body: any, req: HttpRequest): HttpRe
   };
 }
 
+/**
+ * Creates a 302 redirect response with CORS headers pointing to the given URL.
+ *
+ * @param url - The URL to redirect to.
+ * @param req - The incoming HTTP request used to derive CORS origin.
+ * @returns The HTTP redirect response object.
+ */
 function createRedirectUrl(url: string, req: HttpRequest): HttpResponseInit {
   return {
     status: 302,

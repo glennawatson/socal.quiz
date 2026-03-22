@@ -39,6 +39,7 @@ interface Inputs {
   correctAnswerIndex: string | undefined;
 }
 
+/** Handles the /edit_question slash command and its modal submission to modify an existing question. */
 export class EditQuestionCommand implements IModalHandlerCommand {
   public static readonly componentIds = {
     bankName: "bankname",
@@ -56,10 +57,19 @@ export class EditQuestionCommand implements IModalHandlerCommand {
   };
 
   private readonly questionStorage: IQuestionStorage;
+  /**
+   * @param questionStorage - The storage interface for managing questions.
+   */
   constructor(questionStorage: IQuestionStorage) {
     this.questionStorage = questionStorage;
   }
 
+  /**
+   * Processes the submitted modal data, validates fields, and updates the question in storage.
+   *
+   * @param interaction - The modal submit interaction.
+   * @returns A promise that resolves to an ephemeral interaction response.
+   */
   public async handleModalSubmit(
       interaction: APIModalSubmitInteraction,
   ): Promise<APIInteractionResponse> {
@@ -76,7 +86,7 @@ export class EditQuestionCommand implements IModalHandlerCommand {
       return createEphemeralResponse(missingFieldMessage);
     }
 
-    const correctAnswerIndex = parseInt(inputs.correctAnswerIndex!, 10);
+    const correctAnswerIndex = parseInt(inputs.correctAnswerIndex ?? "", 10);
     const answersText = this.extractAnswersText(components);
 
     if (this.isInvalidCorrectAnswerIndex(correctAnswerIndex, answersText.length)) {
@@ -124,6 +134,12 @@ export class EditQuestionCommand implements IModalHandlerCommand {
     }
   }
 
+  /**
+   * Extracts all form field values from the modal submission components into a structured object.
+   *
+   * @param components - The modal submission components.
+   * @returns The extracted input values.
+   */
   private extractInputs(
       components: APIModalSubmissionComponent[]
   ): Inputs {
@@ -138,6 +154,12 @@ export class EditQuestionCommand implements IModalHandlerCommand {
     };
   }
 
+  /**
+   * Returns an error message if any required field is missing, or undefined if all are present.
+   *
+   * @param inputs - The extracted form inputs.
+   * @returns An error message string, or undefined if all fields are valid.
+   */
   private getMissingFieldsMessage(inputs: Inputs): string | undefined {
     if (!inputs.bankName) {
       return "Bank name is missing.";
@@ -151,6 +173,12 @@ export class EditQuestionCommand implements IModalHandlerCommand {
     return undefined;
   }
 
+  /**
+   * Collects answer text values from modal components whose custom_id starts with "answer".
+   *
+   * @param components - The modal submission components.
+   * @returns An array of answer text strings.
+   */
   private extractAnswersText(
       components: APIModalSubmissionComponent[]
   ): string[] {
@@ -163,6 +191,13 @@ export class EditQuestionCommand implements IModalHandlerCommand {
     return answersText;
   }
 
+  /**
+   * Checks whether the correct answer index is out of bounds or not a number.
+   *
+   * @param correctAnswerIndex - The zero-based correct answer index.
+   * @param answersCount - The total number of answers.
+   * @returns True if the index is invalid.
+   */
   private isInvalidCorrectAnswerIndex(
       correctAnswerIndex: number,
       answersCount: number
@@ -174,6 +209,16 @@ export class EditQuestionCommand implements IModalHandlerCommand {
     );
   }
 
+  /**
+   * Fetches the existing question from storage and merges in the edited field values.
+   *
+   * @param questionId - The ID of the question to update.
+   * @param guildId - The ID of the guild.
+   * @param inputs - The extracted form inputs.
+   * @param answersText - The answer text values from the modal.
+   * @param correctAnswerIndex - The zero-based correct answer index.
+   * @returns A promise that resolves to the updated question.
+   */
   private async getUpdatedQuestion(
       questionId: string,
       guildId: string,
@@ -181,9 +226,13 @@ export class EditQuestionCommand implements IModalHandlerCommand {
       answersText: string[],
       correctAnswerIndex: number
   ): Promise<Question> {
+    if (!inputs.bankName) {
+      throw new Error("Bank name is required.");
+    }
+
     const questionBank = await this.questionStorage.getQuestionBank(
         guildId,
-        inputs.bankName!
+        inputs.bankName
     );
 
     const questions = questionBank.questions;
@@ -209,9 +258,9 @@ export class EditQuestionCommand implements IModalHandlerCommand {
 
     return {
       ...existingQuestion,
-      question: inputs.questionText!,
+      question: inputs.questionText ?? existingQuestion.question,
       answers: answers,
-      correctAnswerId: correctAnswer!.answerId,
+      correctAnswerId: correctAnswer?.answerId ?? existingQuestion.correctAnswerId,
       questionShowTimeMs: (inputs.timeoutTimeSeconds ?? 20) * 1000,
       imagePartitionKey: inputs.imageUrl
           ? `${questionId}-${ImageType.Question}`
@@ -223,6 +272,11 @@ export class EditQuestionCommand implements IModalHandlerCommand {
     };
   }
 
+  /**
+   * Returns the slash command definition including bankname and questionid options.
+   *
+   * @returns The slash command builder.
+   */
   public data(): SlashCommandOptionsOnlyBuilder {
     return new SlashCommandBuilder()
         .setName(this.name)
@@ -243,6 +297,12 @@ export class EditQuestionCommand implements IModalHandlerCommand {
 
   public name = "edit_question";
 
+  /**
+   * Looks up the question by ID and opens a pre-filled modal for editing.
+   *
+   * @param interaction - The incoming chat command interaction.
+   * @returns A promise that resolves to a modal or ephemeral interaction response.
+   */
   public async execute(
       interaction: APIChatInputApplicationCommandInteraction): Promise<APIInteractionResponse> {
     try {
@@ -298,11 +358,20 @@ export class EditQuestionCommand implements IModalHandlerCommand {
     }
   }
 
+  /**
+   * Constructs a Discord modal pre-populated with the existing question data for editing.
+   *
+   * @param questionId - The ID of the question being edited.
+   * @param bankName - The name of the question bank.
+   * @param question - The existing question data.
+   * @returns The constructed modal builder.
+   */
   private buildModal(questionId: string, bankName: string, question: Question): ModalBuilder {
     const modal = new ModalBuilder()
         .setCustomId(this.name + "_" + questionId + "_" + bankName)
         .setTitle("Edit Question");
 
+    // eslint-disable-next-line @typescript-eslint/no-deprecated
     modal.addComponents(
         new ActionRowBuilder<TextInputBuilder>().addComponents(
             createTextInput(
@@ -353,6 +422,7 @@ export class EditQuestionCommand implements IModalHandlerCommand {
 
     // Add answer input components dynamically
     question.answers.forEach((answer, index) => {
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
       modal.addComponents(
           new ActionRowBuilder<TextInputBuilder>().addComponents(
               createTextInput(
@@ -371,6 +441,7 @@ export class EditQuestionCommand implements IModalHandlerCommand {
     );
 
     // Correct answer index (last row)
+    // eslint-disable-next-line @typescript-eslint/no-deprecated
     modal.addComponents(
         new ActionRowBuilder<TextInputBuilder>().addComponents(
             createTextInput(

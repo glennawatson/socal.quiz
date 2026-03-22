@@ -56,7 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading: false,
       });
     } catch {
-      await secureRemove(TOKEN_KEY);
+      secureRemove(TOKEN_KEY);
       setState({ token: null, user: null, isLoading: false });
     }
   }, []);

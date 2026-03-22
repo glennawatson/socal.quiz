@@ -15,6 +15,14 @@ import { Config } from "../util/config.js";
 import { getClient } from "durable-functions";
 import * as df from "durable-functions";
 
+/**
+ * Handles the Discord interaction webhook endpoint — verifies Ed25519 signatures
+ * and routes valid interactions to the bot service for processing.
+ *
+ * @param request - The incoming HTTP request from Discord.
+ * @param context - The Azure Functions invocation context.
+ * @returns A promise that resolves to the HTTP response for the interaction.
+ */
 export async function interactions(
   request: HttpRequest,
   context: InvocationContext,
@@ -24,14 +32,14 @@ export async function interactions(
 
   await Config.initialize(durableClient);
   // 1. Verify Request (using discord-verify)
-  const signature = request.headers.get("x-signature-ed25519");
-  const timestamp = request.headers.get("x-signature-timestamp");
-  const rawBody = await request.text();
+  const signature: string | null = request.headers.get("x-signature-ed25519");
+  const timestamp: string | null = request.headers.get("x-signature-timestamp");
+  const rawBody: string = await request.text();
 
   // 2. Parse Interaction
-  const interaction = JSON.parse(rawBody) as APIInteraction;
+  const interaction: APIInteraction = JSON.parse(rawBody) as APIInteraction;
 
-  const isValid = await verify(
+  const isValid: boolean = await verify(
     rawBody,
     signature,
     timestamp,

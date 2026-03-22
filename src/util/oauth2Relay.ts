@@ -1,4 +1,9 @@
-// Define the entity structure for Azure Table Storage
+/**
+ * Relays OAuth2 operations to the Discord authorization server.
+ *
+ * Handles building authorize URLs (with PKCE), exchanging authorization codes
+ * for tokens, fetching user info, and revoking tokens.
+ */
 export class OAuth2Relay {
   private clientId: string;
   private clientSecret: string;
@@ -7,6 +12,16 @@ export class OAuth2Relay {
   private authorizeUrl: string;
   private revokeUrl: string;
 
+  /**
+   * Creates a new OAuth2Relay instance.
+   *
+   * @param clientId - The Discord application client ID.
+   * @param clientSecret - The Discord application client secret.
+   * @param defaultScopes - OAuth2 scopes to request by default.
+   * @param tokenUrl - The Discord token exchange endpoint URL.
+   * @param authorizeUrl - The Discord authorization endpoint URL.
+   * @param revokeUrl - The Discord token revocation endpoint URL.
+   */
   constructor(
     clientId: string,
     clientSecret: string,
@@ -26,6 +41,16 @@ export class OAuth2Relay {
     console.debug("OAuth2Relay initialized with clientId: ", clientId);
   }
 
+  /**
+   * Builds a Discord OAuth2 authorization URL with PKCE parameters.
+   *
+   * @param redirectUri - The URI Discord will redirect to after authorization.
+   * @param state - An opaque value used to prevent CSRF attacks.
+   * @param codeChallenge - The PKCE code challenge derived from the code verifier.
+   * @param codeChallengeMethod - The PKCE challenge method (e.g. "S256").
+   * @param scopeValues - Optional override for the OAuth2 scopes to request.
+   * @returns The fully constructed authorization URL.
+   */
   public getAuthorizeUrl(redirectUri: string, state: string, codeChallenge: string, codeChallengeMethod: string, scopeValues?: string[]): string {
     const scopeSet = new Set<string>((scopeValues ?? this.defaultScopes).flatMap(scope => scope.split(' ')));
     const scopes = scopeSet.difference(new Set(["profile"])).values().toArray().join(' ');
@@ -42,7 +67,15 @@ export class OAuth2Relay {
     return `${this.authorizeUrl}?${params.toString()}`;
   }
 
-  public async getUserInfo(accessToken: string): Promise<any> {
+  /**
+   * Fetches the authenticated Discord user's profile and converts it to an
+   * OpenID Connect-style user info object.
+   *
+   * @param accessToken - A valid Discord OAuth2 access token.
+   * @returns An object containing standard OIDC claims (sub, name, email, etc.)
+   *   plus Discord-specific fields.
+   */
+  public async getUserInfo(accessToken: string): Promise<Record<string, unknown>> {
     const response = await fetch("https://discord.com/api/users/@me", {
       method: "GET",
       headers: {
@@ -54,17 +87,23 @@ export class OAuth2Relay {
       throw new Error(`Failed to retrieve user info: ${response.statusText}`);
     }
 
-    const discordUser = await response.json();
+    const discordUser = (await response.json()) as Record<string, unknown>;
     return this.convertToOAuthUserInfo(discordUser);
   }
 
-  private convertToOAuthUserInfo(discordUser: any): any {
-    const oauthUserInfo: any = {
+  /**
+   * Converts a raw Discord user object into an OpenID Connect-style user info object.
+   *
+   * @param discordUser - The raw user object from the Discord API.
+   * @returns An OIDC-compatible user info record.
+   */
+  private convertToOAuthUserInfo(discordUser: Record<string, unknown>): Record<string, unknown> {
+    const oauthUserInfo: Record<string, unknown> = {
       sub: discordUser.id,
       name: discordUser.global_name ?? discordUser.name,
       preferred_username: discordUser.username,
-      profile: `https://discord.com/users/${discordUser.id}`,
-      picture: discordUser.avatar ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png` : null,
+      profile: `https://discord.com/users/${String(discordUser.id)}`,
+      picture: discordUser.avatar ? `https://cdn.discordapp.com/avatars/${String(discordUser.id)}/${discordUser.avatar as string}.png` : null,
       email: discordUser.email,
       email_verified: discordUser.verified,
       locale: discordUser.locale
@@ -84,7 +123,16 @@ export class OAuth2Relay {
     return oauthUserInfo;
   }
 
-  public async exchangeCodeForToken(grantType: string, params: Record<string, string>): Promise<any> {
+  /**
+   * Exchanges an authorization code (or refresh token) for an access token
+   * via the Discord token endpoint.
+   *
+   * @param grantType - The OAuth2 grant type (e.g. "authorization_code", "refresh_token").
+   * @param params - Additional parameters to include in the token request body
+   *   (e.g. `code`, `redirect_uri`, `code_verifier`).
+   * @returns The parsed token response from Discord (includes `access_token`, `refresh_token`, etc.).
+   */
+  public async exchangeCodeForToken(grantType: string, params: Record<string, string>): Promise<Record<string, unknown>> {
     const urlParams = new URLSearchParams();
     urlParams.append('client_id', this.clientId);
     urlParams.append('client_secret', this.clientSecret);
@@ -106,9 +154,15 @@ export class OAuth2Relay {
       throw new Error(`Failed to exchange code for token: ${response.statusText}`);
     }
 
-    return response.json();
+    return response.json() as Promise<Record<string, unknown>>;
   }
 
+  /**
+   * Revokes a Discord OAuth2 access or refresh token.
+   *
+   * @param token - The token to revoke.
+   * @returns A promise that resolves when the token is revoked.
+   */
   public async revokeToken(token: string): Promise<void> {
     console.debug("Revoking token...");
     let errorText: string | undefined;
@@ -129,7 +183,7 @@ export class OAuth2Relay {
         errorText = await revokeResponse.text();
       }
     } catch (error) {
-      errorText = `Token revocation failed: ${error}`;
+      errorText = `Token revocation failed: ${String(error)}`;
     }
 
     if (errorText) {

@@ -38,6 +38,7 @@
     "@vitejs/plugin-react": "^6.0.1",
     "eslint": "^10.1.0",
     "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-jsdoc": "^62.8.0",
     "globals": "^17.4.0",
     "prettier": "^3.8.1",
     "typescript": "~5.9.3",

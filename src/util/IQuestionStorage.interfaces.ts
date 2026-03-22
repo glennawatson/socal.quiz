@@ -8,6 +8,7 @@ import type { QuestionBank } from "../questionBank.interfaces.js";
 export interface IQuestionStorage {
   /**
    * Retrieves all questions from a specified question bank.
+   *
    * @param guildId - The ID of the guild.
    * @param bankName - The name of the question bank.
    * @returns A promise that resolves to an array of Question objects.
@@ -16,6 +17,7 @@ export interface IQuestionStorage {
 
   /**
    * Deletes a specified question bank and all its questions.
+   *
    * @param guildId - The ID of the guild.
    * @param bankName - The name of the question bank to delete.
    * @returns A promise that resolves when the question bank is deleted.
@@ -24,6 +26,7 @@ export interface IQuestionStorage {
 
   /**
    * Retrieves all unique question bank names.
+   *
    * @param guildId - The ID of the guild.
    * @returns A promise that resolves to an array of unique question bank names.
    */
@@ -31,6 +34,7 @@ export interface IQuestionStorage {
 
   /**
    * Generates a new question object.
+   *
    * @param questionText - The text of the question.
    * @param answers - An array of possible answers.
    * @param correctAnswerId - The ID of the correct answer.
@@ -52,6 +56,7 @@ export interface IQuestionStorage {
 
   /**
    * Generates a new answer object.
+   *
    * @param answerText - The text of the answer.
    * @returns A promise that resolves to the generated Answer object.
    */
@@ -59,15 +64,25 @@ export interface IQuestionStorage {
 
   /**
    * Upserts questions into the storage.
+   *
    * @param questionBank - The question bank to upsert.
    * @returns A promise that resolves when the questions are upserted.
    */
   upsertQuestionBank(questionBank: QuestionBank) : Promise<void>;
 }
 
+/**
+ * Discriminator for the type of image associated with a quiz question.
+ * - `"QuestionImage"` -- the main question image.
+ * - `"ExplanationImage"` -- the image shown with the explanation after answering.
+ * - `"AnswerImage"` -- an image associated with an individual answer option.
+ */
 export const ImageType = {
   Question: "QuestionImage",
   Explanation: "ExplanationImage",
+  Answer: "AnswerImage",
 } as const;
+
+/** Union type of allowed image type values. */
 export type ImageType = (typeof ImageType)[keyof typeof ImageType];
 

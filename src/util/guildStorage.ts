@@ -1,8 +1,15 @@
 import { RestError, TableClient, type TableEntity } from "@azure/data-tables";
 
+/** Manages guild registration state in Azure Table Storage. */
 export class GuildStorage {
   private guildClient: TableClient;
 
+  /**
+   * Creates a new GuildStorage instance.
+   *
+   * @param connectionString - The Azure Storage connection string.
+   * @param guildClient - An optional pre-constructed TableClient instance.
+   */
   constructor(connectionString?: string, guildClient?: TableClient) {
     if (!guildClient) {
       connectionString =
@@ -18,10 +25,21 @@ export class GuildStorage {
     }
   }
 
-  public async initialize() {
-    return this.guildClient.createTable();
+  /**
+   * Creates the GuildRegistrations table if it does not already exist.
+   *
+   * @returns A promise that resolves when the table exists.
+   */
+  public async initialize(): Promise<void> {
+    await this.guildClient.createTable();
   }
 
+  /**
+   * Checks whether a guild has been registered with the bot.
+   *
+   * @param guildId - The guild identifier to check.
+   * @returns True if the guild is registered, false otherwise.
+   */
   public async isGuildRegistered(guildId: string): Promise<boolean> {
     try {
       const entity = await this.guildClient.getEntity(
@@ -37,6 +55,12 @@ export class GuildStorage {
     }
   }
 
+  /**
+   * Records a guild as registered in storage.
+   *
+   * @param guildId - The guild identifier to register.
+   * @returns A promise that resolves when the registration completes.
+   */
   public async markGuildAsRegistered(guildId: string): Promise<void> {
     const entity: TableEntity = {
       partitionKey: "RegisteredGuilds",

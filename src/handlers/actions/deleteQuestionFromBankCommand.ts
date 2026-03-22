@@ -16,13 +16,22 @@ import {
 
 import type { IQuestionStorage } from "../../util/IQuestionStorage.interfaces.js";
 
+/** Handles the /delete_question_from_bank slash command to remove a single question from a bank. */
 export class DeleteQuestionFromBankCommand implements IDiscordCommand {
   private readonly questionStorage: IQuestionStorage;
+  /**
+   * @param questionStorage - The storage interface for managing questions.
+   */
   constructor(questionStorage: IQuestionStorage) {
     this.questionStorage = questionStorage;
   }
 
-  data(): SlashCommandOptionsOnlyBuilder {
+  /**
+   * Returns the slash command definition including bankname and questionid options.
+   *
+   * @returns The slash command builder.
+   */
+  public data(): SlashCommandOptionsOnlyBuilder {
     return new SlashCommandBuilder()
       .setName(this.name)
       .setDescription("Delete a question from a question bank")
@@ -40,9 +49,15 @@ export class DeleteQuestionFromBankCommand implements IDiscordCommand {
       );
   }
 
-  name = "delete_question_from_bank";
+  public name = "delete_question_from_bank";
 
-  async execute(
+  /**
+   * Removes the specified question from the given bank and persists the updated bank.
+   *
+   * @param interaction - The incoming chat command interaction.
+   * @returns A promise that resolves to an ephemeral interaction response.
+   */
+  public async execute(
     interaction: APIChatInputApplicationCommandInteraction,
   ): Promise<APIInteractionResponse> {
     try {

@@ -84,9 +84,10 @@ describe("NextQuestionCommand", () => {
     });
 
     it("should return an error if the quiz manager is not found", async () => {
+      const testError = new Error("could not find a quiz manager for guild guild-id");
       quizManagerFactoryManagerMock.getQuizManager = vi
         .fn()
-        .mockResolvedValue(null);
+        .mockRejectedValue(testError);
 
       const interaction: APIChatInputApplicationCommandInteraction = {
         guild_id: "guild-id",
@@ -108,7 +109,7 @@ describe("NextQuestionCommand", () => {
       const response = await nextQuestionCommand.execute(interaction);
 
       expect(response).toEqual(
-        generateOptionMissingErrorResponse("invalid quiz manager"),
+        generateErrorResponse(testError),
       );
     });
 

@@ -84,6 +84,15 @@ npm run dev          # Start Vite dev server with API proxy to localhost:7071
 - Optional interface properties that may be explicitly set to undefined should use `?: T | undefined`
 - Shared types between backend and web client live in `shared/` — backend re-exports them from `src/*.interfaces.ts`
 
+## Documentation & Type Annotations
+
+- Add JSDoc docstrings (`/** ... */`) to all public methods and exported functions
+- Use `@param` and `@returns` tags for methods with non-trivial parameters or return values
+- Add meaningful inline comments where logic is non-obvious — explain *why*, not *what*
+- Add explicit type annotations throughout: function parameters, return types, variable declarations where the type isn't immediately obvious from the initializer
+- Interface and type properties should have brief inline JSDoc comments when the name alone isn't self-explanatory
+- ESLint enforces `explicit-function-return-type` and `explicit-module-boundary-types` as warnings
+
 ## Goals
 
 The end goal is a polished Discord quiz system where:

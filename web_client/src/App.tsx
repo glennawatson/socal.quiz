@@ -8,6 +8,7 @@ import { AuthCallback } from "@/pages/AuthCallback";
 import { GuildsPage } from "@/pages/GuildsPage";
 import { QuestionBanksPage } from "@/pages/QuestionBanksPage";
 import { EditQuestionBankPage } from "@/pages/EditQuestionBankPage";
+import { GuildSettingsPage } from "@/pages/GuildSettingsPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -48,6 +49,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <EditQuestionBankPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/guilds/:guildId/settings"
+                element={
+                  <ProtectedRoute>
+                    <GuildSettingsPage />
                   </ProtectedRoute>
                 }
               />

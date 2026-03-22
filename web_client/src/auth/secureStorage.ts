@@ -7,16 +7,21 @@
 let sessionKey: CryptoKey | null = null;
 
 async function getOrCreateKey(): Promise<CryptoKey> {
-  if (!sessionKey) {
-    sessionKey = await crypto.subtle.generateKey(
-      { name: "AES-GCM", length: 256 },
-      false,
-      ["encrypt", "decrypt"],
-    );
-  }
+  sessionKey ??= await crypto.subtle.generateKey(
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"],
+  );
   return sessionKey;
 }
 
+/**
+ * Encrypts a value and stores it in sessionStorage under the given key.
+ *
+ * @param key - The sessionStorage key to store under.
+ * @param value - The plaintext value to encrypt and store.
+ * @returns A promise that resolves when the value is stored.
+ */
 export async function secureSet(key: string, value: string): Promise<void> {
   const cryptoKey = await getOrCreateKey();
   const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -36,6 +41,12 @@ export async function secureSet(key: string, value: string): Promise<void> {
   sessionStorage.setItem(key, btoa(String.fromCharCode(...combined)));
 }
 
+/**
+ * Retrieves and decrypts a value from sessionStorage.
+ *
+ * @param key - The sessionStorage key to retrieve.
+ * @returns The decrypted plaintext value, or null if not found or decryption fails.
+ */
 export async function secureGet(key: string): Promise<string | null> {
   const stored = sessionStorage.getItem(key);
   if (!stored || !sessionKey) {
@@ -61,6 +72,11 @@ export async function secureGet(key: string): Promise<string | null> {
   }
 }
 
+/**
+ * Removes a value from sessionStorage.
+ *
+ * @param key - The sessionStorage key to remove.
+ */
 export function secureRemove(key: string): void {
   sessionStorage.removeItem(key);
 }

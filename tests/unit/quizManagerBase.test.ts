@@ -13,6 +13,8 @@ import { createEphemeralResponse } from "../../src/util/interactionHelpers.js";
 import { IQuestionStorage } from "../../src/util/IQuestionStorage.interfaces.js";
 import { QuizState } from "../../src/handlers/quizState.interfaces.js";
 import { Question } from "../../src/question.interfaces.js";
+import { GuildQuizConfigStorage } from "../../src/util/guildQuizConfigStorage.js";
+import { defaultQuizConfig } from "../../shared/quizConfig.interfaces.js";
 
 class QuizManagerBaseImpl extends QuizManagerBase {
   public async runQuiz(_quiz: QuizState): Promise<void> {}
@@ -30,8 +32,8 @@ class QuizManagerBaseImpl extends QuizManagerBase {
     return createEphemeralResponse("answerInteraction called");
   }
 
-  constructor(rest: REST, quizStorage: IQuestionStorage) {
-    super(rest, quizStorage);
+  constructor(rest: REST, quizStorage: IQuestionStorage, configStorage: GuildQuizConfigStorage) {
+    super(rest, quizStorage, configStorage);
   }
 }
 
@@ -39,6 +41,7 @@ describe("QuizManagerBase", () => {
   let quizManagerBase: QuizManagerBaseImpl;
   let restMock: REST;
   let quizStateStorageMock: IQuestionStorage;
+  let configStorageMock: GuildQuizConfigStorage;
 
   beforeEach(() => {
     restMock = {} as REST;
@@ -50,8 +53,11 @@ describe("QuizManagerBase", () => {
       generateAnswer: vi.fn(),
       upsertQuestionBank: vi.fn(),
     } as unknown as IQuestionStorage;
+    configStorageMock = {
+      getEffectiveConfig: vi.fn().mockResolvedValue({ ...defaultQuizConfig }),
+    } as unknown as GuildQuizConfigStorage;
 
-    quizManagerBase = new QuizManagerBaseImpl(restMock, quizStateStorageMock);
+    quizManagerBase = new QuizManagerBaseImpl(restMock, quizStateStorageMock, configStorageMock);
   });
 
   describe("startQuiz", () => {
@@ -120,6 +126,12 @@ describe("QuizManagerBase", () => {
         questions,
         "guild123",
         "channel123",
+        defaultQuizConfig.advanceMode,
+        defaultQuizConfig.summaryDurationMs,
+        defaultQuizConfig.interQuestionMessages,
+        defaultQuizConfig.soundboardEnabled,
+        defaultQuizConfig.soundboardSoundIds,
+        defaultQuizConfig.soundboardVoiceChannelId,
       );
     });
   });

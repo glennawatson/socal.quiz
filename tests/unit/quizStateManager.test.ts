@@ -50,6 +50,12 @@ describe("Quiz Functions", () => {
         ["user2", 8],
         ["user3", 5],
       ]),
+      advanceMode: "auto",
+      summaryDurationMs: 5000,
+      interQuestionMessages: [],
+      soundboardEnabled: false,
+      soundboardSoundIds: [],
+      soundboardVoiceChannelId: "",
     };
     question = {
       questionShowTimeMs: 10,
@@ -208,29 +214,12 @@ describe("Quiz Functions", () => {
     );
   });
 
-  it("should log and return if quiz is invalid", async () => {
-    const consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-
-    await showScores(rest, null!);
-
-    expect(consoleLogSpy).toHaveBeenCalledWith("invalid quiz");
-    expect(mockRestPost).not.toHaveBeenCalled();
-
-    consoleLogSpy.mockRestore();
-  });
-
-  it("should log and return if channelId is invalid", async () => {
-    const consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+  it("should post scores even with empty channelId", async () => {
     quiz.channelId = "";
 
     await showScores(rest, quiz);
 
-    expect(consoleLogSpy).toHaveBeenCalledWith(
-      "no valid channel defined for the quiz to send scores to",
-    );
-    expect(mockRestPost).not.toHaveBeenCalled();
-
-    consoleLogSpy.mockRestore();
+    expect(mockRestPost).toHaveBeenCalled();
   });
 
   it("should handle question summary without explanation", async () => {

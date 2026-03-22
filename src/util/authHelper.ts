@@ -4,12 +4,31 @@ import type { APIGuild, APIUser } from "discord-api-types/v10";
 
 await Config.initialize();
 
+/**
+ * Result of an authentication + guild ownership check.
+ * Either a successful result containing `userId` and `guildId`, or an
+ * {@link HttpResponseInit} error response to return to the caller.
+ */
 export type AuthResult = { userId: string; guildId: string } | HttpResponseInit;
 
+/**
+ * Type guard that checks whether an {@link AuthResult} is an error HTTP response.
+ *
+ * @param result - The auth result to check.
+ * @returns `true` if the result is an HTTP error response.
+ */
 export function isErrorResponse(result: AuthResult): result is HttpResponseInit {
   return 'status' in result;
 }
 
+/**
+ * Validates the request's Discord OAuth2 bearer token and verifies the
+ * authenticated user owns the guild specified in the `guildId` query parameter.
+ *
+ * @param req - The incoming HTTP request (must include an `Authorization` header and `guildId` query param).
+ * @param context - The Azure Functions invocation context for logging.
+ * @returns The authenticated user's ID and guild ID on success, or an HTTP error response.
+ */
 export async function validateAuthAndGuildOwnership(
   req: HttpRequest,
   context: InvocationContext
@@ -76,7 +95,7 @@ export async function validateAuthAndGuildOwnership(
 
     const userGuild = userGuilds.find(guild => guild.id === guildId);
 
-    if (!userGuild || !userGuild.owner) {
+    if (!userGuild?.owner) {
       console.error("not a user guild owner");
 
       return {
@@ -88,7 +107,7 @@ export async function validateAuthAndGuildOwnership(
 
     return { userId: user.id, guildId };
   } catch (error) {
-    context.error(`Authorization error: ${error}`);
+    context.error(`Authorization error: ${String(error)}`);
     return {
       status: 401,
       headers: { 'Content-Type': 'application/json' },
@@ -97,16 +116,41 @@ export async function validateAuthAndGuildOwnership(
   }
 }
 
+/**
+ * Represents a successful token validation, containing the bearer token.
+ */
 export interface ValidationSuccess {
+  /** The validated Discord OAuth2 bearer token. */
   token: string;
 }
 
+/**
+ * Result of a token-only validation check.
+ * Either a {@link ValidationSuccess} or an {@link HttpResponseInit} error response.
+ */
 export type ValidationResult = ValidationSuccess | HttpResponseInit;
 
+/**
+ * Type guard that checks whether a {@link ValidationResult} is a successful validation.
+ *
+ * @param successInfo - The validation result to check.
+ * @returns `true` if the result contains a valid token.
+ */
 export function isValidationSuccess(successInfo: ValidationResult): successInfo is ValidationSuccess {
   return 'token' in successInfo;
 }
 
+/**
+ * Validates the request's Discord OAuth2 bearer token by calling the
+ * Discord `users/@me` endpoint.
+ *
+ * Does not check guild membership or ownership -- use
+ * {@link validateAuthAndGuildOwnership} for that.
+ *
+ * @param req - The incoming HTTP request (must include an `Authorization` header).
+ * @param context - The Azure Functions invocation context for logging.
+ * @returns The validated token on success, or an HTTP error response.
+ */
 export async function validateAuth(
   req: HttpRequest,
   context: InvocationContext
@@ -148,7 +192,7 @@ export async function validateAuth(
 
     return { token };
   } catch (error) {
-    context.error(`Invalid token: ${error}`);
+    context.error(`Invalid token: ${String(error)}`);
     return {
       status: 401,
       headers: { 'Content-Type': 'application/json' },

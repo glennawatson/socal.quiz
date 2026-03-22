@@ -83,6 +83,21 @@ export function EditQuestionDialog({
     [question],
   );
 
+  const handleAnswerImageChange = useCallback(
+    (answerId: string, imageUrl: string) => {
+      if (!question) return;
+      setQuestion({
+        ...question,
+        answers: question.answers.map((a) =>
+          a.answerId === answerId
+            ? { ...a, imagePartitionKey: imageUrl || undefined }
+            : a,
+        ),
+      });
+    },
+    [question],
+  );
+
   if (!question) return null;
 
   return (
@@ -111,31 +126,55 @@ export function EditQuestionDialog({
           <div className="grid gap-3">
             <div className="flex items-center justify-between">
               <Label>Answers</Label>
-              <Button size="sm" variant="outline" onClick={handleAddAnswer}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleAddAnswer}
+                disabled={question.answers.length >= 6}
+              >
                 Add Answer
               </Button>
             </div>
             {question.answers.map((answer, idx) => (
-              <div key={answer.answerId} className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground w-6">
-                  {idx + 1}.
-                </span>
-                <Input
-                  value={answer.answer}
-                  onChange={(e) =>
-                    handleAnswerChange(answer.answerId, e.target.value)
-                  }
-                  placeholder={`Answer ${idx + 1}`}
-                  className="flex-1"
-                />
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => handleDeleteAnswer(answer.answerId)}
-                  disabled={question.answers.length <= 2}
-                >
-                  Remove
-                </Button>
+              <div key={answer.answerId} className="grid gap-1 p-2 border rounded">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground w-6">
+                    {idx + 1}.
+                  </span>
+                  <Input
+                    value={answer.answer}
+                    onChange={(e) =>
+                      handleAnswerChange(answer.answerId, e.target.value)
+                    }
+                    placeholder={`Answer ${idx + 1}`}
+                    className="flex-1"
+                  />
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => handleDeleteAnswer(answer.answerId)}
+                    disabled={question.answers.length <= 2}
+                  >
+                    Remove
+                  </Button>
+                </div>
+                <div className="flex items-center gap-2 ml-8">
+                  <Input
+                    value={answer.imagePartitionKey ?? ""}
+                    onChange={(e) =>
+                      handleAnswerImageChange(answer.answerId, e.target.value)
+                    }
+                    placeholder="Answer image URL (optional)"
+                    className="flex-1 text-sm"
+                  />
+                  {answer.imagePartitionKey && (
+                    <img
+                      src={answer.imagePartitionKey}
+                      alt={`Answer ${idx + 1}`}
+                      className="h-10 w-10 rounded border object-contain"
+                    />
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -209,7 +248,7 @@ export function EditQuestionDialog({
                 onChange={(val) =>
                   setQuestion({
                     ...question,
-                    explanation: val || undefined,
+                    explanation: val ?? undefined,
                   })
                 }
                 height={120}

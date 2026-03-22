@@ -56,6 +56,7 @@ describe("StartQuizCommand", () => {
         "123",
         "channel-id",
         "sampleBank",
+        undefined,
       );
       expect(response).toEqual(createEphemeralResponse("Quiz started"));
     });

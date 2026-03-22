@@ -1,6 +1,7 @@
 import { CommandManager } from "./actions/commandManager.js";
 import {
   type APIInteraction,
+  type APIInteractionResponse,
   type APIRole,
   InteractionType,
   Routes,
@@ -11,13 +12,16 @@ import {
 } from "../util/interactionHelpers.js";
 import { GuildStorage } from "../util/guildStorage.js";
 import "../util/mapExtensions.js";
-import { throwError } from "../util/errorHelpers.js";
 import { QuizManagerFactoryManager } from "./quizManagerFactoryManager.js";
 import { REST } from "@discordjs/rest";
 
 export const QUIZ_ADMIN_ROLE_NAME = "QuizAdmin";
 const QUIZ_ADMIN_ROLE_COLOR = 0x2ecc71; // Green
 
+/**
+ * Top-level service that bootstraps a guild (registers commands, creates roles)
+ * and routes incoming Discord interactions to the appropriate handler.
+ */
 export class DiscordBotService {
   private commandManager: CommandManager;
 
@@ -25,6 +29,12 @@ export class DiscordBotService {
   private readonly quizManager: QuizManagerFactoryManager;
   private readonly rest: REST;
 
+  /**
+   * @param guildStorage - The storage interface for guild registration data.
+   * @param quizManager - The factory manager for quiz instances.
+   * @param commandManager - The command manager for handling Discord commands.
+   * @param rest - The Discord REST client.
+   */
   constructor(
     guildStorage: GuildStorage,
     quizManager: QuizManagerFactoryManager,
@@ -34,20 +44,31 @@ export class DiscordBotService {
     this.guildStorage = guildStorage;
     this.quizManager = quizManager;
     this.rest = rest;
-    this.commandManager =
-      commandManager ?? throwError("could not find a valid command manager");
+    this.commandManager = commandManager;
   }
 
-  public async start(guildId: string) {
+  /**
+   * Registers slash commands, creates the QuizAdmin role, and marks the guild as registered.
+   *
+   * @param guildId - The ID of the guild to initialize.
+   * @returns A promise that resolves when initialization is complete.
+   */
+  public async start(guildId: string): Promise<void> {
     await this.commandManager.registerDefaultCommands(guildId);
     await this.ensureQuizAdminRole(guildId);
     await this.guildStorage.markGuildAsRegistered(guildId);
   }
 
+  /**
+   * Finds or creates the QuizAdmin role in the guild and records its ID on the command manager.
+   *
+   * @param guildId - The ID of the guild.
+   * @returns A promise that resolves when the role is ensured.
+   */
   private async ensureQuizAdminRole(guildId: string): Promise<void> {
     try {
       const roles = await this.rest.get(Routes.guildRoles(guildId)) as APIRole[];
-      const existing = roles.find(r => r.name === QUIZ_ADMIN_ROLE_NAME);
+      const existing: APIRole | undefined = roles.find(r => r.name === QUIZ_ADMIN_ROLE_NAME);
       if (existing) {
         this.commandManager.setQuizAdminRoleId(existing.id);
         return;
@@ -65,11 +86,19 @@ export class DiscordBotService {
       this.commandManager.setQuizAdminRoleId(newRole.id);
       console.log(`Created ${QUIZ_ADMIN_ROLE_NAME} role in guild ${guildId}`);
     } catch (error) {
-      console.error(`Failed to create ${QUIZ_ADMIN_ROLE_NAME} role: ${error}`);
+      console.error(`Failed to create ${QUIZ_ADMIN_ROLE_NAME} role: ${String(error)}`);
     }
   }
 
-  public async handleInteraction(interaction: APIInteraction) {
+  /**
+   * Routes an incoming Discord interaction to the correct handler:
+   * answer button presses go to the quiz manager, all others to the command manager.
+   * Lazily registers the guild on first interaction.
+   *
+   * @param interaction - The incoming Discord interaction.
+   * @returns A promise that resolves to an interaction response.
+   */
+  public async handleInteraction(interaction: APIInteraction): Promise<APIInteractionResponse> {
     try {
       if (!interaction.guild_id) {
         return createEphemeralResponse(
@@ -78,14 +107,14 @@ export class DiscordBotService {
       }
 
       // Register commands for the guild if not already registered
-      const isRegistered = await this.guildStorage.isGuildRegistered(
+      const isRegistered: boolean = await this.guildStorage.isGuildRegistered(
         interaction.guild_id,
       );
       if (!isRegistered) {
         await this.start(interaction.guild_id);
       }
 
-      // Check if the interaction is an answer interaction
+      // Route answer button presses to the quiz manager
       if (
         interaction.type === InteractionType.MessageComponent &&
         interaction.data.custom_id.startsWith("answer_")
@@ -93,15 +122,13 @@ export class DiscordBotService {
         const quizManager = await this.quizManager.getQuizManager(
           interaction.guild_id,
         );
-        const result = await quizManager.handleAnswerInteraction(interaction);
-        return result;
+        return await quizManager.handleAnswerInteraction(interaction);
       }
 
-      // Delegate interaction handling to the CommandManager
+      // Delegate all other interactions to the command manager
       const response = await this.commandManager.handleInteraction(interaction);
 
       if (!response) {
-        // Handle cases where the CommandManager doesn't provide a response (e.g., unknown interaction type)
         console.warn(
           "Unknown interaction type or no response from CommandManager.",
         );

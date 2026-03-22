@@ -30,19 +30,21 @@ import {
 import { EditQuestionDialog } from "@/components/EditQuestionDialog";
 
 export function EditQuestionBankPage() {
-  const { guildId, bankName: routeBankName } = useParams<{
+  const { guildId: rawGuildId, bankName: rawRouteBankName } = useParams<{
     guildId: string;
     bankName: string;
   }>();
+  const guildId = rawGuildId ?? "";
+  const routeBankName = rawRouteBankName ?? "";
   const navigate = useNavigate();
   const isNew = routeBankName === "__new__";
 
   const { data: existingBank, isLoading } = useQuestionBank(
-    guildId!,
-    isNew ? "" : routeBankName!,
+    guildId,
+    isNew ? "" : routeBankName,
   );
 
-  const upsertMutation = useUpsertQuestionBank(guildId!);
+  const upsertMutation = useUpsertQuestionBank(guildId);
 
   const [bankName, setBankName] = useState("");
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -59,7 +61,7 @@ export function EditQuestionBankPage() {
   const handleSave = useCallback(() => {
     const body: QuestionBankRequestBody = {
       name: bankName,
-      guildId: guildId!,
+      guildId,
       questions: questions.map((q) => ({ ...q })),
     };
     upsertMutation.mutate(body, {

@@ -22,6 +22,7 @@ import { createTextInput } from "../../util/commandHelpers.js";
 import type { IQuestionStorage } from "../../util/IQuestionStorage.interfaces.js";
 import type { Answer } from "../../answer.interfaces.js";
 
+/** Handles the /add_question_to_bank slash command and its modal submission to add a new question to a bank. */
 export class AddQuestionToBankCommand implements IModalHandlerCommand {
   public static readonly componentIds = {
     bankName: "bankname",
@@ -32,22 +33,37 @@ export class AddQuestionToBankCommand implements IModalHandlerCommand {
   };
 
   private readonly questionStorage: IQuestionStorage;
+  /**
+   * @param questionStorage - The storage interface for managing questions.
+   */
   constructor(questionStorage: IQuestionStorage) {
     this.questionStorage = questionStorage;
   }
 
-  data(): SlashCommandOptionsOnlyBuilder {
+  /**
+   * Returns the slash command definition for adding a question to a bank.
+   *
+   * @returns The slash command builder.
+   */
+  public data(): SlashCommandOptionsOnlyBuilder {
     return new SlashCommandBuilder()
       .setName(this.name)
       .setDescription("Add a question to a question bank");
   }
 
-  name = "add_question_to_bank";
+  public name = "add_question_to_bank";
 
+  /**
+   * Opens a modal dialog for the user to enter question details.
+   *
+   * @param interaction - The incoming chat command interaction.
+   * @returns A promise that resolves to a modal interaction response.
+   */
+  // eslint-disable-next-line @typescript-eslint/require-await -- Must be async to satisfy IDiscordCommand interface
   public async execute(
     interaction: APIChatInputApplicationCommandInteraction,
   ): Promise<APIInteractionResponse> {
-    const guildId = interaction.guild_id;
+    const guildId: string | undefined = interaction.guild_id;
 
     if (!guildId) {
       return createEphemeralResponse("Must have a valid guild id.");
@@ -57,6 +73,7 @@ export class AddQuestionToBankCommand implements IModalHandlerCommand {
       .setCustomId(this.name)
       .setTitle("Add Question to Bank");
 
+    // eslint-disable-next-line @typescript-eslint/no-deprecated
     modal.addComponents(
       new ActionRowBuilder<TextInputBuilder>().addComponents(
         createTextInput(
@@ -103,10 +120,16 @@ export class AddQuestionToBankCommand implements IModalHandlerCommand {
     };
   }
 
+  /**
+   * Processes the submitted modal data, validates inputs, and persists the new question to storage.
+   *
+   * @param interaction - The modal submit interaction.
+   * @returns A promise that resolves to an ephemeral interaction response.
+   */
   public async handleModalSubmit(
     interaction: APIModalSubmitInteraction,
   ): Promise<APIInteractionResponse> {
-    const guildId = interaction.guild_id;
+    const guildId: string | undefined = interaction.guild_id;
 
     if (!guildId) {
       return createEphemeralResponse("Must have a valid guild id.");

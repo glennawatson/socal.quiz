@@ -14,21 +14,36 @@ import {
 } from "../../util/interactionHelpers.js";
 import { QuizManagerFactoryManager } from "../quizManagerFactoryManager.js";
 
+/** Handles the /next_question slash command to manually advance to the next quiz question. */
 export class NextQuestionCommand implements IDiscordCommand {
   private readonly quizStateManager: QuizManagerFactoryManager;
+  /**
+   * @param quizStateManager - The factory manager for quiz instances.
+   */
   constructor(quizStateManager: QuizManagerFactoryManager) {
     this.quizStateManager = quizStateManager;
   }
 
-  data(): SlashCommandOptionsOnlyBuilder {
+  /**
+   * Returns the slash command definition for advancing to the next question.
+   *
+   * @returns The slash command builder.
+   */
+  public data(): SlashCommandOptionsOnlyBuilder {
     return new SlashCommandBuilder()
       .setName(this.name)
       .setDescription("Show the next quiz question");
   }
 
-  name = "next_question";
+  public name = "next_question";
 
-  async execute(
+  /**
+   * Advances to the next question in the active quiz session for the current guild.
+   *
+   * @param interaction - The incoming chat command interaction.
+   * @returns A promise that resolves to an ephemeral interaction response.
+   */
+  public async execute(
     interaction: APIChatInputApplicationCommandInteraction,
   ): Promise<APIInteractionResponse> {
     try {
@@ -39,10 +54,6 @@ export class NextQuestionCommand implements IDiscordCommand {
       }
 
       const quizManager = await this.quizStateManager.getQuizManager(guildId);
-
-      if (!quizManager) {
-        return generateOptionMissingErrorResponse("invalid quiz manager");
-      }
 
       await quizManager.nextQuizQuestion(guildId, interaction.channel.id);
 

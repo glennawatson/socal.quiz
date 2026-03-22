@@ -11,29 +11,48 @@ import {
   isNullOrWhitespace,
 } from "../util/interactionHelpers.js";
 import type { Question } from "../question.interfaces.js";
+import type { GuildQuizConfigStorage } from "../util/guildQuizConfigStorage.js";
+import type {
+  InterQuestionMessage,
+  QuizAdvanceMode,
+} from "../quizConfig.interfaces.js";
 
 /**
  * Abstract base class for managing quiz functionalities.
+ *
+ * Provides shared logic for starting, stopping, and advancing quizzes,
+ * as well as handling answer interactions from Discord users. Concrete
+ * subclasses (e.g. {@link DurableQuizManager}) implement the orchestration
+ * mechanism.
  */
 export abstract class QuizManagerBase {
+  /** The Discord REST client used to call the Discord API. */
+  protected readonly rest: REST;
+  /** Storage interface for retrieving question banks and questions. */
+  protected readonly quizStateStorage: IQuestionStorage;
+  /** Storage interface for retrieving guild-scoped quiz configuration. */
+  protected readonly configStorage: GuildQuizConfigStorage;
+
   /**
    * Constructs a QuizManagerBase instance.
-   * @param {REST} rest - The REST client for Discord API.
-   * @param {IQuestionStorage} quizStateStorage - Storage interface for quiz questions.
+   *
+   * @param rest - The REST client for Discord API.
+   * @param quizStateStorage - Storage interface for quiz questions.
+   * @param configStorage - Storage interface for guild quiz configuration.
    */
-  protected readonly rest: REST;
-  protected readonly quizStateStorage: IQuestionStorage;
-
   protected constructor(
     rest: REST,
     quizStateStorage: IQuestionStorage,
+    configStorage: GuildQuizConfigStorage,
   ) {
     this.rest = rest;
     this.quizStateStorage = quizStateStorage;
+    this.configStorage = configStorage;
   }
 
   /**
    * Runs the quiz.
+   *
    * @param {QuizState} quiz - The state of the quiz to run.
    * @returns {Promise<void>} - A promise for the quiz to run.
    */
@@ -41,6 +60,7 @@ export abstract class QuizManagerBase {
 
   /**
    * Stops the quiz in the specified guild and channel.
+   *
    * @param {string} guildId - The ID of the guild.
    * @param {string} channelId - The ID of the channel.
    * @returns {Promise<void>} - A promise that resolves when the quiz is stopped.
@@ -49,6 +69,7 @@ export abstract class QuizManagerBase {
 
   /**
    * Moves to the next quiz question in the specified guild and channel.
+   *
    * @param {string} guildId - The ID of the guild.
    * @param {string} channelId - The ID of the channel.
    * @returns {Promise<void>} - A promise that resolves when the quiz is skipped a question.
@@ -60,15 +81,23 @@ export abstract class QuizManagerBase {
 
   /**
    * Starts a quiz in the specified guild and channel with the provided question bank.
-   * @param {string} guildId - The ID of the guild.
-   * @param {string} channelId - The ID of the channel.
-   * @param {string} questionBankName - The name of the question bank to use.
-   * @returns {Promise<APIInteractionResponse>} - A promise that resolves to an interaction response.
+   *
+   * Loads the question bank from storage, resolves the effective quiz configuration,
+   * and delegates to {@link startQuizInternal}.
+   *
+   * @param guildId - The ID of the guild.
+   * @param channelId - The ID of the channel.
+   * @param questionBankName - The name of the question bank to use.
+   * @param advanceModeOverride - Optional override for the quiz advance mode
+   *   (e.g. "auto" or "manual"). When provided, takes precedence over the
+   *   guild/bank configuration value.
+   * @returns A promise that resolves to an interaction response.
    */
   public async startQuiz(
     guildId: string,
     channelId: string,
     questionBankName: string,
+    advanceModeOverride?: QuizAdvanceMode  ,
   ): Promise<APIInteractionResponse> {
     if (isNullOrWhitespace(questionBankName)) {
       return createEphemeralResponse(`There is no valid question bank name`);
@@ -77,38 +106,69 @@ export abstract class QuizManagerBase {
     const questionBank = await this.quizStateStorage.getQuestionBank(guildId, questionBankName);
     const questions = questionBank.questions;
 
-    if (!questions || questions.length === 0) {
+    if (questions.length === 0) {
       return createEphemeralResponse(
         `There are no valid questions in the question bank ${questionBankName}`,
       );
     }
 
-    return await this.startQuizInternal(questions, guildId, channelId);
+    const config = await this.configStorage.getEffectiveConfig(
+      guildId,
+      questionBankName,
+    );
+
+    return await this.startQuizInternal(
+      questions,
+      guildId,
+      channelId,
+      advanceModeOverride ?? config.advanceMode,
+      config.summaryDurationMs,
+      config.interQuestionMessages,
+      config.soundboardEnabled,
+      config.soundboardSoundIds,
+      config.soundboardVoiceChannelId,
+    );
   }
 
   /**
    * Internal method to start a quiz with the given questions.
-   * @param {Question[]} questions - The list of questions for the quiz.
-   * @param {string} guildId - The ID of the guild.
-   * @param {string} channelId - The ID of the channel.
-   * @returns {Promise<APIInteractionResponse>} - A promise that resolves to an interaction response.
+   *
+   * Validates the question list, builds a {@link QuizState}, stops any
+   * previously running quiz in the same channel, and starts the new quiz.
+   *
+   * @param questions - The list of questions for the quiz.
+   * @param guildId - The ID of the guild.
+   * @param channelId - The ID of the channel.
+   * @param advanceMode - How questions advance: "auto" (timer) or "manual" (host triggers). Defaults to "auto".
+   * @param summaryDurationMs - Milliseconds to display the answer summary before advancing. Defaults to 5000.
+   * @param interQuestionMessages - Optional messages displayed between questions.
+   * @param soundboardEnabled - Whether to play soundboard audio during the quiz. Defaults to false.
+   * @param soundboardSoundIds - Blob names of sounds eligible for playback.
+   * @param soundboardVoiceChannelId - The voice channel to join for soundboard playback.
+   * @returns A promise that resolves to an interaction response.
    */
   public async startQuizInternal(
     questions: Question[],
     guildId: string,
     channelId: string,
+    advanceMode: QuizAdvanceMode = "auto",
+    summaryDurationMs = 5000,
+    interQuestionMessages: InterQuestionMessage[] = [],
+    soundboardEnabled = false,
+    soundboardSoundIds: string[] = [],
+    soundboardVoiceChannelId = "",
   ): Promise<APIInteractionResponse> {
     if (questions.length === 0) {
       return createEphemeralResponse("There are no valid questions");
     }
 
     const invalidQuestions = questions.filter(
-      (q) => !q || q.question.trim() === "",
+      (q) => q.question.trim() === "",
     );
 
     if (invalidQuestions.length > 0) {
       const invalidQuestionIds = invalidQuestions
-        .map((q) => q?.questionId ?? "unknown")
+        .map((q) => q.questionId)
         .join(", ");
       return createEphemeralResponse(
         `There are invalid questions with IDs: ${invalidQuestionIds}`,
@@ -123,6 +183,12 @@ export abstract class QuizManagerBase {
       currentQuestionId: questions[0]?.questionId ?? null,
       answeredUsersForQuestion: new Set<string>(),
       guildId: guildId,
+      advanceMode,
+      summaryDurationMs,
+      interQuestionMessages,
+      soundboardEnabled,
+      soundboardSoundIds,
+      soundboardVoiceChannelId,
     };
 
     await this.stopQuiz(quiz.guildId, channelId); // Stop any existing quiz before starting a new one
@@ -136,8 +202,9 @@ export abstract class QuizManagerBase {
 
   /**
    * Handles an interaction for answering a quiz question.
-   * @param {APIInteraction} interaction - The interaction to handle.
-   * @returns {Promise<APIInteractionResponse>} - A promise that resolves to an interaction response.
+   *
+   * @param interaction - The interaction to handle.
+   * @returns - A promise that resolves to an interaction response.
    */
   public async handleAnswerInteraction(
     interaction: APIInteraction,
@@ -179,6 +246,7 @@ export abstract class QuizManagerBase {
 
   /**
    * Abstract method to handle an interaction answer.
+   *
    * @param {string} guildId - The ID of the guild.
    * @param {string} channelId - The ID of the channel.
    * @param {string} userId - The ID of the user.

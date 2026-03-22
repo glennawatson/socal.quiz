@@ -1,4 +1,4 @@
-import { InvocationContext } from "@azure/functions";
+import { type InvocationContext } from "@azure/functions";
 import * as df from "durable-functions";
 import type {
   ActivityHandler,
@@ -9,30 +9,40 @@ import type { QuizState } from "../handlers/quizState.interfaces.js";
 import { DateTime } from "luxon";
 import { Config } from "../util/config.js";
 import {
+  postInterQuestionMessage,
   postQuestion,
   sendQuestionSummary,
   showScores,
 } from "../handlers/quizStateManager.js";
 import type { Question } from "../question.interfaces.js";
 import { isAnswerEvent } from "../handlers/answerEvent.interfaces.js";
+import { QuizAdvanceMode } from "../quizConfig.interfaces.js";
+import type { InterQuestionMessage } from "../quizConfig.interfaces.js";
 
-const summaryDurationMs = 5000;
-
+/**
+ * Durable Functions orchestrator that drives a quiz session from start to finish.
+ * Iterates through each question in the bank, waits for answers or timer expiry,
+ * tracks scores, posts inter-question messages and soundboard sounds, and
+ * finally displays the scoreboard.
+ *
+ * @param context - The durable orchestration context.
+ * @yields {unknown} Control flow back to the durable framework between activity calls and external events.
+ */
 export const QuizOrchestrator: OrchestrationHandler = function* (
   context: OrchestrationContext,
 ) {
   const quiz: QuizState = context.df.getInput();
 
   for (let index = 0; index < quiz.questionBank.length; index++) {
-    const question = quiz.questionBank[index];
-    if (!question || !question.question) {
+    const question: Question | undefined = quiz.questionBank[index];
+    if (!question?.question) {
       continue;
     }
 
     quiz.currentQuestionId = question.questionId;
     yield context.df.callActivity("PostQuestion", quiz);
 
-    const questionTime = DateTime.fromJSDate(context.df.currentUtcDateTime, {
+    const questionTime: DateTime = DateTime.fromJSDate(context.df.currentUtcDateTime, {
       zone: "utc",
     }).plus({ milliseconds: question.questionShowTimeMs });
 
@@ -41,11 +51,11 @@ export const QuizOrchestrator: OrchestrationHandler = function* (
     const cancelEvent = context.df.waitForExternalEvent("cancelQuiz");
 
     let shouldSkip = false;
-
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     while (true) {
       const timer = context.df.createTimer(questionTime.toJSDate());
       const answerEvent = context.df.waitForExternalEvent("answerQuestion");
-      const winner = yield context.df.Task.any([
+      const winner: unknown = yield context.df.Task.any([
         timer,
         skipQuestionEvent,
         cancelEvent,
@@ -53,7 +63,6 @@ export const QuizOrchestrator: OrchestrationHandler = function* (
       ]);
 
       if (winner === timer) {
-        shouldSkip = false;
         break;
       }
 
@@ -83,19 +92,19 @@ export const QuizOrchestrator: OrchestrationHandler = function* (
         // Track that this user has answered
         quiz.answeredUsersForQuestion.add(answerEventData.userId);
 
-        const isCorrect =
+        const isCorrect: boolean =
           question.correctAnswerId === answerEventData.selectedAnswerId;
 
         if (isCorrect) {
           quiz.correctUsersForQuestion.add(answerEventData.userId);
           quiz.activeUsers.set(
             answerEventData.userId,
-            (quiz.activeUsers.get(answerEventData.userId) || 0) + 1,
+            (quiz.activeUsers.get(answerEventData.userId) ?? 0) + 1,
           );
         } else {
           quiz.activeUsers.set(
             answerEventData.userId,
-            quiz.activeUsers.get(answerEventData.userId) || 0,
+            quiz.activeUsers.get(answerEventData.userId) ?? 0,
           );
         }
       }
@@ -114,20 +123,64 @@ export const QuizOrchestrator: OrchestrationHandler = function* (
       continue;
     }
 
-    const summaryTime = DateTime.fromJSDate(context.df.currentUtcDateTime, {
-      zone: "utc",
-    }).plus({ milliseconds: summaryDurationMs });
+    // Post inter-question message if configured
+    if (quiz.interQuestionMessages.length > 0) {
+      const messageIndex: number = index % quiz.interQuestionMessages.length;
+      const message: InterQuestionMessage | undefined = quiz.interQuestionMessages[messageIndex];
+      if (message) {
+        yield context.df.callActivity("PostInterQuestionMessage", {
+          channelId: quiz.channelId,
+          message,
+        });
+      }
+    }
 
-    // Wait for the timer or the cancel signal during summary
-    const summaryEvent = context.df.waitForExternalEvent("cancelQuiz");
+    // Play soundboard sound if enabled
+    if (
+      quiz.soundboardEnabled &&
+      quiz.soundboardSoundIds.length > 0
+    ) {
+      const soundIndex: number = index % quiz.soundboardSoundIds.length;
+      const soundId: string | undefined = quiz.soundboardSoundIds[soundIndex];
+      if (soundId) {
+        yield context.df.callActivity("PlaySound", {
+          guildId: quiz.guildId,
+          soundBlobName: soundId,
+        });
+      }
+    }
 
-    const summaryWinner = yield context.df.Task.any([
-      context.df.createTimer(summaryTime.toJSDate()),
-      summaryEvent,
-    ]);
+    // Wait between questions: manual mode waits for admin advance, auto mode uses timer
+    if (quiz.advanceMode === QuizAdvanceMode.Manual) {
+      const advanceEvent =
+        context.df.waitForExternalEvent("advanceQuestion");
+      const cancelDuringWait =
+        context.df.waitForExternalEvent("cancelQuiz");
 
-    if (summaryWinner === summaryEvent) {
-      return;
+      const advanceWinner: unknown = yield context.df.Task.any([
+        advanceEvent,
+        cancelDuringWait,
+      ]);
+
+      if (advanceWinner === cancelDuringWait) {
+        return;
+      }
+    } else {
+      const summaryTime: DateTime = DateTime.fromJSDate(
+        context.df.currentUtcDateTime,
+        { zone: "utc" },
+      ).plus({ milliseconds: quiz.summaryDurationMs });
+
+      const summaryEvent = context.df.waitForExternalEvent("cancelQuiz");
+
+      const summaryWinner: unknown = yield context.df.Task.any([
+        context.df.createTimer(summaryTime.toJSDate()),
+        summaryEvent,
+      ]);
+
+      if (summaryWinner === summaryEvent) {
+        return;
+      }
     }
   }
 
@@ -136,11 +189,21 @@ export const QuizOrchestrator: OrchestrationHandler = function* (
 
 df.app.orchestration("QuizOrchestrator", QuizOrchestrator);
 
+/** Internal data structure mapping a question ID to its resolved Question object. */
 interface QuestionServerData {
   currentQuestionId: number;
   currentQuestion: Question | undefined;
 }
 
+/**
+ * Resolves the current question's details from the quiz state by looking up
+ * the question by its ID in the question bank array. Initializes the Config
+ * with the durable client for downstream use.
+ *
+ * @param input - The current quiz state containing the question bank and current question ID.
+ * @param context - The Azure Functions invocation context.
+ * @returns A promise that resolves to the question server data with the current question details.
+ */
 async function getQuestionServerDetails(
   input: QuizState,
   context: InvocationContext,
@@ -149,11 +212,11 @@ async function getQuestionServerDetails(
 
   await Config.initialize(durableClient);
 
-  const questionNumber =
+  const questionNumber: number =
     input.questionBank.findIndex(
       (q) => q.questionId === input.currentQuestionId,
     ) + 1;
-  const currentQuestion = input.questionBank[questionNumber - 1];
+  const currentQuestion: Question | undefined = input.questionBank[questionNumber - 1];
 
   return {
     currentQuestion: currentQuestion,
@@ -161,11 +224,19 @@ async function getQuestionServerDetails(
   };
 }
 
+/**
+ * Durable Functions activity that posts the current quiz question to the Discord channel.
+ * Looks up the question details and sends it with any associated images.
+ *
+ * @param input - The current quiz state.
+ * @param context - The Azure Functions invocation context.
+ * @returns A promise that resolves when the question has been posted.
+ */
 export const PostQuestion: ActivityHandler = async (
   input: QuizState,
   context: InvocationContext,
-) => {
-  const questionData = await getQuestionServerDetails(input, context);
+): Promise<void> => {
+  const questionData: QuestionServerData = await getQuestionServerDetails(input, context);
 
   if (!questionData.currentQuestion) {
     console.error(
@@ -183,11 +254,19 @@ export const PostQuestion: ActivityHandler = async (
   );
 };
 
+/**
+ * Durable Functions activity that posts the question summary (correct answer,
+ * explanation, and who answered correctly) after the question timer expires.
+ *
+ * @param input - The current quiz state.
+ * @param context - The Azure Functions invocation context.
+ * @returns A promise that resolves when the summary has been sent.
+ */
 export const SendQuestionSummary: ActivityHandler = async (
   input: QuizState,
   context: InvocationContext,
-) => {
-  const questionData = await getQuestionServerDetails(input, context);
+): Promise<void> => {
+  const questionData: QuestionServerData = await getQuestionServerDetails(input, context);
 
   if (!questionData.currentQuestion) {
     console.error(
@@ -205,10 +284,42 @@ export const SendQuestionSummary: ActivityHandler = async (
   );
 };
 
+/** Input shape for the PostInterQuestionMessage activity. */
+interface InterQuestionMessageInput {
+  channelId: string;
+  message: InterQuestionMessage;
+}
+
+/**
+ * Durable Functions activity that posts an inter-question message (e.g. trivia facts,
+ * advertisements) to the quiz channel between questions.
+ *
+ * @param input - The channel ID and message content to post.
+ * @param context - The Azure Functions invocation context.
+ * @returns A promise that resolves when the message has been posted.
+ */
+export const PostInterQuestionMessage: ActivityHandler = async (
+  input: InterQuestionMessageInput,
+  context: InvocationContext,
+): Promise<void> => {
+  const durableClient = df.getClient(context);
+  await Config.initialize(durableClient);
+
+  await postInterQuestionMessage(Config.rest, input.channelId, input.message);
+};
+
+/**
+ * Durable Functions activity that posts the final scoreboard to the quiz channel
+ * after all questions have been answered.
+ *
+ * @param input - The current quiz state containing scores.
+ * @param context - The Azure Functions invocation context.
+ * @returns A promise that resolves when the scores have been displayed.
+ */
 export const ShowScores: ActivityHandler = async (
   input: QuizState,
   context: InvocationContext,
-) => {
+): Promise<void> => {
   const durableClient = df.getClient(context);
 
   await Config.initialize(durableClient);
@@ -216,6 +327,44 @@ export const ShowScores: ActivityHandler = async (
   await showScores(Config.rest, input);
 };
 
+/** Input shape for the PlaySound activity. */
+interface PlaySoundInput {
+  guildId: string;
+  soundBlobName: string;
+}
+
+/**
+ * Durable Functions activity that plays a soundboard sound in the guild's voice channel.
+ * Skips playback if the bot is not currently connected to voice in that guild.
+ *
+ * @param input - The guild ID and sound blob name to play.
+ * @param context - The Azure Functions invocation context.
+ * @returns A promise that resolves when the sound has been played or skipped.
+ */
+export const PlaySound: ActivityHandler = async (
+  input: PlaySoundInput,
+  context: InvocationContext,
+): Promise<void> => {
+  const durableClient = df.getClient(context);
+  await Config.initialize(durableClient);
+
+  if (!Config.soundboardManager.isConnected(input.guildId)) {
+    console.warn(
+      `Soundboard not connected for guild ${input.guildId}, skipping sound playback`,
+    );
+    return;
+  }
+
+  await Config.soundboardManager.playSound(
+    input.guildId,
+    input.soundBlobName,
+  );
+};
+
 df.app.activity("PostQuestion", { handler: PostQuestion });
 df.app.activity("SendQuestionSummary", { handler: SendQuestionSummary });
+df.app.activity("PostInterQuestionMessage", {
+  handler: PostInterQuestionMessage,
+});
+df.app.activity("PlaySound", { handler: PlaySound });
 df.app.activity("ShowScores", { handler: ShowScores });
