@@ -6,6 +6,7 @@ import {
 import {
   type APIChatInputApplicationCommandInteraction,
   type APIInteractionResponse,
+  PermissionFlagsBits,
 } from "discord-api-types/v10";
 import {
   createEphemeralResponse,
@@ -39,14 +40,16 @@ export class DeleteQuestionFromBankCommand implements IDiscordCommand {
         option
           .setName("bankname")
           .setDescription("The name of the question bank")
-          .setRequired(true),
+          .setRequired(true)
+          .setAutocomplete(true),
       )
       .addStringOption((option) =>
         option
           .setName("questionid")
           .setDescription("The ID of the question")
           .setRequired(true),
-      );
+      )
+      .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
   }
 
   public name = "delete_question_from_bank";

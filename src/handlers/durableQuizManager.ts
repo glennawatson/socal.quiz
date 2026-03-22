@@ -93,7 +93,7 @@ export class DurableQuizManager extends QuizManagerBase {
     }
 
     return {
-      type: InteractionResponseType.DeferredChannelMessageWithSource,
+      type: InteractionResponseType.DeferredMessageUpdate,
     };
   }
 

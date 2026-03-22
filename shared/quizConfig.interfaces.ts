@@ -43,12 +43,6 @@ export interface GuildQuizConfig {
   interQuestionMessages?: InterQuestionMessage[] | undefined;
   /** Milliseconds to display the answer summary before advancing. */
   summaryDurationMs?: number | undefined;
-  /** Whether soundboard audio playback is enabled. */
-  soundboardEnabled?: boolean | undefined;
-  /** Blob names of sounds eligible for playback. */
-  soundboardSoundIds?: string[] | undefined;
-  /** The voice channel ID to join for soundboard playback. */
-  soundboardVoiceChannelId?: string | undefined;
 }
 
 /**
@@ -64,12 +58,6 @@ export interface ResolvedQuizConfig {
   interQuestionMessages: InterQuestionMessage[];
   /** Milliseconds to display the answer summary before advancing. */
   summaryDurationMs: number;
-  /** Whether soundboard audio playback is enabled. */
-  soundboardEnabled: boolean;
-  /** Blob names of sounds eligible for playback. */
-  soundboardSoundIds: string[];
-  /** The voice channel ID to join for soundboard playback. */
-  soundboardVoiceChannelId: string;
 }
 
 /**
@@ -81,7 +69,4 @@ export const defaultQuizConfig: ResolvedQuizConfig = {
   advanceMode: QuizAdvanceMode.Auto,
   interQuestionMessages: [],
   summaryDurationMs: 5000,
-  soundboardEnabled: false,
-  soundboardSoundIds: [],
-  soundboardVoiceChannelId: "",
 };

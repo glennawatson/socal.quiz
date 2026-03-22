@@ -19,8 +19,6 @@ vi.mock("@src/util/questionStorage");
 vi.mock("@src/util/quizImageStorage");
 vi.mock("@src/util/guildStorage");
 vi.mock("@src/util/guildQuizConfigStorage");
-vi.mock("@src/util/soundboardStorage");
-vi.mock("@src/handlers/soundboardManager");
 vi.mock("@src/util/oauth2Relay");
 vi.mock("@src/util/errorHelpers", () => ({
   throwError: vi.fn((msg: string): never => {

@@ -4,6 +4,7 @@ import {
   type APIInteractionResponse,
   type APIModalSubmitInteraction,
   InteractionResponseType,
+  PermissionFlagsBits,
   TextInputStyle,
 } from "discord-api-types/v10";
 import {
@@ -48,7 +49,8 @@ export class AddQuestionToBankCommand implements IModalHandlerCommand {
   public data(): SlashCommandOptionsOnlyBuilder {
     return new SlashCommandBuilder()
       .setName(this.name)
-      .setDescription("Add a question to a question bank");
+      .setDescription("Add a question to a question bank")
+      .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
   }
 
   public name = "add_question_to_bank";

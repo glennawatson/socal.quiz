@@ -4,7 +4,7 @@ import {
   ButtonBuilder,
   EmbedBuilder,
 } from "@discordjs/builders";
-import { Routes } from "discord-api-types/v10";
+import { ButtonStyle, Routes } from "discord-api-types/v10";
 import { QuizImageStorage } from "../util/quizImageStorage.js";
 import { REST } from "@discordjs/rest";
 import type { QuizState } from "./quizState.interfaces.js";
@@ -140,7 +140,7 @@ export async function postQuestion(
         new ButtonBuilder()
           .setCustomId(`answer_${interactionId}_${answer.answerId}`)
           .setLabel(String.fromCharCode(65 + i + chunkIndex))
-          .setStyle(1),
+          .setStyle(ButtonStyle.Primary),
       ),
     );
     actionRows.push(row);

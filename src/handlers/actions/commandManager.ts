@@ -154,6 +154,38 @@ export class CommandManager {
       }
 
       return await command.execute(interaction);
+    } else if (interaction.type === InteractionType.ApplicationCommandAutocomplete) {
+      const commandName = interaction.data.name;
+      const command = this.commands.get(commandName);
+
+      if (command?.handleAutocomplete) {
+        const data = await command.handleAutocomplete(interaction);
+        return {
+          type: InteractionResponseType.ApplicationCommandAutocompleteResult,
+          data,
+        };
+      }
+
+      // Default autocomplete: search question bank names for the focused "bankname" option
+      const guildId = interaction.guild_id;
+      if (guildId) {
+        const focused = interaction.data.options?.find(
+          (opt) => "focused" in opt && opt.focused,
+        );
+        if (focused && focused.name === "bankname" && "value" in focused) {
+          const bankNames = await this.questionStorage.getQuestionBankNames(guildId);
+          const choices = CommandManager.filterBankNames(bankNames, focused.value);
+          return {
+            type: InteractionResponseType.ApplicationCommandAutocompleteResult,
+            data: { choices },
+          };
+        }
+      }
+
+      return {
+        type: InteractionResponseType.ApplicationCommandAutocompleteResult,
+        data: { choices: [] },
+      };
     } else {
       return {
         type: InteractionResponseType.ChannelMessageWithSource,
@@ -208,7 +240,7 @@ export class CommandManager {
 
     try {
       console.log("Started refreshing application (/) commands.");
-      await this.rest.post(
+      await this.rest.put(
         Routes.applicationGuildCommands(this.clientId, guildId),
         { body: commandData },
       );
@@ -225,5 +257,23 @@ export class CommandManager {
    */
   public registerCommand(command: IDiscordCommand): void {
     this.commands.set(command.name, command);
+  }
+
+  /**
+   * Filters a list of bank names by a partial query string, returning up to 25 autocomplete choices.
+   *
+   * @param bankNames - The full list of available bank names.
+   * @param query - The partial query to filter by (case-insensitive). May be null/undefined.
+   * @returns An array of autocomplete choice objects with name and value fields.
+   */
+  public static filterBankNames(
+    bankNames: string[],
+    query: string | number | null | undefined,
+  ): { name: string; value: string }[] {
+    const normalizedQuery = String(query ?? "").toLowerCase();
+    return bankNames
+      .filter((name) => name.toLowerCase().includes(normalizedQuery))
+      .slice(0, 25)
+      .map((name) => ({ name, value: name }));
   }
 }

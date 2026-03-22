@@ -6,6 +6,7 @@ import {
 import {
   type APIChatInputApplicationCommandInteraction,
   type APIInteractionResponse,
+  PermissionFlagsBits,
 } from "discord-api-types/v10";
 import {
   createEphemeralResponse,
@@ -32,7 +33,8 @@ export class NextQuestionCommand implements IDiscordCommand {
   public data(): SlashCommandOptionsOnlyBuilder {
     return new SlashCommandBuilder()
       .setName(this.name)
-      .setDescription("Show the next quiz question");
+      .setDescription("Show the next quiz question")
+      .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
   }
 
   public name = "next_question";

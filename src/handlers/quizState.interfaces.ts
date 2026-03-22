@@ -28,10 +28,4 @@ export interface QuizState {
   summaryDurationMs: number;
   /** Messages displayed between questions (e.g. trivia facts, advertisements). */
   interQuestionMessages: InterQuestionMessage[];
-  /** Whether soundboard audio playback is enabled for this quiz session. */
-  soundboardEnabled: boolean;
-  /** Blob names of sounds eligible for playback between questions. */
-  soundboardSoundIds: string[];
-  /** The voice channel ID to join for soundboard audio playback. */
-  soundboardVoiceChannelId: string;
 }

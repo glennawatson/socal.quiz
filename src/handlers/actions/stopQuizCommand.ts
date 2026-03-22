@@ -6,6 +6,7 @@ import {
 import {
   type APIChatInputApplicationCommandInteraction,
   type APIInteractionResponse,
+  PermissionFlagsBits,
 } from "discord-api-types/v10";
 import {
   createEphemeralResponse,
@@ -32,7 +33,8 @@ export class StopQuizCommand implements IDiscordCommand {
   public data(): SlashCommandOptionsOnlyBuilder {
     return new SlashCommandBuilder()
       .setName(this.name)
-      .setDescription("Stop the current quiz");
+      .setDescription("Stop the current quiz")
+      .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
   }
 
   public name = "stop_quiz";

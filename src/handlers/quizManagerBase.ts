@@ -124,9 +124,6 @@ export abstract class QuizManagerBase {
       advanceModeOverride ?? config.advanceMode,
       config.summaryDurationMs,
       config.interQuestionMessages,
-      config.soundboardEnabled,
-      config.soundboardSoundIds,
-      config.soundboardVoiceChannelId,
     );
   }
 
@@ -142,9 +139,6 @@ export abstract class QuizManagerBase {
    * @param advanceMode - How questions advance: "auto" (timer) or "manual" (host triggers). Defaults to "auto".
    * @param summaryDurationMs - Milliseconds to display the answer summary before advancing. Defaults to 5000.
    * @param interQuestionMessages - Optional messages displayed between questions.
-   * @param soundboardEnabled - Whether to play soundboard audio during the quiz. Defaults to false.
-   * @param soundboardSoundIds - Blob names of sounds eligible for playback.
-   * @param soundboardVoiceChannelId - The voice channel to join for soundboard playback.
    * @returns A promise that resolves to an interaction response.
    */
   public async startQuizInternal(
@@ -154,9 +148,6 @@ export abstract class QuizManagerBase {
     advanceMode: QuizAdvanceMode = "auto",
     summaryDurationMs = 5000,
     interQuestionMessages: InterQuestionMessage[] = [],
-    soundboardEnabled = false,
-    soundboardSoundIds: string[] = [],
-    soundboardVoiceChannelId = "",
   ): Promise<APIInteractionResponse> {
     if (questions.length === 0) {
       return createEphemeralResponse("There are no valid questions");
@@ -186,9 +177,6 @@ export abstract class QuizManagerBase {
       advanceMode,
       summaryDurationMs,
       interQuestionMessages,
-      soundboardEnabled,
-      soundboardSoundIds,
-      soundboardVoiceChannelId,
     };
 
     await this.stopQuiz(quiz.guildId, channelId); // Stop any existing quiz before starting a new one
@@ -232,14 +220,15 @@ export abstract class QuizManagerBase {
       return createEphemeralResponse("Could not find a valid interaction id");
     }
 
-    if (!interaction.user?.id) {
+    const userId = interaction.member?.user?.id;
+    if (!userId) {
       return createEphemeralResponse("Could not find a valid user id");
     }
 
     return await this.answerInteraction(
       interaction.guild_id,
       interaction.channel.id,
-      interaction.user.id,
+      userId,
       selectedAnswerId,
     );
   }

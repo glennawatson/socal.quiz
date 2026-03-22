@@ -33,10 +33,6 @@ vi.mock("../../src/util/config.js", () => ({
     initialize: vi.fn(),
     rest: {},
     imageStorage: {},
-    soundboardManager: {
-      isConnected: vi.fn(),
-      playSound: vi.fn(),
-    },
   },
 }));
 
@@ -46,7 +42,6 @@ import {
   SendQuestionSummary,
   PostInterQuestionMessage,
   ShowScores,
-  PlaySound,
 } from "../../src/functions/QuizOrchestrator.js";
 
 import {
@@ -84,9 +79,6 @@ function createQuizState(overrides: Partial<QuizState> = {}): QuizState {
     advanceMode: QuizAdvanceMode.Auto,
     summaryDurationMs: 5000,
     interQuestionMessages: [],
-    soundboardEnabled: false,
-    soundboardSoundIds: [],
-    soundboardVoiceChannelId: "",
     ...overrides,
   };
 }
@@ -167,7 +159,7 @@ describe("QuizOrchestrator", () => {
         expect.objectContaining({ _type: "activity", name: "SendQuestionSummary" }),
       );
 
-      // 4. Resume from SendQuestionSummary - no inter-question messages, no soundboard
+      // 4. Resume from SendQuestionSummary - no inter-question messages
       // In auto mode, waits for summary timer or cancel
       result = gen.next();
 
@@ -390,32 +382,6 @@ describe("QuizOrchestrator", () => {
       // PostInterQuestionMessage
       expect(result.value).toEqual(
         expect.objectContaining({ name: "PostInterQuestionMessage" }),
-      );
-    });
-
-    it("should play soundboard sounds when enabled", () => {
-      const quiz = createQuizState({
-        soundboardEnabled: true,
-        soundboardSoundIds: ["sound1.mp3"],
-        questionBank: [createQuestion("q1"), createQuestion("q2")],
-      });
-      const { context, timerObj } = createMockContext(quiz);
-
-      const gen = QuizOrchestrator(context as any);
-
-      // Q1: PostQuestion
-      gen.next();
-      // Task.any
-      gen.next();
-      // Timer expires
-      gen.next(timerObj);
-
-      // SendQuestionSummary
-      let result = gen.next();
-
-      // PlaySound
-      expect(result.value).toEqual(
-        expect.objectContaining({ name: "PlaySound" }),
       );
     });
 
@@ -655,36 +621,5 @@ describe("QuizOrchestrator", () => {
       });
     });
 
-    describe("PlaySound", () => {
-      it("should play sound when connected", async () => {
-        vi.mocked(Config.soundboardManager.isConnected).mockReturnValue(true);
-        vi.mocked(Config.soundboardManager.playSound).mockResolvedValue(undefined);
-
-        const input = { guildId: "guild1", soundBlobName: "sound.mp3" };
-
-        await PlaySound(input as any, mockInvocationContext);
-
-        expect(Config.soundboardManager.isConnected).toHaveBeenCalledWith("guild1");
-        expect(Config.soundboardManager.playSound).toHaveBeenCalledWith(
-          "guild1",
-          "sound.mp3",
-        );
-      });
-
-      it("should skip when not connected", async () => {
-        vi.mocked(Config.soundboardManager.isConnected).mockReturnValue(false);
-        const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-        const input = { guildId: "guild1", soundBlobName: "sound.mp3" };
-
-        await PlaySound(input as any, mockInvocationContext);
-
-        expect(Config.soundboardManager.playSound).not.toHaveBeenCalled();
-        expect(consoleSpy).toHaveBeenCalledWith(
-          expect.stringContaining("Soundboard not connected"),
-        );
-        consoleSpy.mockRestore();
-      });
-    });
   });
 });

@@ -65,7 +65,7 @@ describe("DurableQuizManager", () => {
         {},
       );
       expect(response).toEqual({
-        type: InteractionResponseType.DeferredChannelMessageWithSource,
+        type: InteractionResponseType.DeferredMessageUpdate,
       });
     });
 

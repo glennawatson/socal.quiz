@@ -129,9 +129,6 @@ describe("QuizManagerBase", () => {
         defaultQuizConfig.advanceMode,
         defaultQuizConfig.summaryDurationMs,
         defaultQuizConfig.interQuestionMessages,
-        defaultQuizConfig.soundboardEnabled,
-        defaultQuizConfig.soundboardSoundIds,
-        defaultQuizConfig.soundboardVoiceChannelId,
       );
     });
   });
@@ -256,7 +253,7 @@ describe("QuizManagerBase", () => {
           name: "name1",
           custom_id: "quiz__answer123",
         },
-        user: { id: "user123", username: "user", discriminator: "0001" },
+        member: { user: { id: "user123", username: "user", discriminator: "0001" } },
       } as any;
 
       const response =
@@ -393,7 +390,7 @@ describe("QuizManagerBase", () => {
           component_type: ComponentType.Button,
           custom_id: "quiz_123_answer123",
         },
-        user: undefined,
+        member: undefined,
       } as any as APIChatInputApplicationCommandInteraction;
 
       const response =
@@ -419,7 +416,7 @@ describe("QuizManagerBase", () => {
           name: "name1",
           custom_id: "quiz_123_answer123",
         },
-        user: { id: "user123", username: "user", discriminator: "0001" },
+        member: { user: { id: "user123", username: "user", discriminator: "0001" } },
       } as any;
 
       const answerInteractionSpy = vi.spyOn(

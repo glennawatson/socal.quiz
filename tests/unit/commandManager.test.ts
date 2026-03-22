@@ -19,8 +19,7 @@ describe("CommandManager", () => {
   let commandManager: CommandManager;
   const clientId = "testClientId";
   const guildId = "testGuildId";
-  let postSpy: any;
-  ////let putSpy: any;
+  let putSpy: any;
 
   beforeEach(() => {
     const botServiceMock = {
@@ -28,7 +27,7 @@ describe("CommandManager", () => {
     } as any;
 
     const questionStorageMock = {
-      // Mock any methods or properties used from QuestionStorage
+      getQuestionBankNames: vi.fn().mockResolvedValue([]),
     } as any;
 
     const restMock = {
@@ -36,8 +35,7 @@ describe("CommandManager", () => {
       post: vi.fn().mockResolvedValue({}),
     } as any;
 
-    postSpy = restMock.post;
-    ////putSpy = restMock.put;
+    putSpy = restMock.put;
 
     commandManager = new CommandManager(
       botServiceMock,
@@ -495,11 +493,164 @@ describe("CommandManager", () => {
     });
   });
 
+  describe("autocomplete", () => {
+    it("should return matching bank names for bankname autocomplete", async () => {
+      const questionStorageMock = {
+        getQuestionBankNames: vi.fn().mockResolvedValue(["trivia", "history", "science"]),
+      } as any;
+
+      const restMock = { put: vi.fn().mockResolvedValue({}), post: vi.fn().mockResolvedValue({}) } as any;
+      const cm = new CommandManager({} as any, questionStorageMock, clientId, restMock);
+
+      const interaction = {
+        type: InteractionType.ApplicationCommandAutocomplete,
+        guild_id: "guild1",
+        data: {
+          name: "start_quiz",
+          options: [
+            { name: "bankname", type: 3, value: "tri", focused: true },
+          ],
+        },
+      };
+
+      const response = await cm.handleInteraction(interaction as any);
+
+      expect(response).toEqual({
+        type: InteractionResponseType.ApplicationCommandAutocompleteResult,
+        data: { choices: [{ name: "trivia", value: "trivia" }] },
+      });
+    });
+
+    it("should return empty choices when no guild_id", async () => {
+      const interaction = {
+        type: InteractionType.ApplicationCommandAutocomplete,
+        guild_id: undefined,
+        data: {
+          name: "start_quiz",
+          options: [
+            { name: "bankname", type: 3, value: "tri", focused: true },
+          ],
+        },
+      };
+
+      const response = await commandManager.handleInteraction(interaction as any);
+
+      expect(response).toEqual({
+        type: InteractionResponseType.ApplicationCommandAutocompleteResult,
+        data: { choices: [] },
+      });
+    });
+
+    it("should return empty choices when focused option is not bankname", async () => {
+      const questionStorageMock = {
+        getQuestionBankNames: vi.fn().mockResolvedValue(["trivia"]),
+      } as any;
+
+      const restMock = { put: vi.fn().mockResolvedValue({}), post: vi.fn().mockResolvedValue({}) } as any;
+      const cm = new CommandManager({} as any, questionStorageMock, clientId, restMock);
+
+      const interaction = {
+        type: InteractionType.ApplicationCommandAutocomplete,
+        guild_id: "guild1",
+        data: {
+          name: "start_quiz",
+          options: [
+            { name: "mode", type: 3, value: "au", focused: true },
+          ],
+        },
+      };
+
+      const response = await cm.handleInteraction(interaction as any);
+
+      expect(response).toEqual({
+        type: InteractionResponseType.ApplicationCommandAutocompleteResult,
+        data: { choices: [] },
+      });
+    });
+
+    it("should delegate to command handleAutocomplete if available", async () => {
+      const mockAutocompleteData = { choices: [{ name: "custom", value: "custom" }] };
+      const mockCommand = {
+        data: () => new SlashCommandBuilder().setName("test_cmd").setDescription("test"),
+        execute: vi.fn(),
+        handleAutocomplete: vi.fn().mockResolvedValue(mockAutocompleteData),
+        name: "test_cmd",
+      };
+
+      commandManager.registerCommand(mockCommand);
+
+      const interaction = {
+        type: InteractionType.ApplicationCommandAutocomplete,
+        guild_id: "guild1",
+        data: {
+          name: "test_cmd",
+          options: [
+            { name: "bankname", type: 3, value: "c", focused: true },
+          ],
+        },
+      };
+
+      const response = await commandManager.handleInteraction(interaction as any);
+
+      expect(mockCommand.handleAutocomplete).toHaveBeenCalledWith(interaction);
+      expect(response).toEqual({
+        type: InteractionResponseType.ApplicationCommandAutocompleteResult,
+        data: mockAutocompleteData,
+      });
+    });
+  });
+
+  describe("filterBankNames", () => {
+    it("should filter bank names by partial query", () => {
+      const result = CommandManager.filterBankNames(
+        ["trivia", "history", "science"],
+        "tri",
+      );
+      expect(result).toEqual([{ name: "trivia", value: "trivia" }]);
+    });
+
+    it("should return all names when query is null", () => {
+      const result = CommandManager.filterBankNames(
+        ["trivia", "history"],
+        null,
+      );
+      expect(result).toEqual([
+        { name: "trivia", value: "trivia" },
+        { name: "history", value: "history" },
+      ]);
+    });
+
+    it("should return all names when query is undefined", () => {
+      const result = CommandManager.filterBankNames(
+        ["trivia", "history"],
+        undefined,
+      );
+      expect(result).toEqual([
+        { name: "trivia", value: "trivia" },
+        { name: "history", value: "history" },
+      ]);
+    });
+
+    it("should be case-insensitive", () => {
+      const result = CommandManager.filterBankNames(
+        ["Trivia", "HISTORY"],
+        "hist",
+      );
+      expect(result).toEqual([{ name: "HISTORY", value: "HISTORY" }]);
+    });
+
+    it("should limit results to 25", () => {
+      const names = Array.from({ length: 30 }, (_, i) => `bank${i}`);
+      const result = CommandManager.filterBankNames(names, "bank");
+      expect(result).toHaveLength(25);
+    });
+  });
+
   describe("registerCommands", () => {
     it("should register all commands", async () => {
       await commandManager.registerDefaultCommands(guildId);
 
-      expect(postSpy).toHaveBeenCalledWith(
+      expect(putSpy).toHaveBeenCalledWith(
         `/applications/${clientId}/guilds/${guildId}/commands`,
         { body: expect.any(Array) },
       );
@@ -521,7 +672,7 @@ describe("CommandManager", () => {
 
       await commandManager.registerCommandsForGuild(guildId);
 
-      expect(postSpy).toHaveBeenCalledWith(
+      expect(putSpy).toHaveBeenCalledWith(
         `/applications/${clientId}/guilds/${guildId}/commands`,
         {
           body: mockCommands.map((cmd) => cmd.data().toJSON()),
@@ -549,7 +700,7 @@ describe("CommandManager", () => {
 
     it("should handle API errors during command registration", async () => {
       const consoleErrorSpy = vi.spyOn(console, "error");
-      postSpy.mockRejectedValueOnce(new Error("API error"));
+      putSpy.mockRejectedValueOnce(new Error("API error"));
 
       await commandManager.registerDefaultCommands(guildId);
 

@@ -2,6 +2,7 @@ import type { IDiscordCommand } from "./discordCommand.interfaces.js";
 import {
   type APIChatInputApplicationCommandInteraction,
   type APIInteractionResponse,
+  PermissionFlagsBits,
 } from "discord-api-types/v10";
 import {
   generateErrorResponse,
@@ -38,7 +39,8 @@ export class StartQuizCommand implements IDiscordCommand {
         option
           .setName("bankname")
           .setDescription("The name of the question bank")
-          .setRequired(true),
+          .setRequired(true)
+          .setAutocomplete(true),
       )
       .addStringOption((option) =>
         option
@@ -49,7 +51,8 @@ export class StartQuizCommand implements IDiscordCommand {
             { name: "Manual", value: "manual" },
           )
           .setRequired(false),
-      );
+      )
+      .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
   }
 
   public name = "start_quiz";

@@ -10,8 +10,6 @@ import { DurableQuizManager } from "../handlers/durableQuizManager.js";
 import { QuizManagerFactoryManager } from "../handlers/quizManagerFactoryManager.js";
 import { OAuth2Relay } from "./oauth2Relay.js";
 import { GuildQuizConfigStorage } from "./guildQuizConfigStorage.js";
-import { SoundboardStorage } from "./soundboardStorage.js";
-import { SoundboardManager } from "../handlers/soundboardManager.js";
 
 /**
  * Singleton configuration class that initializes and holds all shared
@@ -33,8 +31,6 @@ export class Config {
   public static rest: REST;
   public static oauth2Relay: OAuth2Relay;
   public static guildQuizConfigStorage: GuildQuizConfigStorage;
-  public static soundboardStorage: SoundboardStorage;
-  public static soundboardManager: SoundboardManager;
 
   private static _initialized = false;
   private static _initializePromise: Promise<Config> | null = null;
@@ -146,8 +142,6 @@ export class Config {
       questionStorage ?? new QuestionStorage(Config.imageStorage);
     Config.guildStorage = guildStorage ?? new GuildStorage(getEnvVarOrDefault("AZURE_STORAGE_CONNECTION_STRING"));
     Config.guildQuizConfigStorage = guildQuizConfigStorage ?? new GuildQuizConfigStorage(getEnvVarOrDefault("AZURE_STORAGE_CONNECTION_STRING"));
-    Config.soundboardStorage = new SoundboardStorage(getEnvVarOrDefault("AZURE_STORAGE_CONNECTION_STRING"));
-    Config.soundboardManager = new SoundboardManager(Config.soundboardStorage);
     Config.quizManagerFactory =
       quizManagerFactory ??
       new QuizManagerFactoryManager(defaultQuizMethodFactory);

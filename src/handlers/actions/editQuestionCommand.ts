@@ -13,6 +13,7 @@ import {
   type APIModalSubmitInteraction,
   ComponentType,
   InteractionResponseType,
+  PermissionFlagsBits,
   TextInputStyle,
 } from "discord-api-types/v10";
 import {
@@ -292,14 +293,16 @@ export class EditQuestionCommand implements IModalHandlerCommand {
             option
                 .setName(EditQuestionCommand.optionIds.bankName)
                 .setDescription("The name of the question bank")
-                .setRequired(true),
+                .setRequired(true)
+                .setAutocomplete(true),
         )
         .addStringOption((option) =>
             option
                 .setName(EditQuestionCommand.optionIds.questionId)
                 .setDescription("The ID of the question")
                 .setRequired(true),
-        );
+        )
+        .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
   }
 
   public name = "edit_question";

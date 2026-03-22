@@ -50,8 +50,6 @@ export function GuildSettingsPage() {
   const [interQuestionMessages, setInterQuestionMessages] = useState<
     InterQuestionMessage[]
   >([]);
-  const [soundboardEnabled, setSoundboardEnabled] = useState(false);
-  const [soundboardVoiceChannelId, setSoundboardVoiceChannelId] = useState("");
 
   useEffect(() => {
     if (existingConfig) {
@@ -70,14 +68,6 @@ export function GuildSettingsPage() {
         existingConfig.interQuestionMessages ??
           defaultQuizConfig.interQuestionMessages,
       );
-      setSoundboardEnabled(
-        existingConfig.soundboardEnabled ??
-          defaultQuizConfig.soundboardEnabled,
-      );
-      setSoundboardVoiceChannelId(
-        existingConfig.soundboardVoiceChannelId ??
-          defaultQuizConfig.soundboardVoiceChannelId,
-      );
     }
   }, [existingConfig]);
 
@@ -89,8 +79,6 @@ export function GuildSettingsPage() {
       defaultQuestionShowTimeMs: defaultTimerSeconds * 1000,
       summaryDurationMs: summaryDurationSeconds * 1000,
       interQuestionMessages,
-      soundboardEnabled,
-      soundboardVoiceChannelId,
     };
     upsertMutation.mutate(config);
   }, [
@@ -99,8 +87,6 @@ export function GuildSettingsPage() {
     defaultTimerSeconds,
     summaryDurationSeconds,
     interQuestionMessages,
-    soundboardEnabled,
-    soundboardVoiceChannelId,
     upsertMutation,
   ]);
 
@@ -273,38 +259,6 @@ export function GuildSettingsPage() {
             <Button variant="outline" onClick={handleAddMessage}>
               Add Message
             </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Soundboard</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 max-w-md">
-            <div className="flex items-center gap-2">
-              <input
-                id="soundboardEnabled"
-                type="checkbox"
-                checked={soundboardEnabled}
-                onChange={(e) => setSoundboardEnabled(e.target.checked)}
-              />
-              <Label htmlFor="soundboardEnabled">
-                Enable soundboard between questions
-              </Label>
-            </div>
-            {soundboardEnabled && (
-              <div className="grid gap-2">
-                <Label htmlFor="voiceChannel">Voice Channel ID</Label>
-                <Input
-                  id="voiceChannel"
-                  placeholder="Discord voice channel ID"
-                  value={soundboardVoiceChannelId}
-                  onChange={(e) =>
-                    setSoundboardVoiceChannelId(e.target.value)
-                  }
-                />
-              </div>
-            )}
           </CardContent>
         </Card>
 

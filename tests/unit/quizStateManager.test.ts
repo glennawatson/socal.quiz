@@ -57,9 +57,6 @@ describe("Quiz Functions", () => {
       advanceMode: "auto",
       summaryDurationMs: 5000,
       interQuestionMessages: [],
-      soundboardEnabled: false,
-      soundboardSoundIds: [],
-      soundboardVoiceChannelId: "",
     };
     question = {
       questionShowTimeMs: 10,

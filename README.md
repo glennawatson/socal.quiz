@@ -14,7 +14,7 @@ An interactive Discord quiz bot that runs timed multiple-choice quizzes in Disco
 | Quiz orchestration | Azure Durable Functions (step-function style timer-based flow) |
 | Data storage | Azure Table Storage (question banks, guild data, quiz state) |
 | Image storage | Azure Blob Storage (question/explanation images, pre-signed URLs) |
-| Discord integration | `@discordjs/rest`, `discord-api-types`, `discord-verify` |
+| Discord integration | `@discordjs/rest`, `@discordjs/builders`, `discord-api-types`, `discord-verify` |
 | Auth | Discord OAuth2 (PKCE flow), guild ownership/role gating |
 | Web client | React 19, Vite, shadcn/ui, Tailwind CSS 4, TanStack Query + Table, React Hook Form + Zod |
 | Hosting | Azure Static Web Apps (web client), Azure Functions (API) |
@@ -24,6 +24,8 @@ An interactive Discord quiz bot that runs timed multiple-choice quizzes in Disco
 | Linting | ESLint 10 + Prettier |
 
 ## Discord Slash Commands
+
+All commands require **Manage Server** permission by default (`default_member_permissions`). Server admins can grant access to additional roles via Server Settings > Integrations. Commands with a bank name option support autocomplete.
 
 | Command | Description |
 |---|---|

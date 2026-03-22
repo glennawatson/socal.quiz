@@ -22,7 +22,7 @@ import type { InterQuestionMessage } from "../quizConfig.interfaces.js";
 /**
  * Durable Functions orchestrator that drives a quiz session from start to finish.
  * Iterates through each question in the bank, waits for answers or timer expiry,
- * tracks scores, posts inter-question messages and soundboard sounds, and
+ * tracks scores, posts inter-question messages, and
  * finally displays the scoreboard.
  *
  * @param context - The durable orchestration context.
@@ -133,22 +133,6 @@ export const QuizOrchestrator: OrchestrationHandler = function* (
         yield context.df.callActivity("PostInterQuestionMessage", {
           channelId: quiz.channelId,
           message,
-        });
-      }
-    }
-
-    // Play soundboard sound if enabled
-    if (
-      quiz.soundboardEnabled &&
-      quiz.soundboardSoundIds.length > 0
-    ) {
-      const soundIndex: number = index % quiz.soundboardSoundIds.length;
-      const soundId: string | undefined = quiz.soundboardSoundIds[soundIndex];
-      /* v8 ignore next -- soundIndex is bounded by array length so soundId is always defined */
-      if (soundId) {
-        yield context.df.callActivity("PlaySound", {
-          guildId: quiz.guildId,
-          soundBlobName: soundId,
         });
       }
     }
@@ -330,44 +314,9 @@ export const ShowScores: ActivityHandler = async (
   await showScores(Config.rest, input);
 };
 
-/** Input shape for the PlaySound activity. */
-interface PlaySoundInput {
-  guildId: string;
-  soundBlobName: string;
-}
-
-/**
- * Durable Functions activity that plays a soundboard sound in the guild's voice channel.
- * Skips playback if the bot is not currently connected to voice in that guild.
- *
- * @param input - The guild ID and sound blob name to play.
- * @param context - The Azure Functions invocation context.
- * @returns A promise that resolves when the sound has been played or skipped.
- */
-export const PlaySound: ActivityHandler = async (
-  input: PlaySoundInput,
-  context: InvocationContext,
-): Promise<void> => {
-  const durableClient = df.getClient(context);
-  await Config.initialize(durableClient);
-
-  if (!Config.soundboardManager.isConnected(input.guildId)) {
-    console.warn(
-      `Soundboard not connected for guild ${input.guildId}, skipping sound playback`,
-    );
-    return;
-  }
-
-  await Config.soundboardManager.playSound(
-    input.guildId,
-    input.soundBlobName,
-  );
-};
-
 df.app.activity("PostQuestion", { handler: PostQuestion });
 df.app.activity("SendQuestionSummary", { handler: SendQuestionSummary });
 df.app.activity("PostInterQuestionMessage", {
   handler: PostInterQuestionMessage,
 });
-df.app.activity("PlaySound", { handler: PlaySound });
 df.app.activity("ShowScores", { handler: ShowScores });

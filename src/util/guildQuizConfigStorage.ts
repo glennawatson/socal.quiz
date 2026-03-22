@@ -122,18 +122,6 @@ export class GuildQuizConfigStorage {
         bankConfig?.summaryDurationMs ??
         guildConfig?.summaryDurationMs ??
         defaultQuizConfig.summaryDurationMs,
-      soundboardEnabled:
-        bankConfig?.soundboardEnabled ??
-        guildConfig?.soundboardEnabled ??
-        defaultQuizConfig.soundboardEnabled,
-      soundboardSoundIds:
-        bankConfig?.soundboardSoundIds ??
-        guildConfig?.soundboardSoundIds ??
-        defaultQuizConfig.soundboardSoundIds,
-      soundboardVoiceChannelId:
-        bankConfig?.soundboardVoiceChannelId ??
-        guildConfig?.soundboardVoiceChannelId ??
-        defaultQuizConfig.soundboardVoiceChannelId,
     };
   }
 }
@@ -156,9 +144,6 @@ function toTableEntity(
     advanceMode: config.advanceMode,
     interQuestionMessages: config.interQuestionMessages,
     summaryDurationMs: config.summaryDurationMs,
-    soundboardEnabled: config.soundboardEnabled,
-    soundboardSoundIds: config.soundboardSoundIds,
-    soundboardVoiceChannelId: config.soundboardVoiceChannelId,
   };
 }
 
@@ -178,8 +163,5 @@ function fromTableEntity(
     advanceMode: entity.advanceMode,
     interQuestionMessages: entity.interQuestionMessages,
     summaryDurationMs: entity.summaryDurationMs,
-    soundboardEnabled: entity.soundboardEnabled,
-    soundboardSoundIds: entity.soundboardSoundIds,
-    soundboardVoiceChannelId: entity.soundboardVoiceChannelId,
   };
 }

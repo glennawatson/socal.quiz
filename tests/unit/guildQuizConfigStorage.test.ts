@@ -100,9 +100,6 @@ describe("GuildQuizConfigStorage", () => {
         advanceMode: "manual",
         interQuestionMessages: undefined,
         summaryDurationMs: 3000,
-        soundboardEnabled: true,
-        soundboardSoundIds: ["s1"],
-        soundboardVoiceChannelId: "vc1",
       });
 
       const result = await storage.getConfig("guild-1", "default");
@@ -114,9 +111,6 @@ describe("GuildQuizConfigStorage", () => {
         advanceMode: "manual",
         interQuestionMessages: undefined,
         summaryDurationMs: 3000,
-        soundboardEnabled: true,
-        soundboardSoundIds: ["s1"],
-        soundboardVoiceChannelId: "vc1",
       });
       expect(tableClientMock.getEntity).toHaveBeenCalledWith(
         "guild-1",
@@ -165,9 +159,6 @@ describe("GuildQuizConfigStorage", () => {
           { messageId: "m1", content: "Hello" },
         ],
         summaryDurationMs: 5000,
-        soundboardEnabled: false,
-        soundboardSoundIds: [],
-        soundboardVoiceChannelId: "",
       };
 
       await storage.upsertConfig(config);
@@ -183,9 +174,6 @@ describe("GuildQuizConfigStorage", () => {
           { messageId: "m1", content: "Hello" },
         ],
         summaryDurationMs: 5000,
-        soundboardEnabled: false,
-        soundboardSoundIds: [],
-        soundboardVoiceChannelId: "",
       });
     });
   });
@@ -222,9 +210,6 @@ describe("GuildQuizConfigStorage", () => {
               advanceMode: "manual",
               interQuestionMessages: undefined,
               summaryDurationMs: undefined,
-              soundboardEnabled: undefined,
-              soundboardSoundIds: undefined,
-              soundboardVoiceChannelId: undefined,
             });
           }
           return Promise.reject(
@@ -244,15 +229,6 @@ describe("GuildQuizConfigStorage", () => {
       expect(result.summaryDurationMs).toBe(
         defaultQuizConfig.summaryDurationMs,
       );
-      expect(result.soundboardEnabled).toBe(
-        defaultQuizConfig.soundboardEnabled,
-      );
-      expect(result.soundboardSoundIds).toEqual(
-        defaultQuizConfig.soundboardSoundIds,
-      );
-      expect(result.soundboardVoiceChannelId).toBe(
-        defaultQuizConfig.soundboardVoiceChannelId,
-      );
     });
 
     it("should merge bank config over guild config over system defaults", async () => {
@@ -266,9 +242,6 @@ describe("GuildQuizConfigStorage", () => {
               advanceMode: "manual",
               interQuestionMessages: undefined,
               summaryDurationMs: 8000,
-              soundboardEnabled: true,
-              soundboardSoundIds: ["guild-sound"],
-              soundboardVoiceChannelId: "vc-guild",
             });
           }
           if (rowKey === "my-bank") {
@@ -279,9 +252,6 @@ describe("GuildQuizConfigStorage", () => {
               advanceMode: undefined,
               interQuestionMessages: [{ messageId: "m1", content: "Hi" }],
               summaryDurationMs: undefined,
-              soundboardEnabled: undefined,
-              soundboardSoundIds: undefined,
-              soundboardVoiceChannelId: undefined,
             });
           }
           return Promise.reject(
@@ -300,9 +270,6 @@ describe("GuildQuizConfigStorage", () => {
       // Falls through to guild config
       expect(result.advanceMode).toBe("manual");
       expect(result.summaryDurationMs).toBe(8000);
-      expect(result.soundboardEnabled).toBe(true);
-      expect(result.soundboardSoundIds).toEqual(["guild-sound"]);
-      expect(result.soundboardVoiceChannelId).toBe("vc-guild");
     });
 
     it("should not fetch bank config when bankName is not provided", async () => {
