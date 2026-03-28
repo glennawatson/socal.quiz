@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@azure/data-tables": "^13.3.2",
-    "@azure/functions": "^4.11.2",
+    "@azure/functions": "^4.12.0",
     "@azure/storage-blob": "^12.31.0",
     "@discordjs/builders": "^1.13.1",
     "@discordjs/rest": "^2.6.0",
